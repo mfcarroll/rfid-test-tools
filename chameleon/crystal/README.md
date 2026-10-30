@@ -8,9 +8,11 @@ tools, same method:
 - **The command line** (`hfxo_ntp.py`), using NTP. Needs Python 3, `pyserial`, and outbound UDP port 123.
 
 ```
-pip install pyserial
-python3 hfxo_ntp.py /dev/tty.usbmodemXXXX --minutes 30     # COM5 on Windows, /dev/ttyACM0 on Linux
+uv run hfxo_ntp.py /dev/tty.usbmodemXXXX --minutes 30      # COM5 on Windows, /dev/ttyACM0 on Linux
 ```
+
+`uv run` and `pipx run` install pyserial themselves, from the script's inline header. With plain Python,
+`pip install pyserial` first, then `python3 hfxo_ntp.py ...`.
 
 ## Firmware
 
@@ -52,16 +54,23 @@ A + result means the crystal runs fast.
 - **Computer clock:** the page reads `performance.timeOrigin + performance.now()`; the script reads
   `time.perf_counter()`. On macOS and Windows both are monotonic and never slewed. The fit measures the computer
   clock's own rate error against the time server and takes it out.
-- **Page reference:** `https://time.akamai.com/?ms`, millisecond stamps, readable from any site. Three dense bursts
-  (120 requests 0.25 s apart by default): at the start, halfway and at the end. The rate comes from the fastest 20 %
-  of the start and end bursts, so a constant asymmetry in the network path cancels out. Five-request probes every
-  60 s feed only the provisional figure and the plot.
+- **Page reference:** two servers with millisecond stamps, readable from any site: `https://time.akamai.com/?ms`
+  and `https://time.mfc.cx/` (a Cloudflare Worker, [`../../timeserver/`](../../timeserver/)). Requests alternate
+  between them in three dense bursts (120 to each server, 0.25 s apart by default): at the start, halfway and at the
+  end. Each server's rate comes from the fastest 20 % of its start and end bursts, so a constant asymmetry in the
+  network path cancels out. The result uses the two rates' weighted mean. Five-request probes to each server every
+  60 s feed only the provisional figure and the plot. A server that fails half the start burst is left out.
 - **Script reference:** one SNTP query every 16 s through the run (public servers rate-limit bursts). The server name
   is resolved once so every query reaches the same machine. Only the fastest half of the queries by round trip go
   into the fit.
 - **Path check:** a change in the network path mid-run (a new route, or a different server behind the name) biases
-  the rate. Both tools fit each half of the run on its own and flag the run if the halves disagree by more than 3σ.
+  the rate. Both tools fit each half of the run on its own and flag the run if the crystal's offset in the two halves
+  differs by more than 3σ. Each half measures the crystal against the reference, not the computer's clock. A change
+  in the computer clock's rate between the halves therefore cancels out of the check.
   A slow, steady drift in path asymmetry looks exactly like a clock rate, and no schedule can catch it.
+- **Server check (page):** the two servers sit on different networks, and a path problem on one moves only its own
+  rate. The page flags the run if the crystal's offset against each server differs by more than 3σ. The server check
+  also catches a slow drift on one path, which the halves check can't.
 - **Sleep:** macOS's monotonic clock stops while the computer sleeps and the CU keeps counting. A run whose CU reads
   scatter more than 20 ms rms is rejected.
 - The page sleeps in a Web Worker so a hidden tab isn't throttled, asks for a screen wake lock, and logs every time
@@ -72,13 +81,16 @@ A + result means the crystal runs fast.
 `selftest.mjs` (`node selftest.mjs`) checks the framing and runs the fits on synthetic runs: network 6 ms each way
 plus exponential queueing (mean 12 ms), 1 ms server stamps, ~1 ms USB jitter with 1 % 20 ms stalls. 40 seeds each:
 
-| run | error rms | worst | mean reported ± |
-|---|---|---|---|
-| 15 min | 0.70 ppm | 2.35 | 0.66 |
-| 30 min | 0.32 ppm | 0.86 | 0.32 |
-| 60 min | 0.13 ppm | 0.30 | 0.16 |
+| run    | error rms | worst | mean reported ± |
+| ------ | --------- | ----- | --------------- |
+| 15 min | 0.70 ppm  | 2.35  | 0.66            |
+| 30 min | 0.32 ppm  | 0.86  | 0.32            |
+| 60 min | 0.13 ppm  | 0.30  | 0.16            |
 
 On a 30 min run the halves check flags a single path change that biases the result by more than about 1.5 ppm.
+With both servers, the 30 min error falls to 0.21 ppm rms, against 0.34 with one. An outbound delay on one path that
+grows steadily by 8 ms over the run passes that server's halves check 19 times in 20, and the server check catches it
+19 times in 20.
 
 On hardware (macOS, wifi), two CUs on 30 min page runs read within 0.42 ppm of an earlier independent NTP
 measurement, and their difference matched it to 0.02 ppm. The page's correction for the computer's clock matched an
@@ -93,12 +105,12 @@ independent NTP logger to 0.04 ppm. One CU on the test firmware above read +37.4
 
 ## Files
 
-| file | |
-|---|---|
-| `index.html` | the page |
-| `hfxo.js` | command 3125, and the fits at the CU's tick rate; shared by the page and the self-test |
-| `selftest.mjs` | self-test, no hardware |
-| `hfxo_ntp.py` | the command-line version |
-| `firmware/` | the test firmware (stock v2.3.0 is in `../common/firmware/`) |
-| `../common/cu.js`, `../common/flash-ui.js` | the CU client and flashing, shared with the self-trim page |
-| `../../common/timerun.js`, `timefit.js` | the measurement and its fits, shared with the Flipper crystal page |
+| file                                       |                                                                                        |
+| ------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `index.html`                               | the page                                                                               |
+| `hfxo.js`                                  | command 3125, and the fits at the CU's tick rate; shared by the page and the self-test |
+| `selftest.mjs`                             | self-test, no hardware                                                                 |
+| `hfxo_ntp.py`                              | the command-line version                                                               |
+| `firmware/`                                | the test firmware (stock v2.3.0 is in `../common/firmware/`)                           |
+| `../common/cu.js`, `../common/flash-ui.js` | the CU client and flashing, shared with the self-trim page                             |
+| `../../common/timerun.js`, `timefit.js`    | the measurement and its fits, shared with the Flipper crystal page                     |
