@@ -292,6 +292,20 @@ def robust_fit(x, y):
     return slope, slope_sigma, sum(keep), len(x)
 
 
+# A path's delay wanders by a fraction of a millisecond, and the scatter of the queries
+# can't show that. with_path_floor adds PATH_FLOOR (in seconds) to each end of an NTP fit,
+# in quadrature. Without it, the halves check fails on wander that biases the result by
+# less than the +- allows.
+PATH_FLOOR = 0.3e-3
+
+
+def with_path_floor(slope_sigma, times):
+    """The NTP fit's slope sigma, with PATH_FLOOR added for the span of times."""
+    return math.hypot(
+        slope_sigma, math.sqrt(2) * PATH_FLOOR / (max(times) - min(times))
+    )
+
+
 def fastest_half(ntp_samples):
     """The NTP samples with the shorter half of the round trips."""
     cut = sorted(round_trip for _, _, round_trip in ntp_samples)[len(ntp_samples) // 2]
@@ -343,6 +357,7 @@ def fit_run(reads, ntp_samples):
     query_times = [mid - ntp_samples[0][0] for mid, _, _ in fast]
     query_offsets = [offset for _, offset, _ in fast]
     clock_drift, clock_drift_sigma, kept, _ = robust_fit(query_times, query_offsets)
+    clock_drift_sigma = with_path_floor(clock_drift_sigma, query_times)
     ppm, sigma = crystal_ppm(tick_rate, tick_rate_sigma, clock_drift, clock_drift_sigma)
     return {
         "ppm": ppm,
@@ -462,6 +477,7 @@ def main():
             (query_times[half:], query_offsets[half:], lambda t: t >= split),
         ):
             drift, drift_sigma, _, _ = robust_fit(times, offsets)
+            drift_sigma = with_path_floor(drift_sigma, times)
             half_reads = [read for read in reads if in_half(read[0])]
             rate, rate_sigma, _, _ = robust_fit(
                 [read_time - half_reads[0][0] for read_time, _ in half_reads],

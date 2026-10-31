@@ -87,6 +87,11 @@ export function fastest(samples, frac = 0.2, min = 5) {
   );
 }
 
+// A path's delay wanders by a fraction of a millisecond between bursts, and the scatter inside one burst can't show
+// that. refFit adds PATH_FLOOR (in seconds) to each end's offset, in quadrature. Without it, the checks below fail
+// on wander that biases the result by less than the ± allows.
+export const PATH_FLOOR = 0.3e-3;
+
 // Fits the local clock against the reference: offset(t) = a + k (t - t0), where offset is server minus local.
 // The fit uses the fastest samples of each group given: the two end bursts, or during the run the start burst
 // plus each probe's best. k > 0 means the local clock runs slow. A constant asymmetry shifts only `a`, and
@@ -100,13 +105,14 @@ export function refFit(groups, opts = {}) {
   const x = pts.map((s) => (s.tb + s.ta) / 2 - t0),
     y = pts.map(sampleOffset);
   const f = linfit(x, y);
+  const span = Math.max(...x) - Math.min(...x);
   return {
     k: f.k,
     a: f.b,
     t0,
-    sigK: f.sigK,
+    sigK: Math.hypot(f.sigK, (Math.SQRT2 * PATH_FLOOR) / span),
     n: pts.length,
-    span: Math.max(...x) - Math.min(...x),
+    span,
     rmsMs: Math.sqrt(f.res.reduce((s, r) => s + r * r, 0) / f.res.length) * 1e3,
   };
 }

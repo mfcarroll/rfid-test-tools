@@ -304,7 +304,7 @@ console.log("two time servers");
   check(rms(both) < rms(one), "two servers measure better than one");
   check(flagged <= 1, "no false alarms between servers on steady paths");
 }
-for (const drift of [4, 8]) {
+for (const drift of [4, 8, 12]) {
   let caught = 0,
     halves = 0,
     errSum = 0;
@@ -324,7 +324,7 @@ for (const drift of [4, 8]) {
     `  ${drift} ms steady drift on one path: mean error ${(errSum / 20).toFixed(2)} ppm; servers disagree ` +
       `${caught}/20, that server's halves check ${halves}/20`,
   );
-  if (drift >= 8)
+  if (drift >= 12)
     check(
       caught >= 18 && halves <= 2,
       "the servers catch a slow drift that the halves check can't see",

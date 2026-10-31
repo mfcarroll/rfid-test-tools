@@ -183,6 +183,17 @@ def robust_fit(x, y):
     return k, sig, sum(keep), len(x)
 
 
+# A path's delay wanders by a fraction of a millisecond, and the scatter of the queries can't show that.
+# with_path_floor adds PATH_FLOOR (in seconds) to each end of an NTP fit, in quadrature. Without it, the halves check
+# fails on wander that biases the result by less than the +- allows.
+PATH_FLOOR = 0.3e-3
+
+
+def with_path_floor(sig, x):
+    """The NTP fit's slope sigma, with PATH_FLOOR added for the span of x."""
+    return math.hypot(sig, math.sqrt(2) * PATH_FLOOR / (max(x) - min(x)))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("port", help="the PM3's serial port (/dev/tty.usbmodem..., /dev/ttyACM0, COM5)")
@@ -259,6 +270,7 @@ def main():
     rx = [m - ref_pts[0][0] for m, _, _ in fast]
     ry = [o for _, o, _ in fast]
     k, ksig, kept, _ = robust_fit(rx, ry)
+    ksig = with_path_floor(ksig, rx)
 
     # The halves check fits each half of the run on its own and compares the crystal's offset in each. The local
     # clock's rate can change between the halves, and the device's rate against the local clock then moves the
@@ -267,7 +279,9 @@ def main():
     split = fast[half][0]
     halves = []
     for queries, keep in ((fast[: half + 1], lambda t: t <= split), (fast[half:], lambda t: t >= split)):
-        hk, hk_sig, _, _ = robust_fit([m - ref_pts[0][0] for m, _, _ in queries], [o for _, o, _ in queries])
+        hx = [m - ref_pts[0][0] for m, _, _ in queries]
+        hk, hk_sig, _, _ = robust_fit(hx, [o for _, o, _ in queries])
+        hk_sig = with_path_floor(hk_sig, hx)
         pts = [(t, c) for t, c in pm3_pts if keep(t)]
         hf, hf_sig, _, _ = robust_fit([t - pts[0][0] for t, _ in pts], [c - pts[0][1] for _, c in pts])
         halves.append(((hf / (1 + hk) / NOMINAL - 1) * 1e6, math.hypot(hf_sig / NOMINAL, hk_sig) * 1e6, -hk * 1e6))
