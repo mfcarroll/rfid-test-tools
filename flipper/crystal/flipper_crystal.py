@@ -3,36 +3,38 @@
 # requires-python = ">=3.8"
 # dependencies = ["pyserial"]
 # ///
-"""Measures a Flipper Zero's crystal against internet time (NTP).
+"""Measures a Flipper Zero's crystal oscillator against internet time (NTP).
 
 The script saves the result as the calibration in the RFID detector app (1.5 or
 later). This is the command-line version of
-https://mfcarroll.github.io/rfid-test-tools/flipper/crystal/ (the QR code in the app).
+https://mfcarroll.github.io/rfid-test-tools/flipper/crystal/
 
     uv run flipper_crystal.py              # or: pipx run flipper_crystal.py
     python3 flipper_crystal.py             # after: pip install pyserial
     python3 flipper_crystal.py COM5 --minutes 15
 
-Plug your Flipper in to USB and close qFlipper. Exit any app that's open on the Flipper
-itself. The script finds the Flipper by its USB ID. If more than one Flipper is plugged
-in, give its port. The script opens the app on its "Computer calibration" screen, and
-the app shows the progress there during the run.
+Plug your Flipper in to USB and close qFlipper. Exit any app that's open on the
+Flipper itself. The script finds the Flipper by USB ID. Specify the port if more than
+one Flipper is plugged in. The script opens the app on the "Computer calibration"
+screen, and shows progress on the Flipper's screen during the run.
 
-At the end, the script prints the result in ppm (+ means the crystal runs fast). If the
-run passed its checks, the script also saves the result in the app. --no-send skips the
-save. Keep the computer awake.
+When the run finishes, the script prints the result in ppm (+ means the crystal runs
+fast). The script also saves the result in the app if the two halves of the run are
+consistent, the Flipper's temperature changed by 3 °C or less, and the result is
+within ±100 ppm.
 
 Method: the app's `rfid_detector_cal` command reads a 64 MHz timer that runs from the
 crystal. The script reads that timer every 2 s, and notes this computer's monotonic
-clock just before and just after each read. NTP gives the monotonic clock's own rate
-error over the same time, and the script removes that error from the result. The script
-queries the NTP server every 16 s and looks up its name only once. The fit uses the
-fastest half of the queries by round trip.
+clock immediately before and after each read. NTP gives the monotonic clock's own rate
+error over the same time. The script removes that error from the result. The script
+queries the NTP server every 16 s and uses the fastest half of the queries based on
+round-trip timing to fit the result.
 """
 
 import argparse
 import json
 import math
+import os
 import re
 import socket
 import struct
@@ -47,13 +49,18 @@ COMMAND = b"rfid_detector_cal\r"
 # where the app catalog and the page install the app
 APP_PATH = "/ext/apps/Tools/nfc_rfid_detector.fap"
 READ_INTERVAL, NTP_INTERVAL = 2.0, 16.0
-SETTLED_SIGMA = 5.0  # ppm: the running estimate is shown once its +- is under this
+SETTLED_SIGMA = 5.0  # ppm, the running estimate is shown once the ± is less than this
 NTP_EPOCH = 2208988800  # 1900 -> 1970
-CAL_LIMIT = 100.0  # ppm, as the app's Calibration screen
+CAL_LIMIT = 100.0  # ppm, same limit as the app's manual calibration screen
+# The crystal shifts by about this much per °C (measured on one Flipper, with ice packs)
+PPM_PER_DEGREE = 0.25
+# The result isn't saved if the temperature changed by more than this during a run (about 0.75 ppm)
+TEMPERATURE_LIMIT = 3.0  # °C
 
-# The local clock is perf_counter (mach_absolute_time on macOS, QueryPerformanceCounter on
-# Windows), moved once onto a Unix-like scale to keep offsets small. Nothing steps it, and
-# the NTP fit measures its rate error.
+# now() reads perf_counter (mach_absolute_time on macOS, QueryPerformanceCounter on
+# Windows), not time.time(), because the system's time sync can step the wall clock
+# mid-run. _BASE shifts the counter onto Unix time, so an NTP offset is milliseconds,
+# not the whole date. The NTP fit measures the counter's rate error.
 _BASE = time.time() - time.perf_counter()
 
 
@@ -90,12 +97,16 @@ class Flipper:
 
     def __init__(self, port):
         try:
-            self.ser = serial.Serial(port, 230400, timeout=2)
+            # exclusive: on macOS and Linux the port isn't locked otherwise
+            self.ser = serial.Serial(
+                port, 230400, timeout=2, exclusive=True if os.name == "posix" else None
+            )
         except serial.SerialException as error:
             raise SystemExit(
                 f"couldn't open {port}: {error.strerror or error}\n"
-                "Something else has the Flipper's port open. Close qFlipper, any browser "
-                "tab connected to the Flipper and any other script, then run again."
+                "Something else has the Flipper's port open. Close qFlipper, any "
+                "browser tab connected to the Flipper and any other script, then run "
+                "again."
             ) from None
         time.sleep(0.4)
         self.ser.reset_input_buffer()
@@ -130,8 +141,9 @@ class Flipper:
         if out:
             raise SystemExit(
                 f"Flipper: couldn't open the RFID detector app: {out}\n"
-                "Exit any app that's open on the Flipper, or open the RFID detector yourself. "
-                "Press Left for Config, then choose Calibrate with a computer."
+                "Exit any app that's open on the Flipper, or open the RFID detector "
+                "yourself. Press Left for Config, then choose Calibrate with a "
+                "computer."
             )
         time.sleep(1.5)
 
@@ -155,10 +167,11 @@ class Flipper:
                 if "could not find command" in line:
                     if attempt:
                         raise SystemExit(
-                            "Flipper: the RFID detector app is older than 1.5. Update it."
+                            "Flipper: the RFID detector app is older than 1.5. "
+                            "Update it."
                         )
-                    # If the RFID detector app is closed, open it.
-                    # The loop then sends the command again.
+                    # If the RFID detector app is closed, open it and send the
+                    # command again.
                     if "detector" not in (self.running_app() or "").lower():
                         self.open_app()
                     break
@@ -189,6 +202,14 @@ class Flipper:
             "pll": bool(pll),
         }
 
+    def temperature(self):
+        """The Flipper's temperature in °C, from its battery gauge."""
+        self.ser.write(b"t")
+        line = self._line()
+        if not line.startswith("T "):
+            raise SystemExit(f"Flipper: unexpected reply {line!r} to t")
+        return int(line[2:]) / 10
+
     def progress(self, elapsed, total, ppm=None, sigma=None):
         message = f"p{int(elapsed)} {int(total)}"
         if ppm is not None:
@@ -198,7 +219,7 @@ class Flipper:
     def send(self, ppm, sigma):
         value = round(ppm * 10)
         self.ser.write(f"s{value} {max(1, round(sigma * 10))}\r".encode())
-        self.ser.timeout = 5  # the app replies after saving
+        self.ser.timeout = 12  # the app replies after saving, within 10 s
         line = self._line()
         self.ser.timeout = 2
         if line.startswith("ERR"):
@@ -207,9 +228,12 @@ class Flipper:
             raise RuntimeError(f"Flipper didn't take the value: {line!r}")
 
     def close(self):
-        if self.open:
-            self.ser.write(b"q")
-            self.open = False
+        try:
+            if self.open:
+                self.ser.write(b"q")
+        except serial.SerialException:
+            pass  # the Flipper is gone, and its session ended with it
+        self.open = False
         self.ser.close()
 
 
@@ -228,9 +252,7 @@ def ntp_query(address, timeout=2.0):
         sock.sendto(b"\x23" + 47 * b"\0", address)  # LI 0, version 4, mode 3 (client)
         packet, _ = sock.recvfrom(512)
         t4 = now()
-    if (
-        len(packet) < 48 or packet[1] == 0
-    ):  # stratum 0: kiss-o'-death, e.g. rate limited
+    if len(packet) < 48 or packet[1] == 0:  # stratum 0: e.g. rate limited
         raise RuntimeError(f"server refused ({packet[12:16]!r})")
 
     def timestamp(field_offset):
@@ -289,13 +311,14 @@ def robust_fit(x, y):
         kept_x = [xi for xi, kept in zip(x, keep) if kept]
         kept_y = [yi for yi, kept in zip(y, keep) if kept]
         slope, _, residuals, slope_sigma = linfit(kept_x, kept_y)
-    return slope, slope_sigma, sum(keep), len(x)
+        return slope, slope_sigma, len(kept_x), len(x)
+    return slope, slope_sigma, len(x), len(x)
 
 
-# A path's delay wanders by a fraction of a millisecond, and the scatter of the queries
-# can't show that. with_path_floor adds PATH_FLOOR (in seconds) to each end of an NTP fit,
-# in quadrature. Without it, the halves check fails on wander that biases the result by
-# less than the +- allows.
+# A network path's delay drifts by a few tenths of a millisecond over minutes. The drift
+# tilts the NTP fit but barely adds to the scatter, so the fit ± misses the drift.
+# with_path_floor adds PATH_FLOOR at each end of the fitted span, as a root-sum-square
+# with the fit's own ±. Without the floor, ordinary drift fails the halves check.
 PATH_FLOOR = 0.3e-3
 
 
@@ -322,14 +345,15 @@ def crystal_ppm(tick_rate, tick_rate_sigma, clock_drift, clock_drift_sigma):
 
 
 def quote(value, sigma):
-    """ "+16.2 +- 0.7 ppm". Both numbers go to the +-'s first significant digit, or to its
-    first two when that digit is 1, and never finer than 0.1 ppm (the app's resolution)."""
+    """ "+16.2 ± 0.7 ppm". Both numbers go to the ±'s first significant digit, or to its
+    first two when that digit is 1, and never finer than 0.1 ppm (the app's resolution).
+    """
     decimals = 1
     if sigma > 0:
         exponent = math.floor(math.log10(sigma))
         decimals = -exponent + (1 if sigma / 10**exponent < 2 else 0)
         decimals = max(0, min(1, decimals))
-    return f"{value:+.{decimals}f} +- {sigma:.{decimals}f} ppm"
+    return f"{value:+.{decimals}f} ± {sigma:.{decimals}f} ppm"
 
 
 def fit_run(reads, ntp_samples):
@@ -350,7 +374,7 @@ def fit_run(reads, ntp_samples):
     ticks = [read_ticks - reads[0][1] for _, read_ticks in reads]
     tick_rate, tick_rate_sigma, _, _ = robust_fit(elapsed, ticks)
     residuals = linfit(elapsed, ticks)[2]
-    rms_seconds = math.sqrt(sum(residual**2 for residual in residuals) / len(elapsed))
+    rms_ticks = math.sqrt(sum(residual**2 for residual in residuals) / len(elapsed))
     fast = fastest_half(ntp_samples)
     if len(fast) < 3:
         return None
@@ -363,7 +387,7 @@ def fit_run(reads, ntp_samples):
         "ppm": ppm,
         "sigma": sigma,
         "tick_rate": tick_rate,
-        "rms_us": rms_seconds / tick_rate * 1e6,
+        "rms_us": rms_ticks / tick_rate * 1e6,
         "clock_drift": clock_drift,
         "kept": kept,
         "query_times": query_times,
@@ -383,7 +407,7 @@ def main():
         "--minutes",
         type=float,
         default=30,
-        help="how long to measure. 30 by default (15 gives about +-0.5 ppm)",
+        help="how long to measure. 30 by default (15 gives about ±0.5 ppm)",
     )
     parser.add_argument(
         "--server", default="time.cloudflare.com", help="the NTP server, looked up once"
@@ -396,18 +420,22 @@ def main():
     )
     args = parser.parse_args()
 
-    address = socket.getaddrinfo(args.server, 123, type=socket.SOCK_DGRAM)[0][4][:2]
+    try:
+        address = socket.getaddrinfo(args.server, 123, type=socket.SOCK_DGRAM)[0][4][:2]
+    except OSError as error:
+        raise SystemExit(f"couldn't look up {args.server}: {error}") from None
     port = args.port or find_port()
     flipper = Flipper(port)
     log = None
     if args.log:
-        log = open(args.log, "w")  # noqa: SIM115 (closed in the finally below)
-    reads, ntp_samples = [], []
+        # Line-buffered, which writes each sample as it comes. The log then holds every sample if the run stops early.
+        log = open(args.log, "w", buffering=1)  # noqa: SIM115 (closed in the finally below)
+    reads, ntp_samples, temperatures = [], [], []
     try:
         saved = flipper.start()
         print(
-            f"Flipper on {port}, calibration now {saved:+.1f} ppm, NTP {args.server} ({address[0]}), "
-            f"{args.minutes:g} min"
+            f"Flipper on {port}, calibration now {saved:+.1f} ppm, "
+            f"NTP {args.server} ({address[0]}), {args.minutes:g} min"
         )
         reading = flipper.read()
         start = reading["t"]
@@ -423,6 +451,9 @@ def main():
                         log.write(json.dumps({"ntp": list(sample)}) + "\n")
                 except (OSError, RuntimeError) as error:
                     print(f"\n  NTP query failed: {error}")
+                temperatures.append((now(), flipper.temperature()))
+                if log:
+                    log.write(json.dumps({"temp": list(temperatures[-1])}) + "\n")
                 next_ntp += NTP_INTERVAL
             if not reading["pll"]:
                 raise SystemExit(
@@ -443,8 +474,10 @@ def main():
                 )
             else:
                 flipper.progress(reading["t"] - start, args.minutes * 60)
-            done = (reading["t"] - start) / 60
-            status = f"\r  {done:4.1f} / {args.minutes:g} min  "
+            elapsed = int(reading["t"] - start)
+            status = (
+                f"\r  {elapsed // 60:2d}:{elapsed % 60:02d} / {args.minutes:g} min  "
+            )
             status += quote(fit["ppm"], fit["sigma"]) if settled else "settling"
             if fit:
                 status += (
@@ -452,6 +485,7 @@ def main():
                     f"  reads {fit['rms_us'] / 1e3:.1f} ms rms"
                     f"  NTP round trip {fit['min_round_trip'] * 1e3:.0f} ms"
                 )
+            status += f"  {temperatures[-1][1]:.1f} °C"
             print(f"{status:<110}", end="", flush=True)
             time.sleep(max(0.0, READ_INTERVAL - (now() - loop_start)))
             reading = flipper.read()
@@ -461,13 +495,13 @@ def main():
             raise SystemExit("too short to fit")
         if fit["rms_us"] > 20000:
             raise SystemExit(
-                f"reads scatter {fit['rms_us'] / 1e3:.0f} ms rms. The computer probably "
-                "slept. Run again."
+                f"reads scatter {fit['rms_us'] / 1e3:.0f} ms rms. "
+                "The computer probably slept. Run again."
             )
 
-        # The halves check fits each half of the run on its own and compares the crystal's
-        # offset in each. The local clock's rate can change between the halves, and the
-        # Flipper's rate against the local clock then moves the opposite way.
+        # The halves check fits each half of the run on its own and compares the two
+        # crystal figures. The local clock's rate can change between the halves. If that
+        # happens, the Flipper's rate against the local clock moves the opposite way.
         query_times, query_offsets = fit["query_times"], fit["query_offsets"]
         half = len(query_times) // 2
         split = ntp_samples[0][0] + query_times[half]
@@ -504,16 +538,41 @@ def main():
             first_sigma, second_sigma
         )
         print(
-            f"  halves         {first_ppm:+.1f} then {second_ppm:+.1f} ppm (computer clock "
-            f"{-first_drift * 1e6:+.1f} then {-second_drift * 1e6:+.1f}): "
-            f"{'ok' if halves_agree else 'DISAGREE (path to the server changed?): re-run'}"
+            f"  halves         {first_ppm:+.1f} then {second_ppm:+.1f} ppm "
+            f"(computer clock {-first_drift * 1e6:+.1f} then "
+            f"{-second_drift * 1e6:+.1f}): "
+            + (
+                "ok"
+                if halves_agree
+                else "DISAGREE (path to the server changed?): re-run"
+            )
         )
         print(f"  Flipper reads  {len(reads)}, {fit['rms_us']:.0f} us rms")
+        celsius = [reading for _, reading in temperatures]
+        change = max(celsius) - min(celsius)
+        print(
+            f"  temperature    {celsius[0]:.1f} -> {celsius[-1]:.1f} °C "
+            f"(range {min(celsius):.1f}-{max(celsius):.1f})"
+        )
+        if change > TEMPERATURE_LIMIT:
+            print(
+                f"  ⚠ the Flipper's temperature changed by {change:.1f} °C during the "
+                f"run, which can move the result by about "
+                f"{change * PPM_PER_DEGREE:.1f} ppm"
+            )
 
         if abs(ppm) > CAL_LIMIT:
-            print(f"  {ppm:+.1f} ppm is beyond the app's +-{CAL_LIMIT:g}: not saved")
+            print(f"  {ppm:+.1f} ppm is beyond the app's ±{CAL_LIMIT:g}: not saved")
+            return 1
         elif not halves_agree:
             print("  not saved on the Flipper: the halves check failed. Run again")
+            return 1
+        elif change > TEMPERATURE_LIMIT:
+            print(
+                "  not saved on the Flipper: its temperature changed. Run again once "
+                "its temperature is steady"
+            )
+            return 1
         elif not args.no_send:
             flipper.send(ppm, sigma)
             print(
@@ -521,6 +580,11 @@ def main():
             )
     except KeyboardInterrupt:
         print("\n  stopped")
+        return 1
+    except TimeoutError as error:
+        raise SystemExit(f"\n{error}. Run again.") from None
+    except serial.SerialException:
+        raise SystemExit("\nlost the connection to the Flipper. Run again.") from None
     finally:
         flipper.close()
         if log:

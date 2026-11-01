@@ -27,6 +27,13 @@ const PROBE_N = 5; // requests per server in a probe; the fastest is the probe's
 let run = null;
 export const currentRun = () => run;
 
+// The notice after a run that returned no result
+export function stopNotice() {
+  if ($("phase").textContent === "aborted") return "The last run was stopped.";
+  if (run?.stopReason) return `The last run stopped: ${run.stopReason}.`;
+  return "The last run didn't finish. The log has the details.";
+}
+
 export function newRun({ minutes, burstN, nominal, ...extra }) {
   run = {
     id: new Date().toISOString(),
@@ -201,6 +208,7 @@ export async function measure(dev, { onRead } = {}) {
   } catch (e) {
     log(`run stopped: ${e.message}`);
     $("phase").textContent = "failed";
+    run.stopReason = e.message;
     await dev.stop().catch(() => {});
     return null;
   } finally {

@@ -65,6 +65,11 @@
             Keep this tab open in the foreground with the computer awake, and
             stay on the same network.
           </p>
+          <p class="note">
+            The calibration is slightly sensitive to temperature, and shifts by
+            about 1 ppm for every 4 °C. Calibrate at about the temperature
+            you'll take readings at, for example indoors for indoor readers.
+          </p>
           <details class="options">
             <summary>Options</summary>
             <label
@@ -99,6 +104,7 @@
             The crystal's offset, + meaning fast.
           </div>
           <div class="note">Calibration before: <span id="saved">–</span></div>
+          <div class="note warn" id="tempwarn" hidden></div>
         </div>
 
         <div class="grid gap-top run-done">
@@ -117,6 +123,10 @@
           <div class="stat">
             <div class="k">Network check</div>
             <div class="v" id="bounds">–</div>
+          </div>
+          <div class="stat">
+            <div class="k">Flipper temperature</div>
+            <div class="v" id="temp">–</div>
           </div>
         </div>
 
@@ -318,6 +328,10 @@ py flipper_crystal.py</pre>
             + Enter updates the progress screen.
           </li>
           <li>
+            <code>t</code> returns <code>T &lt;temperature&gt;</code>: the
+            Flipper's temperature (from the battery gauge) in 0.1 °C.
+          </li>
+          <li>
             <code>s&lt;value&gt; [&lt;±&gt;]</code> + Enter saves the
             calibration and its ±. The app replies
             <code>SET &lt;value&gt;</code> once it has saved it, otherwise
@@ -334,14 +348,15 @@ py flipper_crystal.py</pre>
         <summary><h2>Log</h2></summary>
         <pre id="log"></pre>
       </details>
+      <p class="note" id="sitecommit"></p>
     </main>
     <script type="importmap">
       {
         "imports": {
-          "../../common/page.js": "../../common/page.js?v=7033bf5948",
+          "../../common/page.js": "../../common/page.js?v=925f61259f",
           "../../common/timefit.js": "../../common/timefit.js?v=35b5608383",
-          "../../common/timerun.js": "../../common/timerun.js?v=e04520bcde",
-          "./flipper.js": "./flipper.js?v=3ec4d22aa3"
+          "../../common/timerun.js": "../../common/timerun.js?v=d094fa9929",
+          "./flipper.js": "./flipper.js?v=d8f603ffc7"
         }
       }
     </script>
@@ -362,15 +377,20 @@ py flipper_crystal.py</pre>
         hasWebSerial,
         bindTabs,
         bindCopyButtons,
+        showSiteCommit,
       } from "../../common/page.js";
       import {
         newRun,
         measure,
         bindRunControls,
         currentRun,
+        stopNotice,
         redrawPlots,
       } from "../../common/timerun.js";
 
+      const TEMPERATURE_EVERY = 16; // s between temperature readings
+      const PPM_PER_DEGREE = 0.25; // the crystal's shift per °C, measured on one Flipper
+      const TEMPERATURE_LIMIT = 3; // °C change during a run (about 0.75 ppm), above which the result isn't saved
       const CAL_PATH = "/ext/apps_data/nfc_rfid_detector/lf_cal_ppm10.txt";
 
       let fl = null,
@@ -403,7 +423,7 @@ py flipper_crystal.py</pre>
         // a result that failed a check can still be saved by hand
         $("send").hidden =
           running ||
-          !r?.suspect ||
+          !(r?.suspect || run?.unsteady) ||
           run.saved !== undefined ||
           Math.abs(r.ppm) > CAL_LIMIT;
       }
@@ -431,7 +451,7 @@ py flipper_crystal.py</pre>
         }
         $("appinfo").textContent = !installed
           ? "The RFID detector app isn't installed yet."
-          : `RFID detector app ${known ? `version ${known.version} ` : ""}installed. ${cal}`;
+          : `RFID detector app ${known ? `version ${known.version} (${known.source}) ` : ""}installed. ${cal}`;
         $("install").textContent = installed ? "Update app" : "Install app";
         $("install").className = installed ? "" : "primary";
         $("start").className = installed ? "primary" : "";
@@ -452,8 +472,9 @@ py flipper_crystal.py</pre>
           const fw = `${info["firmware.origin.fork"] ?? "?"} ${info["firmware.version"] ?? "?"}`;
           $("devinfo").textContent =
             `${info["hardware.name"] ?? "Flipper"} · ${fw}`;
+          const commit = `${info["firmware.commit.hash"] ?? "?"}${info["firmware.commit.dirty"] === "true" ? "-dirty" : ""}`;
           log(
-            `connected: ${fw}, API ${info["firmware.api.major"]}.${info["firmware.api.minor"]}`,
+            `connected: ${fw} (${commit}), API ${info["firmware.api.major"]}.${info["firmware.api.minor"]}`,
           );
           builds = await fetch("apps/manifest.json", { cache: "no-store" })
             .then((r) => r.json())
@@ -462,7 +483,7 @@ py flipper_crystal.py</pre>
           if (!build) {
             $("installinfo").hidden = false;
             $("installinfo").textContent =
-              "There's no build here for this firmware: use the app that comes with it (1.5 or later), or the official catalog.";
+              "There's no build here for this firmware. Update it to the latest release, then connect again.";
           }
           await checkFlipper();
           setState("ready");
@@ -490,7 +511,7 @@ py flipper_crystal.py</pre>
               `exit "${open}" on the Flipper first (Back until the main screen), then install again`,
             );
           log(
-            `installing ${build.file} (${bytes.length} bytes) to ${APP_PATH}`,
+            `installing ${build.file}, app ${build.version} (${build.source}), ${bytes.length} bytes, to ${APP_PATH}`,
           );
           await fl.cli("storage mkdir /ext/apps/Tools").catch(() => {});
           await fl.writeFile(
@@ -502,7 +523,7 @@ py flipper_crystal.py</pre>
           );
           await fl.openApp();
           $("installinfo").textContent =
-            `Installed app ${build.version}. It's open on its calibration screen.`;
+            `Installed app ${build.version} (${build.source}). It's open on its calibration screen.`;
           log("installed and opened");
           await checkFlipper();
         } catch (e) {
@@ -545,6 +566,33 @@ py flipper_crystal.py</pre>
           run.minutes * 60,
           run.estimate?.settled ? run.estimate : null,
         );
+        // the crystal shifts by about 0.25 ppm per °C, so the run records the temperature
+        run.temps ??= [];
+        if (!run.temps.length || t - run.temps.at(-1)[0] >= TEMPERATURE_EVERY) {
+          run.temps.push([t, await fl.calTemperature()]);
+          $("temp").textContent = `${run.temps.at(-1)[1].toFixed(1)} °C`;
+        }
+      }
+
+      // After a run: the temperature range, and a warning if it changed enough to move the result. An unsteady run
+      // isn't saved automatically.
+      function showTemperature(run) {
+        const c = (run.temps ?? []).map(([, celsius]) => celsius);
+        if (!c.length) return;
+        const change = Math.max(...c) - Math.min(...c);
+        run.unsteady = change > TEMPERATURE_LIMIT;
+        log(
+          `  Flipper temperature ${c[0].toFixed(1)} → ${c.at(-1).toFixed(1)} °C, range ${Math.min(...c).toFixed(1)}–${Math.max(...c).toFixed(1)}` +
+            (run.unsteady
+              ? `: ⚠ changed by ${change.toFixed(1)} °C (more than ${TEMPERATURE_LIMIT}). Not saved automatically`
+              : ""),
+        );
+        $("temp").textContent =
+          `${c[0].toFixed(1)} → ${c.at(-1).toFixed(1)} °C`;
+        $("tempwarn").hidden = !run.unsteady;
+        $("tempwarn").textContent =
+          `The Flipper's temperature changed by ${change.toFixed(1)} °C during the run, which can move the result ` +
+          `by about ${(change * PPM_PER_DEGREE).toFixed(1)} ppm.`;
       }
 
       // the progress bar, every second alongside the shared Elapsed figure
@@ -590,6 +638,8 @@ py flipper_crystal.py</pre>
           firmware: info,
         });
         $("saved").textContent = "–";
+        $("temp").textContent = "–";
+        $("tempwarn").hidden = true;
         $("progress").style.width = "0";
         running = true;
         setState("run");
@@ -597,9 +647,10 @@ py flipper_crystal.py</pre>
         $("details").open = true;
         const r = await measure(device, { onRead });
         running = false;
+        showTemperature(currentRun());
         if (!r) {
           $("notice").textContent =
-            `The last run ${$("phase").textContent === "aborted" ? "was stopped" : "didn't finish"}. The log has the details.`;
+            stopNotice();
           setState("ready");
         } else if (Math.abs(r.ppm) > CAL_LIMIT) {
           showSaved(
@@ -610,6 +661,12 @@ py flipper_crystal.py</pre>
         } else if (r.suspect) {
           showSaved(
             "Not saved: the network check failed. Run it again, or save it anyway.",
+            "warn",
+          );
+          setState("done");
+        } else if (currentRun().unsteady) {
+          showSaved(
+            "Not saved: the Flipper's temperature changed. Run it again once its temperature is steady, or save it anyway.",
             "warn",
           );
           setState("done");
@@ -639,6 +696,7 @@ py flipper_crystal.py</pre>
 
       bindTabs();
       bindCopyButtons();
+      showSiteCommit($("sitecommit"));
       bindRunControls("flipper-crystal");
       setState("connect");
     </script>

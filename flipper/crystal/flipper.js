@@ -149,7 +149,7 @@ export class SerialFlipper {
         if (l.startsWith("ERR")) throw new Error(l.slice(4));
         if (l === "STOPPED" && !re.test(l)) {
           this.session = false;
-          throw new Error("cancelled on the Flipper: nothing saved");
+          throw new Error("cancelled on the Flipper, nothing saved");
         }
         const m = l.match(re);
         if (m) return m;
@@ -222,11 +222,19 @@ export class SerialFlipper {
     return this.write(msg + "\r");
   }
 
+  // The Flipper's temperature in °C, from its battery gauge
+  async calTemperature() {
+    await this.write("t");
+    const { r } = await this.lineMatching(/^T (-?\d+)$/);
+    return Number(r[1]) / 10;
+  }
+
   // The result and its ±: the app saves them and shows them.
   async calSend(ppm, sig) {
     const v = Math.round(ppm * 10);
     await this.write(`s${v} ${Math.max(1, Math.round(sig * 10))}\r`);
-    await this.lineMatching(new RegExp(`^SET ${v}$`));
+    // the app replies after saving, within 10 s
+    await this.lineMatching(new RegExp(`^SET ${v}$`), 12);
   }
 
   async calStop() {

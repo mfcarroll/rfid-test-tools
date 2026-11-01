@@ -20,7 +20,7 @@ export function fmtPm(value, sig) {
 
 export function log(msg) {
   const el = $("log");
-  el.textContent += `${new Date().toISOString().slice(11, 19)}  ${msg}\n`;
+  el.textContent += `${new Date().toLocaleTimeString([], { hourCycle: "h23" })}  ${msg}\n`;
   el.scrollTop = el.scrollHeight;
 }
 
@@ -58,6 +58,28 @@ export function saveJson(name, data) {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// The commit GitHub Pages serves this site from: the head of main, read from the GitHub API. A page served from
+// anywhere other than <owner>.github.io/<repo>/ shows nothing.
+export async function showSiteCommit(el) {
+  const owner = location.hostname.match(/^([\w-]+)\.github\.io$/)?.[1];
+  const repo = location.pathname.split("/")[1];
+  if (!owner || !repo) return;
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/commits/main`,
+      {
+        headers: { Accept: "application/vnd.github.sha" },
+        cache: "no-store",
+      },
+    );
+    const sha = r.ok ? (await r.text()).trim() : "";
+    if (!/^[0-9a-f]{40}$/.test(sha)) return;
+    el.innerHTML = `Page version: <a href="https://github.com/${owner}/${repo}/commit/${sha}">${sha.slice(0, 7)}</a>`;
+  } catch {
+    // offline or rate-limited: leave the line empty
+  }
 }
 
 export function hasWebSerial() {
