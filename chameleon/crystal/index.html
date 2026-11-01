@@ -343,9 +343,9 @@ py hfxo_ntp.py COM5</pre>
           "../common/cu.js": "../common/cu.js?v=4ce0814c68",
           "../common/flash-ui.js": "../common/flash-ui.js?v=7b15c30015",
           "./hfxo.js": "./hfxo.js?v=d4b037022a",
-          "../../common/page.js": "../../common/page.js?v=7033bf5948",
+          "../../common/page.js": "../../common/page.js?v=fc237b7d91",
           "../../common/timefit.js": "../../common/timefit.js?v=35b5608383",
-          "../../common/timerun.js": "../../common/timerun.js?v=e04520bcde"
+          "../../common/timerun.js": "../../common/timerun.js?v=d094fa9929"
         }
       }
     </script>
@@ -366,6 +366,7 @@ py hfxo_ntp.py COM5</pre>
         measure,
         bindRunControls,
         currentRun,
+        stopNotice,
         redrawPlots,
       } from "../../common/timerun.js";
 
@@ -509,7 +510,7 @@ py hfxo_ntp.py COM5</pre>
         running = false;
         if (!r) {
           $("notice").textContent =
-            `The last run ${$("phase").textContent === "aborted" ? "was stopped" : "didn't finish"}. The log has the details.`;
+            stopNotice();
           setState("ready");
           return;
         }

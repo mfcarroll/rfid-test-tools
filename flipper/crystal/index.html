@@ -338,10 +338,10 @@ py flipper_crystal.py</pre>
     <script type="importmap">
       {
         "imports": {
-          "../../common/page.js": "../../common/page.js?v=7033bf5948",
+          "../../common/page.js": "../../common/page.js?v=fc237b7d91",
           "../../common/timefit.js": "../../common/timefit.js?v=35b5608383",
-          "../../common/timerun.js": "../../common/timerun.js?v=e04520bcde",
-          "./flipper.js": "./flipper.js?v=3ec4d22aa3"
+          "../../common/timerun.js": "../../common/timerun.js?v=d094fa9929",
+          "./flipper.js": "./flipper.js?v=71341ea085"
         }
       }
     </script>
@@ -368,6 +368,7 @@ py flipper_crystal.py</pre>
         measure,
         bindRunControls,
         currentRun,
+        stopNotice,
         redrawPlots,
       } from "../../common/timerun.js";
 
@@ -599,7 +600,7 @@ py flipper_crystal.py</pre>
         running = false;
         if (!r) {
           $("notice").textContent =
-            `The last run ${$("phase").textContent === "aborted" ? "was stopped" : "didn't finish"}. The log has the details.`;
+            stopNotice();
           setState("ready");
         } else if (Math.abs(r.ppm) > CAL_LIMIT) {
           showSaved(

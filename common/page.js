@@ -20,7 +20,7 @@ export function fmtPm(value, sig) {
 
 export function log(msg) {
   const el = $("log");
-  el.textContent += `${new Date().toISOString().slice(11, 19)}  ${msg}\n`;
+  el.textContent += `${new Date().toLocaleTimeString([], { hourCycle: "h23" })}  ${msg}\n`;
   el.scrollTop = el.scrollHeight;
 }
 

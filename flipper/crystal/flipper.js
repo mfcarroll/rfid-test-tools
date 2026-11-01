@@ -149,7 +149,7 @@ export class SerialFlipper {
         if (l.startsWith("ERR")) throw new Error(l.slice(4));
         if (l === "STOPPED" && !re.test(l)) {
           this.session = false;
-          throw new Error("cancelled on the Flipper: nothing saved");
+          throw new Error("cancelled on the Flipper, nothing saved");
         }
         const m = l.match(re);
         if (m) return m;
