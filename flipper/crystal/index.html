@@ -328,6 +328,10 @@ py flipper_crystal.py</pre>
             + Enter updates the progress screen.
           </li>
           <li>
+            <code>t</code> returns <code>T &lt;temperature&gt;</code>: the
+            Flipper's temperature (from the battery gauge) in 0.1 °C.
+          </li>
+          <li>
             <code>s&lt;value&gt; [&lt;±&gt;]</code> + Enter saves the
             calibration and its ±. The app replies
             <code>SET &lt;value&gt;</code> once it has saved it, otherwise
@@ -344,11 +348,12 @@ py flipper_crystal.py</pre>
         <summary><h2>Log</h2></summary>
         <pre id="log"></pre>
       </details>
+      <p class="note" id="sitecommit"></p>
     </main>
     <script type="importmap">
       {
         "imports": {
-          "../../common/page.js": "../../common/page.js?v=fc237b7d91",
+          "../../common/page.js": "../../common/page.js?v=b261271e09",
           "../../common/timefit.js": "../../common/timefit.js?v=35b5608383",
           "../../common/timerun.js": "../../common/timerun.js?v=d094fa9929",
           "./flipper.js": "./flipper.js?v=d8f603ffc7"
@@ -372,6 +377,7 @@ py flipper_crystal.py</pre>
         hasWebSerial,
         bindTabs,
         bindCopyButtons,
+        showSiteCommit,
       } from "../../common/page.js";
       import {
         newRun,
@@ -445,7 +451,7 @@ py flipper_crystal.py</pre>
         }
         $("appinfo").textContent = !installed
           ? "The RFID detector app isn't installed yet."
-          : `RFID detector app ${known ? `version ${known.version} ` : ""}installed. ${cal}`;
+          : `RFID detector app ${known ? `version ${known.version} (${known.source}) ` : ""}installed. ${cal}`;
         $("install").textContent = installed ? "Update app" : "Install app";
         $("install").className = installed ? "" : "primary";
         $("start").className = installed ? "primary" : "";
@@ -466,8 +472,9 @@ py flipper_crystal.py</pre>
           const fw = `${info["firmware.origin.fork"] ?? "?"} ${info["firmware.version"] ?? "?"}`;
           $("devinfo").textContent =
             `${info["hardware.name"] ?? "Flipper"} · ${fw}`;
+          const commit = `${info["firmware.commit.hash"] ?? "?"}${info["firmware.commit.dirty"] === "true" ? "-dirty" : ""}`;
           log(
-            `connected: ${fw}, API ${info["firmware.api.major"]}.${info["firmware.api.minor"]}`,
+            `connected: ${fw} (${commit}), API ${info["firmware.api.major"]}.${info["firmware.api.minor"]}`,
           );
           builds = await fetch("apps/manifest.json", { cache: "no-store" })
             .then((r) => r.json())
@@ -476,7 +483,7 @@ py flipper_crystal.py</pre>
           if (!build) {
             $("installinfo").hidden = false;
             $("installinfo").textContent =
-              "There's no build here for this firmware: use the app that comes with it (1.5 or later), or the official catalog.";
+              "There's no build here for this firmware. Update it to the latest release, then connect again.";
           }
           await checkFlipper();
           setState("ready");
@@ -504,7 +511,7 @@ py flipper_crystal.py</pre>
               `exit "${open}" on the Flipper first (Back until the main screen), then install again`,
             );
           log(
-            `installing ${build.file} (${bytes.length} bytes) to ${APP_PATH}`,
+            `installing ${build.file}, app ${build.version} (${build.source}), ${bytes.length} bytes, to ${APP_PATH}`,
           );
           await fl.cli("storage mkdir /ext/apps/Tools").catch(() => {});
           await fl.writeFile(
@@ -516,7 +523,7 @@ py flipper_crystal.py</pre>
           );
           await fl.openApp();
           $("installinfo").textContent =
-            `Installed app ${build.version}. It's open on its calibration screen.`;
+            `Installed app ${build.version} (${build.source}). It's open on its calibration screen.`;
           log("installed and opened");
           await checkFlipper();
         } catch (e) {
@@ -675,6 +682,7 @@ py flipper_crystal.py</pre>
 
       bindTabs();
       bindCopyButtons();
+      showSiteCommit($("sitecommit"));
       bindRunControls("flipper-crystal");
       setState("connect");
     </script>
