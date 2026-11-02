@@ -11,9 +11,10 @@
       <a class="back" href="../../">← RFID test tools</a>
       <h1>Chameleon Ultra FSK self-trim (experimental)</h1>
       <p class="sub">
-        Test firmware that lets the CU match its emulated HID Prox, Paradox and
-        ioProx cards to a reader's clock. Put the same card in several slots
-        with and without self-trim, try them at a reader, and compare.
+        Flash test firmware that lets the CU match its emulated HID Prox,
+        Paradox and ioProx cards to a reader's clock. Put the same card in
+        several slots, with and without self-trim. Then try the slots at a
+        reader and compare them.
       </p>
 
       <ol class="steps" aria-label="Progress">
@@ -29,7 +30,8 @@
           <p class="note">
             Plug your CU in to USB, not Bluetooth, and close anything else using
             it, such as the CU app or the Python CLI. This page needs Chrome or
-            Edge on a computer. Chameleon Ultra only, not Lite.
+            Edge on a computer. It works with the Chameleon Ultra only, not the
+            Lite.
           </p>
           <div class="row gap-top">
             <button id="connect" class="primary">Connect CU</button>
@@ -46,9 +48,9 @@
           <div id="setup">
             <h2 class="gap-top">Set up the slots</h2>
             <p class="note">
-              Copies one HID Prox, Paradox or ioProx card into four slots:
-              stock, stock + exact bits, self-trim, and self-trim + exact bits.
-              Load the card into any slot first, with your usual app or by
+              The page copies one HID Prox, Paradox or ioProx card into four
+              slots: stock, stock + exact bits, self-trim, and self-trim + exact
+              bits. Load the card into any slot first, with your usual app or by
               reading it here. A backup of every slot downloads before anything
               changes.
             </p>
@@ -88,8 +90,8 @@
                 </table>
               </div>
               <p class="note">
-                Only the slots' LF side changes: an HF card in the same slot is
-                kept. Each slot gets an LF nickname naming its mode, e.g.
+                Only the slots' LF side changes. An HF card in the same slot
+                stays. Each slot gets an LF nickname naming its mode, e.g.
                 "Paradox selftrim+x".
               </p>
             </details>
@@ -101,9 +103,9 @@
               <span id="planinfo" class="note"></span>
             </div>
             <p class="note gap-top">
-              Start testing clears the CU's earlier results and event log, so
-              the results come from the next reader alone. Slots and modes are
-              kept.
+              Start testing clears the CU's earlier results and event log. The
+              results then come from the next reader alone. Slots and modes stay
+              as they are.
             </p>
           </div>
         </div>
@@ -117,13 +119,13 @@
             </li>
             <li>
               Hold the CU to the reader on each slot, several times. The first
-              time on each slot, hold it for 2 seconds or more: self-trim
-              measures the reader before it sends the card, so its first read
-              is slower.
+              time on each slot, hold it there for 2 seconds or more. Self-trim
+              measures the reader before it sends the card, which makes its
+              first read on each slot slower.
             </li>
             <li>
-              Note for each slot whether it read, how quickly, and how close
-              the CU had to be.
+              Note for each slot whether it read, how quickly, and how close the
+              CU had to be.
             </li>
             <li>
               Test one reader at a time. A self-trim slot learns the reader it
@@ -161,9 +163,9 @@
             </table>
           </div>
           <p class="note" id="farnote" hidden>
-            ⚠ A reader more than 300 ppm from the CU isn't crystal controlled.
-            Stock reads such a reader only close in. Self-trim should read it
-            further away.
+            ⚠ A reader more than 300 ppm from the CU probably isn't crystal
+            controlled. Stock reads such a reader only close in. Self-trim
+            should read it further away.
           </p>
           <details class="about">
             <summary>About these columns</summary>
@@ -173,8 +175,8 @@
               quickly can count once, so read it as "the reader was seen".
               <b>Reader vs CU</b>: the clock difference self-trim measured and
               corrects for. It stays blank until self-trim learns a reader.
-              <b>Measurements</b>: how many fields the learned value is based on.
-              Changing a slot's mode or the active slot here takes effect at
+              <b>Measurements</b>: how many fields the learned value is based
+              on. Changing a slot's mode or the active slot here takes effect at
               once.
             </p>
           </details>
@@ -218,9 +220,9 @@
         <summary><h2>What the modes do</h2></summary>
         <ul class="note">
           <li>
-            <b>stock</b>: as stock firmware. The CU switches a load across its
-            coil, as a real tag does. That can't drift against the reader, but
-            the signal is small.
+            <b>stock</b>: works the same as stock firmware. The CU switches a
+            load across its coil, like a real tag. Load switching can't drift
+            against the reader, but the signal is small.
           </li>
           <li>
             <b>self-trim</b>: the CU also drives its coil, for a stronger
@@ -232,19 +234,20 @@
           </li>
           <li>
             <b>new drive only</b>: the stronger drive without the matching, for
-            comparison. It beats against the reader's clock.
+            comparison. Its signal drifts in and out of step with the reader's
+            clock.
           </li>
           <li>
             <b>+ exact bits</b>: stock firmware sends some HID Prox and Paradox
             bits 4 % short. A Proxmark3 doesn't mind. A stricter reader might.
-            This makes every bit the standard length on average.
+            This mode makes every bit the standard length on average.
           </li>
         </ul>
         <p class="note">
           At one real HID reader whose clock ran 0.42 % slow, stock read only
           close in and self-trim read at the edge of the field. If self-trim
-          reads worse than stock at your reader, use stock, and send the report:
-          that's useful too.
+          reads worse than stock at your reader, use stock. Send the report
+          anyway, as that result is also useful.
         </p>
       </details>
 
@@ -254,9 +257,9 @@
           A backup is a file with every slot's LF side: card type, card data,
           whether it's enabled, its nickname and its mode. Restore puts every
           slot's LF side back. HF cards are never changed.
-          <b>The file contains your cards' data</b>: keep it somewhere private.
-          Card types this firmware can't read (e.g. Indala) are listed in the
-          file but can't be restored from it.
+          <b>The file contains your cards' data.</b> Keep it somewhere private.
+          The file lists card types this firmware can't read (Indala, for
+          example), but the page can't restore those card types.
         </p>
         <div class="row">
           <button id="backup" disabled>Download backup</button>
@@ -275,8 +278,9 @@
         <summary><h2>For developers</h2></summary>
         <ul class="note">
           <li>
-            Command 3120 reads and sets each slot's mode, the fields seen and
-            what self-trim learned. <code>0xC1</code> clears the results.
+            Command 3120 sets each slot's mode. It also reports the modes, the
+            fields seen and what self-trim learned. <code>0xC1</code> clears the
+            results.
           </li>
           <li>
             Command 3100 at offset <code>0xFFFE</code> reads the self-trim event
@@ -357,7 +361,7 @@
         if (r.status === STATUS_INVALID_CMD)
           throw Object.assign(
             new Error(
-              "this firmware has no self-trim support: flash the test firmware first",
+              "this firmware has no self-trim support. Flash the test firmware first",
             ),
             { noSupport: true },
           );
@@ -573,7 +577,7 @@
                   ? `\n\nThis replaces the LF card in ${replaced.join(", ")}.`
                   : "") +
                 (lost.length
-                  ? `\n\n⚠ The backup can't hold ${lost.join(", ")}: this firmware can't read that type, so it would be lost.`
+                  ? `\n\n⚠ The backup can't hold ${lost.join(", ")}. This firmware can't read that card type, and replacing it loses the card.`
                   : ""),
             )
           )
@@ -608,7 +612,8 @@
             await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(targets[0][0]));
             await ok(X.CMD.SLOT_DATA_CONFIG_SAVE);
             log(`saved; slot ${targets[0][0] + 1} is active`);
-            $("planinfo").textContent = `Done. Slot ${targets[0][0] + 1} is active.`;
+            $("planinfo").textContent =
+              `Done. Slot ${targets[0][0] + 1} is active.`;
           } finally {
             card.fill(0);
             card = null;
@@ -644,7 +649,7 @@
               `Replace the ${X.lfName(was)} card in slot ${t + 1}? A backup of every slot downloads first.` +
                 (X.LF_CARD[was]
                   ? ""
-                  : `\n\n⚠ The backup can't hold slot ${t + 1} (${X.lfName(was)}): this firmware can't read that type, so it would be lost.`),
+                  : `\n\n⚠ The backup can't hold slot ${t + 1} (${X.lfName(was)}). This firmware can't read that card type, and replacing it loses the card.`),
             )
           )
             return;
@@ -811,8 +816,7 @@
       }
 
       const fullReport = () =>
-        X.report(last, fw) +
-        (lastLog ? "\n\n" + X.logReport(lastLog, fw) : "");
+        X.report(last, fw) + (lastLog ? "\n\n" + X.logReport(lastLog, fw) : "");
 
       $("copy").onclick = async () => {
         if (!last) return;

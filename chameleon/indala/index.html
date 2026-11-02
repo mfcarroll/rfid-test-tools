@@ -11,9 +11,10 @@
       <a class="back" href="../../">← RFID test tools</a>
       <h1>Chameleon Ultra Indala test</h1>
       <p class="sub">
-        Time Indala reads on your Chameleon Ultra, or time a Flipper Zero
-        reading the CU's Indala emulation, and compare firmwares without moving
-        anything. Made for testing
+        Time how fast your Chameleon Ultra reads an Indala card, or how fast a
+        Flipper Zero reads the CU's Indala emulation. To compare firmwares,
+        flash a different one between runs without moving anything. The page is
+        made for testing
         <a href="https://github.com/RfidResearchGroup/ChameleonUltra/pull/509"
           >PR #509</a
         >.
@@ -45,8 +46,9 @@
           <div class="gap-top">
             <div class="title">Flipper Zero (optional)</div>
             <p class="note">
-              Only for the emulation test, where the Flipper reads the CU. Close
-              qFlipper and exit any app open on the Flipper first.
+              A Flipper is only needed for the emulation test, where the Flipper
+              reads the CU's Indala emulation. Close qFlipper and exit any app
+              open on the Flipper first.
             </p>
             <div class="row">
               <button class="connectFlipper">Connect Flipper</button>
@@ -96,10 +98,10 @@
           <div role="tabpanel" id="panel-read" aria-labelledby="tab-read">
             <p class="note">
               Lay the card flat on the CU's button side (the antenna is on that
-              side, not the LED side). The CU reads it the set number of times
-              and times each read. A read that returns a different card from the
-              first read counts as wrong. The results never show the card
-              itself.
+              side, not the LED side). The CU reads the card a set number of
+              times, and records how long each read takes. A read that returns a
+              different card from the first read counts as wrong. The results
+              never show the actual credential.
             </p>
             <div class="row gap-top">
               <label
@@ -128,9 +130,9 @@
               </li>
               <li>
                 Pick a slot for the test card. Start replaces that slot's LF
-                card with an Indala test card (FC 123, card 1337), makes it
-                active, and then has the Flipper read it. The CU's white light
-                comes on while the Flipper reads.
+                card with an Indala test card (FC 123, card 1337) and makes the
+                slot active. The Flipper then reads the test card. The CU's
+                white light comes on while the Flipper reads.
               </li>
             </ol>
             <div class="row gap-top">
@@ -193,8 +195,8 @@
               </select></label
             >
             <p class="note">
-              The page picks these from the firmware. Change them only if it
-              picks wrong.
+              The page determines the Indala commands from the firmware. Change
+              them only if the page gets them wrong.
             </p>
           </details>
         </div>
@@ -226,8 +228,8 @@
       <section class="flow" id="resultbox" hidden>
         <h2>Results</h2>
         <p class="note">
-          One row per run. Copy puts the table on the clipboard as Markdown,
-          ready to paste into a GitHub comment.
+          Each run adds a row. The Copy button copies the table to the clipboard
+          as Markdown, ready to paste into a GitHub comment.
         </p>
         <div class="tablewrap">
           <table>
@@ -254,10 +256,11 @@
           A fingerprint is the first 4 hex digits of the SHA-256 of the frame
           the CU read. It shows whether two runs read the same card (your card
           and its T5577 clone, say) without showing the card. It doesn't hide
-          the card completely: an Indala 26-bit card has about 16 million
-          possible values and a fingerprint has 65,536, so one fingerprint
-          narrows a card down to about 256 candidates. Untick this if that's too
-          much to post. The table's wrong-read count works without it.
+          the card completely. An Indala 26-bit card has about 16 million
+          possible values, and a fingerprint has 65,536, so one fingerprint
+          matches about 256 possible cards. If that's too much to post, untick
+          Include card fingerprints. The table's wrong-read count works without
+          fingerprints.
         </p>
         <div class="row gap-top">
           <button id="copyResults" class="primary">Copy</button>
@@ -273,8 +276,8 @@
           page:
           <a href="../crystal/">Chameleon Ultra</a> and
           <a href="../../flipper/crystal/">Flipper Zero</a>. The CU's page
-          flashes its own test firmware and then stock, so run the tests here
-          first.
+          flashes its own test firmware and then stock firmware. Run the tests
+          on this page first.
         </p>
       </details>
 
@@ -290,9 +293,9 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=da961c33e6",
           "../common/flash-ui.js": "../common/flash-ui.js?v=19c1280404",
-          "./indala.js": "./indala.js?v=bab5046fa4",
+          "./indala.js": "./indala.js?v=203581cca9",
           "../../common/page.js": "../../common/page.js?v=925f61259f",
-          "../../flipper/crystal/flipper.js": "../../flipper/crystal/flipper.js?v=4e8d9a4a49"
+          "../../flipper/crystal/flipper.js": "../../flipper/crystal/flipper.js?v=9c7f39edf3"
         }
       }
     </script>
@@ -510,7 +513,7 @@
           $("fwinfo").textContent = p
             ? `Firmware ${fw}.` +
               (p === "pr509" && !fw.includes(PR.version)
-                ? ` This isn't #509's current build (${PR.name}): flash it below to test that.`
+                ? ` This isn't #509's current build (${PR.name.replace("#509 ", "")}). To test that build, use Flash #509 below.`
                 : "")
             : `Firmware ${fw} has no Indala commands this page knows. Flash #509 below, then connect again.`;
           $("connectinfo").textContent = "";
@@ -678,7 +681,7 @@
           if (!(await loadTestCard())) return;
           const r = {
             firmware: fw,
-            test: "emulate, Flipper reads",
+            test: "emulate to a Flipper",
             card: X.TEST_CARD_LABEL,
             tries: [],
           };

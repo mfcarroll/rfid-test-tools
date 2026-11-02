@@ -74,8 +74,8 @@ export function reqNickLf(slot, name) {
   return r;
 }
 
-// A short label for a frame, so results can say "the same card every time" without showing the card: the first 4
-// hex digits of its SHA-256.
+// Returns the first 4 hex digits of a frame's SHA-256. The results use it to show that reads returned the same card,
+// without showing the card.
 export async function fingerprint(bytes) {
   const h = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
   return [...h.slice(0, 2)]
