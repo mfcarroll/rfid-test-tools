@@ -8,9 +8,9 @@
   ],
   "file": "nfc_rfid_detector-official-88.2.fap",
   "version": "1.5",
-  "source": "9ba8dd0",
+  "source": "d5fe605",
   "sdk": "1.5.1",
-  "md5": "5b2c44eeb6a4d60770840f4a4daa1740"
+  "md5": "34c9435074a096be2aa447644004b8b8"
  },
  {
   "fork": "Momentum",
@@ -21,8 +21,8 @@
   ],
   "file": "nfc_rfid_detector-momentum-87.1.fap",
   "version": "1.5",
-  "source": "9ba8dd0",
+  "source": "d5fe605",
   "sdk": "mntm-012",
-  "md5": "49a21e339039601e961ba6e4c7003a26"
+  "md5": "68d4e9cf388c9d5ddc2f3b9a09cd58bf"
  }
 ]

@@ -51,6 +51,9 @@ READ_INTERVAL, NTP_INTERVAL = 2.0, 16.0
 SETTLED_SIGMA = 5.0  # ppm, the running estimate is shown once the ± is less than this
 NTP_EPOCH = 2208988800  # 1900 -> 1970
 CAL_LIMIT = 100.0  # ppm, same limit as the app's manual calibration screen
+# The crystal shifts by about this much per °C (measured on one Flipper, with ice packs)
+PPM_PER_DEGREE = 0.25
+TEMPERATURE_WARNING = 3.0  # °C during a run, about 0.75 ppm
 
 # now() reads perf_counter (mach_absolute_time on macOS, QueryPerformanceCounter on
 # Windows), not time.time(), because the system's time sync can step the wall clock
@@ -196,6 +199,14 @@ class Flipper:
             "ticks": (self.hi << 32) | raw,
             "pll": bool(pll),
         }
+
+    def temperature(self):
+        """The Flipper's temperature in °C, from its battery gauge."""
+        self.ser.write(b"t")
+        line = self._line()
+        if not line.startswith("T "):
+            raise SystemExit(f"Flipper: unexpected reply {line!r} to t")
+        return int(line[2:]) / 10
 
     def progress(self, elapsed, total, ppm=None, sigma=None):
         message = f"p{int(elapsed)} {int(total)}"
@@ -415,8 +426,9 @@ def main():
     flipper = Flipper(port)
     log = None
     if args.log:
-        log = open(args.log, "w")  # noqa: SIM115 (closed in the finally below)
-    reads, ntp_samples = [], []
+        # Line-buffered, which writes each sample as it comes. The log then holds every sample if the run stops early.
+        log = open(args.log, "w", buffering=1)  # noqa: SIM115 (closed in the finally below)
+    reads, ntp_samples, temperatures = [], [], []
     try:
         saved = flipper.start()
         print(
@@ -437,6 +449,9 @@ def main():
                         log.write(json.dumps({"ntp": list(sample)}) + "\n")
                 except (OSError, RuntimeError) as error:
                     print(f"\n  NTP query failed: {error}")
+                temperatures.append((now(), flipper.temperature()))
+                if log:
+                    log.write(json.dumps({"temp": list(temperatures[-1])}) + "\n")
                 next_ntp += NTP_INTERVAL
             if not reading["pll"]:
                 raise SystemExit(
@@ -468,6 +483,7 @@ def main():
                     f"  reads {fit['rms_us'] / 1e3:.1f} ms rms"
                     f"  NTP round trip {fit['min_round_trip'] * 1e3:.0f} ms"
                 )
+            status += f"  {temperatures[-1][1]:.1f} °C"
             print(f"{status:<110}", end="", flush=True)
             time.sleep(max(0.0, READ_INTERVAL - (now() - loop_start)))
             reading = flipper.read()
@@ -530,6 +546,19 @@ def main():
             )
         )
         print(f"  Flipper reads  {len(reads)}, {fit['rms_us']:.0f} us rms")
+        celsius = [reading for _, reading in temperatures]
+        change = max(celsius) - min(celsius)
+        print(
+            f"  temperature    {celsius[0]:.1f} -> {celsius[-1]:.1f} °C "
+            f"(range {min(celsius):.1f}-{max(celsius):.1f})"
+        )
+        if change > TEMPERATURE_WARNING:
+            print(
+                f"  ⚠ the Flipper's temperature changed by {change:.1f} °C during the "
+                f"run, which can move the result by about "
+                f"{change * PPM_PER_DEGREE:.1f} ppm. Run again once its temperature "
+                "is steady."
+            )
 
         if abs(ppm) > CAL_LIMIT:
             print(f"  {ppm:+.1f} ppm is beyond the app's ±{CAL_LIMIT:g}: not saved")

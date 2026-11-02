@@ -222,6 +222,13 @@ export class SerialFlipper {
     return this.write(msg + "\r");
   }
 
+  // The Flipper's temperature in °C, from its battery gauge
+  async calTemperature() {
+    await this.write("t");
+    const { r } = await this.lineMatching(/^T (-?\d+)$/);
+    return Number(r[1]) / 10;
+  }
+
   // The result and its ±: the app saves them and shows them.
   async calSend(ppm, sig) {
     const v = Math.round(ppm * 10);

@@ -65,6 +65,11 @@
             Keep this tab open in the foreground with the computer awake, and
             stay on the same network.
           </p>
+          <p class="note">
+            The calibration is slightly sensitive to temperature, and shifts by
+            about 1 ppm for every 4 °C. Calibrate at about the temperature
+            you'll take readings at, for example indoors for indoor readers.
+          </p>
           <details class="options">
             <summary>Options</summary>
             <label
@@ -99,6 +104,7 @@
             The crystal's offset, + meaning fast.
           </div>
           <div class="note">Calibration before: <span id="saved">–</span></div>
+          <div class="note warn" id="tempwarn" hidden></div>
         </div>
 
         <div class="grid gap-top run-done">
@@ -117,6 +123,10 @@
           <div class="stat">
             <div class="k">Network check</div>
             <div class="v" id="bounds">–</div>
+          </div>
+          <div class="stat">
+            <div class="k">Flipper temperature</div>
+            <div class="v" id="temp">–</div>
           </div>
         </div>
 
@@ -341,7 +351,7 @@ py flipper_crystal.py</pre>
           "../../common/page.js": "../../common/page.js?v=fc237b7d91",
           "../../common/timefit.js": "../../common/timefit.js?v=35b5608383",
           "../../common/timerun.js": "../../common/timerun.js?v=d094fa9929",
-          "./flipper.js": "./flipper.js?v=99567cf644"
+          "./flipper.js": "./flipper.js?v=d8f603ffc7"
         }
       }
     </script>
@@ -372,6 +382,9 @@ py flipper_crystal.py</pre>
         redrawPlots,
       } from "../../common/timerun.js";
 
+      const TEMPERATURE_EVERY = 16; // s between temperature readings
+      const PPM_PER_DEGREE = 0.25; // the crystal's shift per °C, measured on one Flipper
+      const TEMPERATURE_WARNING = 3; // °C during a run, about 0.75 ppm
       const CAL_PATH = "/ext/apps_data/nfc_rfid_detector/lf_cal_ppm10.txt";
 
       let fl = null,
@@ -546,6 +559,25 @@ py flipper_crystal.py</pre>
           run.minutes * 60,
           run.estimate?.settled ? run.estimate : null,
         );
+        // the crystal shifts by about 0.25 ppm per °C, so the run records the temperature
+        run.temps ??= [];
+        if (!run.temps.length || t - run.temps.at(-1)[0] >= TEMPERATURE_EVERY) {
+          run.temps.push([t, await fl.calTemperature()]);
+          $("temp").textContent = `${run.temps.at(-1)[1].toFixed(1)} °C`;
+        }
+      }
+
+      // After a run: the temperature range, and a warning if it changed enough to move the result
+      function showTemperature(run) {
+        const c = (run.temps ?? []).map(([, celsius]) => celsius);
+        if (!c.length) return;
+        const change = Math.max(...c) - Math.min(...c);
+        $("temp").textContent =
+          `${c[0].toFixed(1)} → ${c.at(-1).toFixed(1)} °C`;
+        $("tempwarn").hidden = change <= TEMPERATURE_WARNING;
+        $("tempwarn").textContent =
+          `The Flipper's temperature changed by ${change.toFixed(1)} °C during the run, which can move the result ` +
+          `by about ${(change * PPM_PER_DEGREE).toFixed(1)} ppm. Run it again once its temperature is steady.`;
       }
 
       // the progress bar, every second alongside the shared Elapsed figure
@@ -591,6 +623,8 @@ py flipper_crystal.py</pre>
           firmware: info,
         });
         $("saved").textContent = "–";
+        $("temp").textContent = "–";
+        $("tempwarn").hidden = true;
         $("progress").style.width = "0";
         running = true;
         setState("run");
@@ -598,6 +632,7 @@ py flipper_crystal.py</pre>
         $("details").open = true;
         const r = await measure(device, { onRead });
         running = false;
+        showTemperature(currentRun());
         if (!r) {
           $("notice").textContent =
             stopNotice();
