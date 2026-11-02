@@ -164,6 +164,17 @@ export const EMU_ID = {
   203: [5015, 5014, 6],
 };
 
+// Reading a card on the CU's own antenna. The scan commands only run in reader mode, and each one listens for 500 ms.
+export const CHANGE_DEVICE_MODE = 1001; // 1 reader, 0 tag
+export const STATUS_LF_TAG_OK = 0x40;
+export const STATUS_LF_TAG_NO_FOUND = 0x41;
+// [type, scan command, request, bytes of the reply the slot takes]. HID Prox and ioProx take a format hint, 0 for any.
+export const SCANS = [
+  [203, 3022, [], 6],
+  [200, 3002, [0], 13],
+  [201, 3010, [0], 16],
+];
+
 export const reqSlot = (slot) => Uint8Array.of(slot);
 export const reqSlotType = (slot, type) =>
   Uint8Array.of(slot, type >> 8, type & 0xff);
