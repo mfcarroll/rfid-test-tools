@@ -624,6 +624,10 @@
 
       // Read a card on the CU's antenna into a slot. The CU goes back to tag mode afterwards, even if the read fails.
       const SCAN_SECONDS = 20;
+      function scanInfo(text, kind = "") {
+        $("scaninfo").textContent = text;
+        $("scaninfo").className = `note ${kind}`;
+      }
       async function scanCard() {
         const end = Date.now() + SCAN_SECONDS * 1000;
         while (Date.now() < end) {
@@ -654,21 +658,21 @@
           )
             return;
           if (was) await backupNow();
-          $("scaninfo").textContent =
-            "Hold the card flat against the CU's button side…";
+          scanInfo("Hold the card flat against the CU's button side…");
           await ok(X.CHANGE_DEVICE_MODE, Uint8Array.of(1));
           let found = null;
           try {
             found = await scanCard();
           } catch (e) {
-            $("scaninfo").textContent = `Couldn't read a card: ${e.message}`;
+            scanInfo(`Couldn't read a card: ${e.message}`, "bad");
             throw e;
           } finally {
             await ok(X.CHANGE_DEVICE_MODE, Uint8Array.of(0));
           }
           if (!found) {
-            $("scaninfo").textContent =
-              `No HID Prox, Paradox or ioProx card found in ${SCAN_SECONDS} s. Try again, moving the card slowly.`;
+            scanInfo(
+              `No HID Prox, Paradox or ioProx card found in ${SCAN_SECONDS} s. Try again, moving the card slowly.`,
+            );
             return;
           }
           try {
@@ -683,8 +687,10 @@
             found.card.fill(0);
           }
           log(`read a ${X.lfName(found.type)} card into slot ${t + 1}`);
-          $("scaninfo").textContent =
-            `Read a ${X.lfName(found.type)} card into slot ${t + 1}.`;
+          scanInfo(
+            `${X.lfName(found.type)} card successfully read into slot ${t + 1}`,
+            "ok",
+          );
           last = await exp(X.reqQuery());
           renderPlan();
           $("src").value = String(t);
