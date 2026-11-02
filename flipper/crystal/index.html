@@ -423,7 +423,7 @@ py flipper_crystal.py</pre>
         // a result that failed a check can still be saved by hand
         $("send").hidden =
           running ||
-          !(r?.suspect || run.unsteady) ||
+          !(r?.suspect || run?.unsteady) ||
           run.saved !== undefined ||
           Math.abs(r.ppm) > CAL_LIMIT;
       }
