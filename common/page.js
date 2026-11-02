@@ -71,6 +71,7 @@ export async function showSiteCommit(el) {
       `https://api.github.com/repos/${owner}/${repo}/commits/main`,
       {
         headers: { Accept: "application/vnd.github.sha" },
+        cache: "no-store",
       },
     );
     const sha = r.ok ? (await r.text()).trim() : "";
