@@ -518,11 +518,13 @@
         renderScanSlots();
       }
 
-      // The slot a card is read into: by default the first slot with no LF card, otherwise slot 8.
+      // The slot a card is read into: by default the first slot with no LF card. If every slot has one, the person
+      // chooses which to replace.
       function renderScanSlots() {
         const sel = $("scanslot"),
           prev = sel.value;
         sel.textContent = "";
+        sel.append(new Option("choose a slot", ""));
         for (const s of last.slots)
           sel.append(
             new Option(
@@ -531,8 +533,11 @@
             ),
           );
         const empty = last.slots.find((s) => !s.lfType);
-        sel.value = prev !== "" ? prev : String(empty ? empty.slot : 7);
+        sel.value = prev !== "" ? prev : empty ? String(empty.slot) : "";
+        $("scan").disabled = sel.value === "";
       }
+      $("scanslot").onchange = () =>
+        ($("scan").disabled = $("scanslot").value === "");
 
       function fillPlan(n) {
         plan.clear();
