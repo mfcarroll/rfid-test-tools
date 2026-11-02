@@ -184,6 +184,8 @@ async function findBootloader(timeoutS = 10) {
 
 // One flash. start(knownPort) returns true once the firmware is written. start() returns false when the browser
 // needs the user to allow the bootloader, and then the page calls allowBootloader() from a click.
+// fw is { name, zip } for a package the page serves, or { name, data } with the package's bytes (a file the person
+// picked).
 export class Flasher {
   constructor(fw, { log, status }) {
     this.fw = fw;
@@ -195,10 +197,11 @@ export class Flasher {
     this.ultra = new L.ChameleonUltra();
     await this.ultra.use(new L.WebserialAdapter());
     await connectTo(this.ultra, knownPort); // with no known port, the picker needs the user's click
-    const ab = await (await fetch(this.fw.zip)).arrayBuffer();
+    const ab = this.fw.data ?? (await (await fetch(this.fw.zip)).arrayBuffer());
     const zip = new L.DfuZip(L.Buffer.fromView(new Uint8Array(ab)));
     this.image = await zip.getAppImage();
-    if (!this.image) throw new Error(`${this.fw.zip} has no application image`);
+    if (!this.image)
+      throw new Error(`${this.fw.name} has no application image`);
     if (this.ultra.isDfu()) {
       await this.write();
       return true;

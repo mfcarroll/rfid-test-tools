@@ -416,6 +416,27 @@ details.about summary {
 details.about p {
   margin: 6px 0 0;
 }
+/* a "What is this?" toggle on the same line as other controls; the page shows and hides the text it names */
+button.disclose {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 14px;
+}
+button.disclose::before {
+  content: "▶";
+  display: inline-block;
+  width: 1.1em;
+  font-size: 0.75em;
+}
+button.disclose[aria-expanded="true"]::before {
+  content: "▼";
+}
+.disclosed,
+.flow .disclosed {
+  margin: 6px 0 0;
+}
 
 /* tables (self-trim) */
 .tablewrap {

@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CU Indala Test</title>
+    <link rel="stylesheet" href="../../common/style.css?v=0eed24f069" />
+  </head>
+  <body>
+    <main id="app" data-state="connect">
+      <a class="back" href="../../">← RFID test tools</a>
+      <h1>Chameleon Ultra Indala test</h1>
+      <p class="sub">
+        Time Indala reads on your Chameleon Ultra, or time a Flipper Zero
+        reading the CU's Indala emulation, and compare firmwares without moving
+        anything. Made for testing
+        <a href="https://github.com/RfidResearchGroup/ChameleonUltra/pull/509"
+          >PR #509</a
+        >.
+      </p>
+
+      <ol class="steps" aria-label="Progress">
+        <li id="step-connect"><span>1</span>Connect</li>
+        <li id="step-test"><span>2</span>Test</li>
+      </ol>
+
+      <section class="flow" aria-live="polite">
+        <div class="only-connect">
+          <h2>Connect your devices</h2>
+          <p class="note">
+            This page requires Chrome or Edge on a computer, with the devices on
+            USB.
+          </p>
+          <div class="gap-top">
+            <div class="title">Chameleon Ultra</div>
+            <p class="note">
+              Use USB, not Bluetooth, and close anything else using the CU, such
+              as the CU app or the Python CLI.
+            </p>
+            <div class="row">
+              <button id="connect" class="primary">Connect CU</button>
+              <span id="connectinfo" class="note"></span>
+            </div>
+          </div>
+          <div class="gap-top">
+            <div class="title">Flipper Zero (optional)</div>
+            <p class="note">
+              Only for the emulation test, where the Flipper reads the CU. Close
+              qFlipper and exit any app open on the Flipper first.
+            </p>
+            <div class="row">
+              <button class="connectFlipper">Connect Flipper</button>
+              <span class="note flipperinfo"></span>
+            </div>
+          </div>
+          <div class="row gap-top">
+            <button id="continue" class="primary" disabled>Continue</button>
+          </div>
+        </div>
+
+        <div class="only-ready">
+          <div>
+            <div class="title">Chameleon Ultra</div>
+            <div class="row">
+              <span class="note" id="fwinfo">Checking the firmware…</span>
+              <button id="reconnect">Reconnect</button>
+            </div>
+          </div>
+          <div class="gap-top">
+            <div class="title">Flipper Zero</div>
+            <div class="row">
+              <span class="note flipperinfo">not connected (optional)</span>
+              <button class="connectFlipper">Connect Flipper</button>
+            </div>
+          </div>
+
+          <div class="tabs" role="tablist" aria-label="Test">
+            <button
+              role="tab"
+              id="tab-read"
+              aria-controls="panel-read"
+              aria-selected="true"
+            >
+              Read a card
+            </button>
+            <button
+              role="tab"
+              id="tab-emu"
+              aria-controls="panel-emu"
+              aria-selected="false"
+            >
+              Emulate to a Flipper
+            </button>
+          </div>
+
+          <div role="tabpanel" id="panel-read" aria-labelledby="tab-read">
+            <p class="note">
+              Lay the card flat on the CU's button side (the antenna is on that
+              side, not the LED side). The CU reads it the set number of times
+              and times each read. A read that returns a different card from the
+              first read counts as wrong. The results never show the card
+              itself.
+            </p>
+            <div class="row gap-top">
+              <label
+                >On the CU
+                <select id="what">
+                  <option>original card</option>
+                  <option>T5577 clone</option>
+                  <option>other</option>
+                </select></label
+              >
+              <label
+                >Reads
+                <input id="nread" type="number" min="1" max="100" value="10"
+              /></label>
+            </div>
+            <div class="row gap-top">
+              <button id="readTest" class="primary">Start reading</button>
+            </div>
+          </div>
+
+          <div role="tabpanel" id="panel-emu" aria-labelledby="tab-emu" hidden>
+            <ol class="note">
+              <li>
+                Lay the Flipper's back on the CU's button side. Leave both where
+                they are for every run, including after flashing other firmware.
+              </li>
+              <li>
+                Pick a slot for the test card. Start replaces that slot's LF
+                card with an Indala test card (FC 123, card 1337), makes it
+                active, and then has the Flipper read it. The CU's white light
+                comes on while the Flipper reads.
+              </li>
+            </ol>
+            <div class="row gap-top">
+              <label
+                >Slot
+                <select id="slot"></select
+              ></label>
+              <label
+                >Reads
+                <input id="nemu" type="number" min="1" max="100" value="10"
+              /></label>
+              <label
+                >Give up after
+                <input
+                  id="emutimeout"
+                  type="number"
+                  min="2"
+                  max="60"
+                  value="15"
+                />
+                s</label
+              >
+            </div>
+            <div class="row gap-top">
+              <button id="emuTest" class="primary" disabled>Start</button>
+              <span id="emuinfo" class="note"
+                >Connect a Flipper Zero above to run this test.</span
+              >
+            </div>
+          </div>
+
+          <div id="runbox" class="gap-top" hidden>
+            <div class="row spread">
+              <h2 class="phase" id="phase">starting</h2>
+              <span class="note" id="count">–</span>
+            </div>
+            <div
+              class="bar"
+              role="progressbar"
+              aria-label="Test progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <div id="progress"></div>
+            </div>
+            <div class="note" id="last">–</div>
+            <div class="row gap-top">
+              <button id="stop">Stop after this read</button>
+            </div>
+          </div>
+
+          <details class="options">
+            <summary>Options</summary>
+            <label
+              >Indala commands
+              <select id="profile">
+                <option value="">none found</option>
+                <option value="pr509">#509</option>
+                <option value="nieldk">nieldk v2.4</option>
+              </select></label
+            >
+            <p class="note">
+              The page picks these from the firmware. Change them only if it
+              picks wrong.
+            </p>
+          </details>
+        </div>
+
+        <div class="aside">
+          <div class="small"><b>Firmware</b></div>
+          <p class="note">
+            Flashing replaces the CU's firmware and keeps its slots. To compare
+            firmwares, flash here between runs without moving the CU or the
+            Flipper, then connect again.
+          </p>
+          <div class="row gap-top">
+            <button id="flashPr">Flash #509 (<span id="prname"></span>)</button>
+            <button id="flashStock">Flash stock v2.3.0</button>
+            <button id="flashFile">Flash a file…</button>
+            <input id="fwfile" type="file" accept=".zip" hidden />
+            <button id="flashDfu" class="primary" hidden>
+              Allow the bootloader
+            </button>
+          </div>
+          <div class="note gap-top" id="flashinfo"></div>
+          <p class="note">
+            "Flash a file" takes an application DFU package (a .zip), such as a
+            nieldk release.
+          </p>
+        </div>
+      </section>
+
+      <section class="flow" id="resultbox" hidden>
+        <h2>Results</h2>
+        <p class="note">
+          One row per run. Copy puts the table on the clipboard as Markdown,
+          ready to paste into a GitHub comment.
+        </p>
+        <div class="tablewrap">
+          <table>
+            <thead id="resulthead"></thead>
+            <tbody id="resultrows"></tbody>
+          </table>
+        </div>
+        <div class="row gap-top">
+          <label
+            ><input id="showfp" type="checkbox" checked /> Include card
+            fingerprints</label
+          >
+          <button
+            type="button"
+            id="fpwhat"
+            class="disclose"
+            aria-expanded="false"
+            aria-controls="fpinfo"
+          >
+            What is this?
+          </button>
+        </div>
+        <p class="note disclosed" id="fpinfo" hidden>
+          A fingerprint is the first 4 hex digits of the SHA-256 of the frame
+          the CU read. It shows whether two runs read the same card (your card
+          and its T5577 clone, say) without showing the card. It doesn't hide
+          the card completely: an Indala 26-bit card has about 16 million
+          possible values and a fingerprint has 65,536, so one fingerprint
+          narrows a card down to about 256 candidates. Untick this if that's too
+          much to post. The table's wrong-read count works without it.
+        </p>
+        <div class="row gap-top">
+          <button id="copyResults" class="primary">Copy</button>
+          <button id="clear">Clear the results</button>
+        </div>
+      </section>
+
+      <details class="fold">
+        <summary><h2>Crystal offsets</h2></summary>
+        <p class="note">
+          How long a Flipper takes to read an emulation can depend on how far
+          apart the CU's and the Flipper's crystals run. Measure each on its own
+          page:
+          <a href="../crystal/">Chameleon Ultra</a> and
+          <a href="../../flipper/crystal/">Flipper Zero</a>. The CU's page
+          flashes its own test firmware and then stock, so run the tests here
+          first.
+        </p>
+      </details>
+
+      <details class="fold" id="logbox">
+        <summary><h2>Log</h2></summary>
+        <pre id="log"></pre>
+      </details>
+      <p class="note" id="siteversion"></p>
+    </main>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "../common/cu.js": "../common/cu.js?v=da961c33e6",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=19c1280404",
+          "./indala.js": "./indala.js?v=bab5046fa4",
+          "../../common/page.js": "../../common/page.js?v=925f61259f",
+          "../../flipper/crystal/flipper.js": "../../flipper/crystal/flipper.js?v=4e8d9a4a49"
+        }
+      }
+    </script>
+    <script type="module">
+      import {
+        SerialCU,
+        STATUS_SUCCESS,
+        STATUS_INVALID_CMD,
+      } from "../common/cu.js";
+      import { bindFlashButtons } from "../common/flash-ui.js";
+      import { SerialFlipper } from "../../flipper/crystal/flipper.js";
+      import {
+        $,
+        log,
+        nowS,
+        sleep,
+        hasWebSerial,
+        bindTabs,
+        showSiteCommit,
+      } from "../../common/page.js";
+      import * as X from "./indala.js";
+
+      const PR = {
+        zip: "firmware/pr509-444eb0aa-ultra-dfu-app.zip",
+        name: "#509 444eb0a",
+        version: "g444eb0a",
+      };
+      const STOCK = {
+        zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
+        name: "stock v2.3.0",
+      };
+      $("prname").textContent = PR.name.replace("#509 ", "");
+
+      let cu = null,
+        fl = null,
+        fw = "",
+        busy = false,
+        stopping = false,
+        loaded = null; // the slot the test card went into on this connection
+      const runs = [];
+
+      // Two steps: connect, then test (ready). The results stay visible below the tests once there are any.
+      function setState(state) {
+        $("app").dataset.state = state;
+        $("step-connect").className = state === "connect" ? "current" : "done";
+        $("step-test").className = state === "ready" ? "current" : "";
+      }
+
+      // While a test runs, its progress shows under the tabs and the other controls wait.
+      const CONTROLS = [
+        "readTest",
+        "emuTest",
+        "reconnect",
+        "tab-read",
+        "tab-emu",
+        "flashPr",
+        "flashStock",
+        "flashFile",
+      ];
+      function setRunning(on) {
+        $("runbox").hidden = !on;
+        for (const id of CONTROLS) $(id).disabled = on;
+        for (const b of document.querySelectorAll(".connectFlipper"))
+          b.disabled = on;
+        if (!on) showReady();
+      }
+
+      async function ok(cmd, data, timeoutS) {
+        const r = await cu.cmd(cmd, data, timeoutS);
+        if (r.status !== STATUS_SUCCESS)
+          throw new Error(
+            `command ${cmd} returned status 0x${r.status.toString(16)}`,
+          );
+        return r;
+      }
+
+      async function run(what, fn) {
+        if (busy) return;
+        busy = true;
+        try {
+          await fn();
+        } catch (e) {
+          log(`${what} failed: ${e.message}`);
+        } finally {
+          busy = false;
+        }
+      }
+
+      const profile = () => X.PROFILES[$("profile").value] ?? null;
+
+      // ---------------------------------------------------------------- results
+
+      function showResults() {
+        const { head, rows } = X.table(runs, $("showfp").checked);
+        const tr = (cells, tag) => {
+          const row = document.createElement("tr");
+          for (const c of cells) {
+            const cell = document.createElement(tag);
+            cell.textContent = c;
+            row.append(cell);
+          }
+          return row;
+        };
+        $("resulthead").replaceChildren(tr(head, "th"));
+        $("resultrows").replaceChildren(...rows.map((r) => tr(r, "td")));
+        $("resultbox").hidden = !runs.length;
+      }
+
+      $("copyResults").onclick = async () => {
+        const button = $("copyResults");
+        const md = X.markdown(runs, $("showfp").checked);
+        try {
+          await navigator.clipboard.writeText(md);
+          button.textContent = "Copied";
+        } catch {
+          // no clipboard access: show the Markdown in the log to copy by hand
+          log(`results:\n${md}`);
+          button.textContent = "See the log";
+        }
+        setTimeout(() => (button.textContent = "Copy"), 1500);
+      };
+
+      $("showfp").onchange = showResults;
+      $("fpwhat").onclick = () => {
+        const info = $("fpinfo");
+        info.hidden = !info.hidden;
+        $("fpwhat").setAttribute("aria-expanded", String(!info.hidden));
+      };
+      $("clear").onclick = () => {
+        runs.length = 0;
+        showResults();
+      };
+
+      // Progress while a test runs: what it's doing, read i of n, and the last result.
+      function progress(phase, i, n, last) {
+        $("phase").textContent = phase;
+        $("count").textContent = `read ${i} of ${n}`;
+        $("progress").style.width = `${(100 * i) / n}%`;
+        if (last !== undefined) $("last").textContent = last;
+      }
+      $("stop").onclick = () => {
+        stopping = true;
+        $("stop").disabled = true;
+      };
+
+      // Runs one test, with its progress showing, and puts the controls back whatever happens.
+      async function test(what, fn) {
+        if (busy) return;
+        stopping = false;
+        $("stop").disabled = false;
+        $("last").textContent = "–";
+        setRunning(true);
+        await run(what, fn);
+        setRunning(false);
+        showResults();
+      }
+
+      // ---------------------------------------------------------------- connect and firmware
+
+      // #509's firmware answers its frame command (5027) with a status of some kind. Firmware without it answers
+      // "invalid command".
+      async function detectProfile() {
+        const r = await cu.cmd(X.PROFILES.pr509.getEmu);
+        if (r.status !== STATUS_INVALID_CMD) return "pr509";
+        return /nieldk|v2\.4/i.test(fw) ? "nieldk" : "";
+      }
+
+      async function showSlots() {
+        const r = await ok(X.CMD.GET_SLOT_INFO);
+        const slots = X.parseSlotInfo(r.data);
+        const keep = $("slot").value;
+        $("slot").innerHTML = slots
+          .map(
+            (s, i) =>
+              `<option value="${i}">${i + 1}: ${X.lfName(s.lf)}</option>`,
+          )
+          .join("");
+        // default: a slot that already holds the test card's type, else the last slot
+        const p = profile();
+        const mine = slots.findIndex((s) => p && s.lf === p.type);
+        $("slot").value = keep || String(mine >= 0 ? mine : slots.length - 1);
+      }
+
+      function showReady() {
+        const p = profile();
+        $("readTest").disabled = !p;
+        $("emuTest").disabled = !(p && fl);
+        $("emuinfo").textContent = !fl
+          ? "Connect a Flipper Zero above to run this test."
+          : "";
+      }
+
+      const connectCU = () =>
+        run("connect", async () => {
+          if (!hasWebSerial()) {
+            $("connectinfo").textContent =
+              "This browser can't reach USB devices. Use Chrome or Edge on a computer.";
+            return;
+          }
+          try {
+            const port = await navigator.serial.requestPort();
+            await cu?.close();
+            cu = new SerialCU();
+            await cu.open(port);
+            fw = await cu.version();
+          } catch (e) {
+            $("connectinfo").textContent = `Couldn't connect: ${e.message}`;
+            $("fwinfo").textContent = `Couldn't connect: ${e.message}`;
+            throw e;
+          }
+          log(`CU connected, firmware ${fw}`);
+          loaded = null;
+          const p = await detectProfile();
+          $("profile").value = p;
+          $("fwinfo").textContent = p
+            ? `Firmware ${fw}.` +
+              (p === "pr509" && !fw.includes(PR.version)
+                ? ` This isn't #509's current build (${PR.name}): flash it below to test that.`
+                : "")
+            : `Firmware ${fw} has no Indala commands this page knows. Flash #509 below, then connect again.`;
+          $("connectinfo").textContent = "";
+          await showSlots();
+          showReady();
+          $("connectinfo").textContent = "Connected";
+          $("continue").disabled = false;
+          // back from a flash, or with the Flipper already connected: no reason to stop here
+          if (runs.length || fl) setState("ready");
+        });
+
+      $("connect").onclick = connectCU;
+      $("reconnect").onclick = connectCU;
+      $("continue").onclick = () => setState("ready");
+
+      $("profile").onchange = () => {
+        loaded = null;
+        showReady();
+        if (cu) run("slots", showSlots);
+      };
+
+      // The file input has to open from the click itself, so this returns a promise that its change event settles.
+      function pickFile() {
+        const input = $("fwfile");
+        input.value = "";
+        const picked = new Promise((resolve) => {
+          input.onchange = async () => {
+            const f = input.files[0];
+            resolve(f ? { name: f.name, data: await f.arrayBuffer() } : null);
+          };
+          input.oncancel = () => resolve(null);
+        });
+        input.click();
+        return picked;
+      }
+
+      bindFlashButtons({
+        firmware: { pr: PR, stock: STOCK, file: pickFile },
+        buttons: { pr: "flashPr", stock: "flashStock", file: "flashFile" },
+        port: () => cu?.port ?? null,
+        release: async () => {
+          await cu?.close();
+          cu = null;
+        },
+        busy: () => (busy ? "wait for the current test to finish" : null),
+        done: (f) => {
+          $("connectinfo").textContent = `Flashed ${f.name}. Connect again.`;
+          $("continue").disabled = true;
+          $("profile").value = "";
+          setState("connect");
+        },
+      });
+
+      // ---------------------------------------------------------------- read test
+
+      $("readTest").onclick = () =>
+        test("read test", async () => {
+          const n = Number($("nread").value);
+          const r = {
+            firmware: fw,
+            test: `read: ${$("what").value}`,
+            tries: [],
+          };
+          runs.push(r);
+          await ok(X.CMD.CHANGE_DEVICE_MODE, X.reqMode(true));
+          try {
+            for (let i = 0; i < n && !stopping; i++) {
+              progress("Reading the card", i, n);
+              const a = await cu.cmd(X.CMD.INDALA_SCAN, undefined, 8);
+              const t = { s: null, ok: false, wrong: false, fp: null };
+              if (a.status === X.STATUS_LF_TAG_OK) {
+                t.s = a.ta - a.tb;
+                t.fp = await X.fingerprint(a.data);
+                // the first frame read is the reference: a different one later is a wrong read
+                const ref = r.tries.find((u) => u.ok)?.fp ?? t.fp;
+                t.ok = t.fp === ref;
+                t.wrong = !t.ok;
+              } else if (a.status !== X.STATUS_LF_TAG_NO_FOUND)
+                throw new Error(
+                  `scan returned status 0x${a.status.toString(16)}`,
+                );
+              r.tries.push(t);
+              const line = t.ok
+                ? `read ${i + 1}: ${t.s.toFixed(2)} s, fingerprint ${t.fp}`
+                : `read ${i + 1}: no card found`;
+              log(line);
+              progress("Reading the card", i + 1, n, line);
+              showResults();
+            }
+          } finally {
+            await ok(X.CMD.CHANGE_DEVICE_MODE, X.reqMode(false));
+          }
+        });
+
+      // ---------------------------------------------------------------- emulation test
+
+      // Load the test card into the chosen slot, unless this connection already did. Returns false if the person
+      // cancels.
+      async function loadTestCard() {
+        const p = profile();
+        const s = Number($("slot").value);
+        await ok(X.CMD.CHANGE_DEVICE_MODE, X.reqMode(false));
+        if (loaded === s) return true;
+        if (
+          !confirm(
+            `Replace slot ${s + 1}'s LF card with the Indala test card (FC 123, card 1337)?`,
+          )
+        )
+          return false;
+        await ok(X.CMD.SET_SLOT_TAG_TYPE, X.reqSlotType(s, p.type));
+        await ok(X.CMD.SET_SLOT_DATA_DEFAULT, X.reqSlotType(s, p.type));
+        await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(s));
+        await ok(p.setEmu, X.TEST_FRAME);
+        await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(s));
+        await ok(X.CMD.SET_SLOT_TAG_NICK, X.reqNickLf(s, X.TEST_NICK));
+        await ok(X.CMD.SLOT_DATA_CONFIG_SAVE, undefined, 10);
+        log(`slot ${s + 1}: Indala test card loaded, slot active`);
+        loaded = s;
+        await showSlots();
+        return true;
+      }
+
+      // The Flipper's status shows in both steps.
+      const flipperInfo = (text) => {
+        for (const el of document.querySelectorAll(".flipperinfo"))
+          el.textContent = text;
+      };
+      const connectFlipper = () =>
+        run("connect Flipper", async () => {
+          if (!hasWebSerial()) return;
+          try {
+            const port = await navigator.serial.requestPort();
+            await fl?.close();
+            fl = new SerialFlipper(nowS);
+            await fl.open(port);
+          } catch (e) {
+            flipperInfo(`Couldn't connect: ${e.message}`);
+            fl = null;
+            showReady();
+            throw e;
+          }
+          const info = await fl.deviceInfo();
+          const name = info["hardware.name"] ?? "Flipper";
+          const fork = info["firmware.origin.fork"] ?? "";
+          const app = await fl.runningApp();
+          flipperInfo(
+            `${name}, ${fork} ${info["firmware.version"] ?? ""}` +
+              (app ? `. Exit ${app} on the Flipper first.` : ""),
+          );
+          for (const b of document.querySelectorAll(".connectFlipper"))
+            b.textContent = "Reconnect";
+          log(`Flipper connected: ${name}, ${fork}`);
+          showReady();
+        });
+      for (const b of document.querySelectorAll(".connectFlipper"))
+        b.onclick = connectFlipper;
+
+      $("emuTest").onclick = () =>
+        test("emulation test", async () => {
+          const app = await fl.runningApp();
+          if (app) throw new Error(`exit ${app} on the Flipper first`);
+          const n = Number($("nemu").value),
+            limit = Number($("emutimeout").value);
+          progress("Loading the test card", 0, n);
+          if (!(await loadTestCard())) return;
+          const r = {
+            firmware: fw,
+            test: "emulate, Flipper reads",
+            card: X.TEST_CARD_LABEL,
+            tries: [],
+          };
+          runs.push(r);
+          for (let i = 0; i < n && !stopping; i++) {
+            progress("The Flipper is reading the CU", i, n);
+            const d = await fl.rfidRead("indala", limit);
+            const t = {
+              s: d.s,
+              ok: d.s !== null && X.isTestDecode(d),
+              wrong: d.s !== null && !X.isTestDecode(d),
+              fp: null,
+            };
+            r.tries.push(t);
+            const line =
+              `Flipper read ${i + 1}: ` +
+              (d.s === null
+                ? `nothing in ${limit} s`
+                : `${d.s.toFixed(2)} s, ${d.protocol} ${d.info.join(", ")}`);
+            log(line);
+            progress("The Flipper is reading the CU", i + 1, n, line);
+            showResults();
+            await sleep(1); // the Flipper's field off between reads
+          }
+        });
+
+      bindTabs();
+      setState("connect");
+      showSiteCommit($("siteversion"));
+    </script>
+  </body>
+</html>

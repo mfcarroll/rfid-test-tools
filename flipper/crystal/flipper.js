@@ -1,5 +1,5 @@
-// Flipper Zero over Web Serial: its text CLI, installing a .fap, and the RFID detector's `rfid_detector_cal`
-// session. No DOM in here. The CLI echoes what is typed and ends each command's output with the ">: " prompt.
+// Flipper Zero over Web Serial: its text CLI, installing a .fap, a timed `rfid read`, and the RFID detector's
+// `rfid_detector_cal` session. No DOM in here. The CLI echoes what is typed and ends each command's output with the ">: " prompt.
 
 export const NOMINAL = 64e6; // the app's timer: 64 MHz from the crystal's PLL
 export const CAL_LIMIT = 100; // ppm, as the app's Calibration screen
@@ -104,6 +104,37 @@ export class SerialFlipper {
       if (m) info[m[1]] = m[2];
     }
     return info;
+  }
+
+  // One `rfid read <mode>` ("indala" reads PSK only). It holds the CLI until it decodes a card or gets Ctrl-C, so
+  // this sends Ctrl-C after timeoutS. Returns { s, protocol, data, info }: s is the seconds from sending the command
+  // to the decode line, data the hex the CLI prints, info its rendered lines. Returns { s: null } after a timeout.
+  async rfidRead(mode, timeoutS) {
+    this.text = "";
+    const tb = this.now();
+    await this.write(`rfid read ${mode}\r`);
+    let s = null;
+    try {
+      const { ta } = await this.until(
+        (t) => /^\w+ (?:[0-9A-F]{2})+\r?$/m.test(t) || undefined,
+        timeoutS,
+      );
+      s = ta - tb;
+    } catch {
+      await this.write("\x03"); // Ctrl-C: the CLI stops reading and prints "Reading stopped"
+    }
+    const { r } = await this.until((t) => {
+      const i = t.indexOf(PROMPT, t.indexOf("Reading stopped"));
+      if (!t.includes("Reading stopped") || i < 0) return;
+      this.text = t.slice(i + PROMPT.length);
+      return t.slice(0, i);
+    }, 5);
+    if (s === null) return { s };
+    const lines = r.split(/\r?\n/).map((l) => l.trim());
+    const at = lines.findIndex((l) => /^\w+ (?:[0-9A-F]{2})+$/.test(l));
+    const [protocol, data] = lines[at].split(" ");
+    const end = lines.indexOf("Reading stopped");
+    return { s, protocol, data, info: lines.slice(at + 1, end).filter(Boolean) };
   }
 
   // Replace a file with `bytes` through `storage write_chunk`, which prints "Ready" and then reads exactly that
