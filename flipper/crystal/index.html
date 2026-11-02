@@ -581,6 +581,12 @@ py flipper_crystal.py</pre>
         if (!c.length) return;
         const change = Math.max(...c) - Math.min(...c);
         run.unsteady = change > TEMPERATURE_LIMIT;
+        log(
+          `  Flipper temperature ${c[0].toFixed(1)} → ${c.at(-1).toFixed(1)} °C, range ${Math.min(...c).toFixed(1)}–${Math.max(...c).toFixed(1)}` +
+            (run.unsteady
+              ? `: ⚠ changed by ${change.toFixed(1)} °C (more than ${TEMPERATURE_LIMIT}). Not saved automatically`
+              : ""),
+        );
         $("temp").textContent =
           `${c[0].toFixed(1)} → ${c.at(-1).toFixed(1)} °C`;
         $("tempwarn").hidden = !run.unsteady;
