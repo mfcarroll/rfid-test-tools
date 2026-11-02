@@ -48,9 +48,18 @@
             <p class="note">
               Copies one HID Prox, Paradox or ioProx card into four slots:
               stock, stock + exact bits, self-trim, and self-trim + exact bits.
-              Load the card into any slot with your usual app first. A backup of
-              every slot downloads before anything changes.
+              Load the card into any slot first, with your usual app or by
+              reading it here. A backup of every slot downloads before anything
+              changes.
             </p>
+            <div class="row gap-top">
+              <label class="note"
+                >Read a card into
+                <select id="scanslot"></select
+              ></label>
+              <button id="scan">Read a card</button>
+              <span id="scaninfo" class="note"></span>
+            </div>
             <div class="row gap-top">
               <label class="note"
                 >Card from
@@ -295,7 +304,7 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=4ce0814c68",
           "../common/flash-ui.js": "../common/flash-ui.js?v=7b15c30015",
-          "./selftrim.js": "./selftrim.js?v=0d97da5cbb",
+          "./selftrim.js": "./selftrim.js?v=b9645d5613",
           "../../common/page.js": "../../common/page.js?v=925f61259f"
         }
       }
@@ -506,6 +515,23 @@
           tb.append(tr);
         }
         $("apply").disabled = !from || !plan.size;
+        renderScanSlots();
+      }
+
+      // The slot a card is read into: by default the first slot with no LF card, otherwise slot 8.
+      function renderScanSlots() {
+        const sel = $("scanslot"),
+          prev = sel.value;
+        sel.textContent = "";
+        for (const s of last.slots)
+          sel.append(
+            new Option(
+              `slot ${s.slot + 1}${s.lfType ? `: ${X.lfName(s.lfType)}` : " (empty)"}`,
+              s.slot,
+            ),
+          );
+        const empty = last.slots.find((s) => !s.lfType);
+        sel.value = prev !== "" ? prev : String(empty ? empty.slot : 7);
       }
 
       function fillPlan(n) {
@@ -583,6 +609,75 @@
             card = null;
           }
           last = await exp(X.reqQuery());
+          renderPlan();
+        });
+
+      // Read a card on the CU's antenna into a slot. The CU goes back to tag mode afterwards, even if the read fails.
+      const SCAN_SECONDS = 20;
+      async function scanCard() {
+        const end = Date.now() + SCAN_SECONDS * 1000;
+        while (Date.now() < end) {
+          for (const [type, cmd, req, len] of X.SCANS) {
+            const r = await cu.cmd(cmd, Uint8Array.from(req));
+            if (r.status === X.STATUS_LF_TAG_OK)
+              return { type, card: r.data.slice(0, len) };
+            if (r.status !== X.STATUS_LF_TAG_NO_FOUND)
+              throw new Error(
+                `scan ${cmd} returned status 0x${r.status.toString(16)}`,
+              );
+          }
+        }
+        return null;
+      }
+      $("scan").onclick = () =>
+        run("read a card", async () => {
+          const t = Number($("scanslot").value),
+            was = last.slots[t].lfType;
+          if (
+            was &&
+            !confirm(
+              `Replace the ${X.lfName(was)} card in slot ${t + 1}? A backup of every slot downloads first.` +
+                (X.LF_CARD[was]
+                  ? ""
+                  : `\n\n⚠ The backup can't hold slot ${t + 1} (${X.lfName(was)}): this firmware can't read that type, so it would be lost.`),
+            )
+          )
+            return;
+          if (was) await backupNow();
+          $("scaninfo").textContent =
+            "Hold the card flat against the CU's button side…";
+          await ok(X.CHANGE_DEVICE_MODE, Uint8Array.of(1));
+          let found = null;
+          try {
+            found = await scanCard();
+          } catch (e) {
+            $("scaninfo").textContent = `Couldn't read a card: ${e.message}`;
+            throw e;
+          } finally {
+            await ok(X.CHANGE_DEVICE_MODE, Uint8Array.of(0));
+          }
+          if (!found) {
+            $("scaninfo").textContent =
+              `No HID Prox, Paradox or ioProx card found in ${SCAN_SECONDS} s. Try again, moving the card slowly.`;
+            return;
+          }
+          try {
+            await ok(X.CMD.SET_SLOT_TAG_TYPE, X.reqSlotType(t, found.type));
+            await ok(X.CMD.SET_SLOT_DATA_DEFAULT, X.reqSlotType(t, found.type));
+            await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(t));
+            await ok(X.EMU_ID[found.type][1], found.card);
+            await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(t));
+            await cu.cmd(X.CMD.DELETE_SLOT_TAG_NICK, X.reqSlotLf(t)); // a nickname may name the old card's mode
+            await ok(X.CMD.SLOT_DATA_CONFIG_SAVE);
+          } finally {
+            found.card.fill(0);
+          }
+          log(`read a ${X.lfName(found.type)} card into slot ${t + 1}`);
+          $("scaninfo").textContent =
+            `Read a ${X.lfName(found.type)} card into slot ${t + 1}.`;
+          last = await exp(X.reqQuery());
+          renderPlan();
+          $("src").value = String(t);
           renderPlan();
         });
 
