@@ -226,7 +226,8 @@ export class SerialFlipper {
   async calSend(ppm, sig) {
     const v = Math.round(ppm * 10);
     await this.write(`s${v} ${Math.max(1, Math.round(sig * 10))}\r`);
-    await this.lineMatching(new RegExp(`^SET ${v}$`));
+    // the app replies after saving, within 10 s
+    await this.lineMatching(new RegExp(`^SET ${v}$`), 12);
   }
 
   async calStop() {
