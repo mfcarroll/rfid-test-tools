@@ -8,7 +8,7 @@
   ],
   "file": "nfc_rfid_detector-official-88.2.fap",
   "version": "1.5",
-  "source": "d5fe605",
+  "source": "133caf4",
   "sdk": "1.5.1",
   "md5": "34c9435074a096be2aa447644004b8b8"
  },
@@ -21,7 +21,7 @@
   ],
   "file": "nfc_rfid_detector-momentum-87.1.fap",
   "version": "1.5",
-  "source": "d5fe605",
+  "source": "133caf4",
   "sdk": "mntm-012",
   "md5": "68d4e9cf388c9d5ddc2f3b9a09cd58bf"
  }

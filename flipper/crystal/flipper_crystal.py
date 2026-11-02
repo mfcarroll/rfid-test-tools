@@ -19,8 +19,9 @@ one Flipper is plugged in. The script opens the app on the "Computer calibration
 screen, and shows progress on the Flipper's screen during the run.
 
 When the run finishes, the script prints the result in ppm (+ means the crystal runs
-fast). If the two halves of the run are consistent and the result is within ±100 ppm,
-the script also saves the result in the app.
+fast). The script also saves the result in the app if the two halves of the run are
+consistent, the Flipper's temperature changed by 3 °C or less, and the result is
+within ±100 ppm.
 
 Method: the app's `rfid_detector_cal` command reads a 64 MHz timer that runs from the
 crystal. The script reads that timer every 2 s, and notes this computer's monotonic
@@ -53,7 +54,8 @@ NTP_EPOCH = 2208988800  # 1900 -> 1970
 CAL_LIMIT = 100.0  # ppm, same limit as the app's manual calibration screen
 # The crystal shifts by about this much per °C (measured on one Flipper, with ice packs)
 PPM_PER_DEGREE = 0.25
-TEMPERATURE_WARNING = 3.0  # °C during a run, about 0.75 ppm
+# The result isn't saved if the temperature changed by more than this during a run (about 0.75 ppm)
+TEMPERATURE_LIMIT = 3.0  # °C
 
 # now() reads perf_counter (mach_absolute_time on macOS, QueryPerformanceCounter on
 # Windows), not time.time(), because the system's time sync can step the wall clock
@@ -552,12 +554,11 @@ def main():
             f"  temperature    {celsius[0]:.1f} -> {celsius[-1]:.1f} °C "
             f"(range {min(celsius):.1f}-{max(celsius):.1f})"
         )
-        if change > TEMPERATURE_WARNING:
+        if change > TEMPERATURE_LIMIT:
             print(
                 f"  ⚠ the Flipper's temperature changed by {change:.1f} °C during the "
                 f"run, which can move the result by about "
-                f"{change * PPM_PER_DEGREE:.1f} ppm. Run again once its temperature "
-                "is steady."
+                f"{change * PPM_PER_DEGREE:.1f} ppm"
             )
 
         if abs(ppm) > CAL_LIMIT:
@@ -565,6 +566,12 @@ def main():
             return 1
         elif not halves_agree:
             print("  not saved on the Flipper: the halves check failed. Run again")
+            return 1
+        elif change > TEMPERATURE_LIMIT:
+            print(
+                "  not saved on the Flipper: its temperature changed. Run again once "
+                "its temperature is steady"
+            )
             return 1
         elif not args.no_send:
             flipper.send(ppm, sigma)
