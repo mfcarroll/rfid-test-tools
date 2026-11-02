@@ -106,8 +106,8 @@ export class SerialFlipper {
     return info;
   }
 
-  // One `rfid read <mode>` ("indala" reads PSK only). It holds the CLI until it decodes a card or gets Ctrl-C, so
-  // this sends Ctrl-C after timeoutS. Returns { s, protocol, data, info }: s is the seconds from sending the command
+  // Runs one `rfid read <mode>` ("indala" reads PSK only) and times it. The command holds the CLI until it decodes a
+// card or gets Ctrl-C, and this method sends Ctrl-C after timeoutS. Returns { s, protocol, data, info }: s is the seconds from sending the command
   // to the decode line, data the hex the CLI prints, info its rendered lines. Returns { s: null } after a timeout.
   async rfidRead(mode, timeoutS) {
     this.text = "";
