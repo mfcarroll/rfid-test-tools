@@ -293,7 +293,7 @@
       {
         "imports": {
           "../common/cu.js": "../common/cu.js?v=da961c33e6",
-          "../common/flash-ui.js": "../common/flash-ui.js?v=19c1280404",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
           "./indala.js": "./indala.js?v=6a79f0a778",
           "../../common/page.js": "../../common/page.js?v=925f61259f",
           "../../flipper/crystal/flipper.js": "../../flipper/crystal/flipper.js?v=9c7f39edf3"
@@ -537,22 +537,8 @@
       };
 
       // The file input has to open from the click itself, so this returns a promise that its change event settles.
-      function pickFile() {
-        const input = $("fwfile");
-        input.value = "";
-        const picked = new Promise((resolve) => {
-          input.onchange = async () => {
-            const f = input.files[0];
-            resolve(f ? { name: f.name, data: await f.arrayBuffer() } : null);
-          };
-          input.oncancel = () => resolve(null);
-        });
-        input.click();
-        return picked;
-      }
-
       bindFlashButtons({
-        firmware: { pr: PR, stock: STOCK, file: pickFile },
+        firmware: { pr: PR, stock: STOCK },
         buttons: { pr: "flashPr", stock: "flashStock", file: "flashFile" },
         port: () => cu?.port ?? null,
         release: async () => {

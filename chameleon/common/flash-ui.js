@@ -1,7 +1,8 @@
-// The Firmware section's buttons (flashTest, flashStock, flashDfu, flashinfo), shared by the Chameleon pages.
+// The Firmware section's buttons (flashTest, flashStock, flashFile, flashDfu, flashinfo), shared by the Chameleon pages.
 //   firmware: { test: { zip, name }, stock: { zip, name } }. An entry may instead be a function that returns the
-//             firmware ({ name, data } for a file the person picked), or null to cancel.
-//   buttons:  which button flashes which entry, { key: element id }. The default is test and stock as above.
+//             firmware ({ name, data } for a file the person picked), or null to cancel. A "file" button with no
+//             entry uses pickFile().
+//   buttons:  which button flashes which entry, { key: element id }. The default is test, stock and file as above.
 //   port():    the connected CU's port, reused so the browser doesn't ask again (or null)
 //   release(): close the page's connection to the CU before flashing
 //   busy():    a reason not to flash now, or null
@@ -10,9 +11,25 @@
 import { Flasher, loadFlashLib } from "./cu.js";
 import { $, log, hasWebSerial } from "../../common/page.js";
 
+// Asks for a DFU package from the computer through the hidden <input id="fwfile">. Returns { name, data }, or null
+// if the person cancels.
+export function pickFile() {
+  const input = $("fwfile");
+  input.value = "";
+  const picked = new Promise((resolve) => {
+    input.onchange = async () => {
+      const f = input.files[0];
+      resolve(f ? { name: f.name, data: await f.arrayBuffer() } : null);
+    };
+    input.oncancel = () => resolve(null);
+  });
+  input.click();
+  return picked;
+}
+
 export function bindFlashButtons({
   firmware,
-  buttons = { test: "flashTest", stock: "flashStock" },
+  buttons = { test: "flashTest", stock: "flashStock", file: "flashFile" },
   port,
   release,
   busy = () => null,
@@ -33,7 +50,7 @@ export function bindFlashButtons({
     if (!hasWebSerial()) return;
     const why = busy();
     if (why) return log(why);
-    const entry = firmware[which];
+    const entry = firmware[which] ?? (which === "file" ? pickFile : null);
     const f = typeof entry === "function" ? await entry() : entry;
     if (!f) return;
     if (

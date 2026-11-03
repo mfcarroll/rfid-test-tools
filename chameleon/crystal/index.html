@@ -126,13 +126,16 @@
               href="https://github.com/mfcarroll/ChameleonUltra/tree/feat/hfxo-count"
               >source</a
             >). Chameleon Ultra only, not Lite. Flashing keeps your slots and
-            saved cards. Flash stock v2.3.0 back when you're done. The
+            saved cards. When you're done, flash stock v2.3.0 back, or use
+            "Flash a file" for another application DFU package (a .zip). The
             <a href="../selftrim/">FSK self-trim</a> test firmware has the
             counter too: if your CU is on it, measure without flashing.
           </p>
           <div class="row gap-top">
             <button id="flashTest">Flash test firmware</button>
             <button id="flashStock">Flash stock v2.3.0</button>
+            <button id="flashFile">Flash a file…</button>
+            <input id="fwfile" type="file" accept=".zip" hidden />
             <button id="flashDfu" class="primary" hidden>
               Allow the bootloader (first time only)
             </button>
@@ -341,7 +344,7 @@ py hfxo_ntp.py COM5</pre>
       {
         "imports": {
           "../common/cu.js": "../common/cu.js?v=da961c33e6",
-          "../common/flash-ui.js": "../common/flash-ui.js?v=19c1280404",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
           "./hfxo.js": "./hfxo.js?v=d4b037022a",
           "../../common/page.js": "../../common/page.js?v=925f61259f",
           "../../common/timefit.js": "../../common/timefit.js?v=35b5608383",

@@ -54,7 +54,7 @@ reader that restarts its carrier without dropping the field.
 
 It works on the Chameleon Ultra only, not the Lite. The Lite has no reader-side antenna driver, which the new drive
 needs. Flashing replaces the firmware. Slots and saved cards are kept. Flashing either way clears what self-trim
-learned, and keeps the modes. Flash stock back when you're done.
+learned, and keeps the modes. Flash stock back when you're done, or use **Flash a file** for another application DFU package.
 
 ## The page
 

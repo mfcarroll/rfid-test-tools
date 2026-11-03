@@ -27,7 +27,7 @@ count the crystal's ticks.
 The [FSK self-trim](../selftrim/) test firmware (`0609420c` and later) has command 3125 too. A CU on it can be measured
 here without flashing.
 
-Chameleon Ultra only, not Lite. Flashing keeps your slots and saved cards. Flash stock v2.3.0 back when you're done.
+Chameleon Ultra only, not Lite. Flashing keeps your slots and saved cards. Flash stock v2.3.0 back when you're done, or use **Flash a file** for another application DFU package.
 The page flashes either one over Web Serial using
 [chameleon-ultra.js](https://github.com/taichunmin/chameleon-ultra.js). The page asks for the CU's port and reboots
 the CU into its bootloader. Then the page connects to the bootloader. The bootloader is a separate USB device, and

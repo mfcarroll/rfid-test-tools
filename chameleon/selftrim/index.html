@@ -202,12 +202,15 @@
               href="https://github.com/mfcarroll/ChameleonUltra/tree/exp/fsk-selftrim-489"
               >source</a
             >). Flashing keeps your slots and saved cards, and clears what
-            self-trim learned. Stock v2.3.0 has no Paradox support. Flash stock
-            back when you're done.
+            self-trim learned. Stock v2.3.0 has no Paradox support. When you're
+            done, flash stock back, or use "Flash a file" for another
+            application DFU package (a .zip).
           </p>
           <div class="row gap-top">
             <button id="flashTest">Flash test firmware</button>
             <button id="flashStock">Flash stock v2.3.0</button>
+            <button id="flashFile">Flash a file…</button>
+            <input id="fwfile" type="file" accept=".zip" hidden />
             <button id="flashDfu" class="primary" hidden>
               Allow the bootloader (first time only)
             </button>
@@ -307,7 +310,7 @@
       {
         "imports": {
           "../common/cu.js": "../common/cu.js?v=da961c33e6",
-          "../common/flash-ui.js": "../common/flash-ui.js?v=19c1280404",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
           "./selftrim.js": "./selftrim.js?v=b9645d5613",
           "../../common/page.js": "../../common/page.js?v=925f61259f"
         }
