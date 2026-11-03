@@ -83,18 +83,42 @@ export async function fingerprint(bytes) {
     .join("");
 }
 
+// The fingerprints a read run returned, most frequent first, as [fp, count]. A tie goes to the one read first.
+function fingerprintCounts(run) {
+  const n = new Map();
+  for (const t of run.tries) if (t.fp) n.set(t.fp, (n.get(t.fp) ?? 0) + 1);
+  return [...n].sort((a, b) => b[1] - a[1]);
+}
+
 // One run: { firmware, test, card?, tries: [{ s, ok, wrong, fp }] }. s is null for a miss. card names a known card
-// (the emulation test's); a read test has none, and its card shows as fingerprints.
+// (the emulation test's), and the emulation test sets ok and wrong itself. A read test has no known card. Its most
+// frequent fingerprint stands for the card, and a read with any other fingerprint is wrong. The first read can't be
+// the reference, because a reader that returns wrong frames can return one first.
+export function judge(run) {
+  if (run.card) return run.tries;
+  const ref = fingerprintCounts(run)[0]?.[0];
+  return run.tries.map((t) => ({
+    ...t,
+    ok: !!t.fp && t.fp === ref,
+    wrong: !!t.fp && t.fp !== ref,
+  }));
+}
+
 export function summarise(run) {
-  const hits = run.tries.filter((t) => t.ok);
+  const tries = judge(run);
+  const hits = tries.filter((t) => t.ok);
   const times = hits.map((t) => t.s).sort((a, b) => a - b);
-  const fps = [...new Set(run.tries.map((t) => t.fp).filter(Boolean))];
+  const counts = fingerprintCounts(run);
+  const fps =
+    counts.length > 1
+      ? counts.map(([fp, n]) => `${fp} ×${n}`)
+      : counts.map(([fp]) => fp);
   return {
     firmware: run.firmware,
     test: run.test,
-    n: run.tries.length,
+    n: tries.length,
     ok: hits.length,
-    wrong: run.tries.filter((t) => t.wrong).length,
+    wrong: tries.filter((t) => t.wrong).length,
     median: times.length ? times[Math.floor((times.length - 1) / 2)] : null,
     max: times.length ? times[times.length - 1] : null,
     fps,
@@ -105,7 +129,8 @@ export function summarise(run) {
 const sec = (s) => (s === null ? "–" : `${s.toFixed(2)} s`);
 
 // The results as { head, rows } of text cells, one row per run. The card column shows the known card for an emulation
-// run, and for a read run the fingerprints seen, or "–" when the person leaves fingerprints out.
+// run. For a read run it shows the fingerprints seen, most frequent first and with counts if there are several, or "–"
+// when the person leaves fingerprints out.
 export function table(runs, fingerprints = true) {
   const head = [
     "CU firmware",
