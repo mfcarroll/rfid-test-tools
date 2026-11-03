@@ -209,6 +209,7 @@
             Flipper, then connect again.
           </p>
           <div class="row gap-top">
+            <button id="flashPr">Flash #509 (<span id="prname"></span>)</button>
             <button id="flashStock">Flash stock v2.3.0</button>
             <button id="flashFile">Flash a file…</button>
             <input id="fwfile" type="file" accept=".zip" hidden />
@@ -219,8 +220,7 @@
           <div class="note gap-top" id="flashinfo"></div>
           <p class="note">
             "Flash a file" takes an application DFU package (a .zip), such as a
-            nieldk release. This page's own #509 build is being replaced. Until
-            it's back, flash a #509 build with "Flash a file".
+            nieldk release.
           </p>
         </div>
       </section>
@@ -318,10 +318,16 @@
       } from "../../common/page.js";
       import * as X from "./indala.js";
 
+      const PR = {
+        zip: "firmware/pr509-7bba4118-ultra-dfu-app.zip",
+        name: "#509 7bba411",
+        version: "g7bba411",
+      };
       const STOCK = {
         zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
         name: "stock v2.3.0",
       };
+      $("prname").textContent = PR.name.replace("#509 ", "");
 
       let cu = null,
         fl = null,
@@ -345,6 +351,7 @@
         "reconnect",
         "tab-read",
         "tab-emu",
+        "flashPr",
         "flashStock",
         "flashFile",
       ];
@@ -504,8 +511,11 @@
           const p = await detectProfile();
           $("profile").value = p;
           $("fwinfo").textContent = p
-            ? `Firmware ${fw}.`
-            : `Firmware ${fw} has no Indala commands this page knows. Flash a #509 build below, then connect again.`;
+            ? `Firmware ${fw}.` +
+              (p === "pr509" && !fw.includes(PR.version)
+                ? ` This isn't #509's current build (${PR.name.replace("#509 ", "")}). To test that build, use Flash #509 below.`
+                : "")
+            : `Firmware ${fw} has no Indala commands this page knows. Flash #509 below, then connect again.`;
           $("connectinfo").textContent = "";
           await showSlots();
           showReady();
@@ -541,8 +551,8 @@
       }
 
       bindFlashButtons({
-        firmware: { stock: STOCK, file: pickFile },
-        buttons: { stock: "flashStock", file: "flashFile" },
+        firmware: { pr: PR, stock: STOCK, file: pickFile },
+        buttons: { pr: "flashPr", stock: "flashStock", file: "flashFile" },
         port: () => cu?.port ?? null,
         release: async () => {
           await cu?.close();
