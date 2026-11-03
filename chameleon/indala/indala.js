@@ -24,8 +24,9 @@ export const PROFILES = {
   nieldk: { name: "nieldk", type: 311, setEmu: 5014, getEmu: 5015 },
 };
 
-// The card the emulation test loads: #509's default Indala frame, Indala 26-bit FC 123, card 1337. A test value, not
-// anyone's credential. The Flipper prints the decode as "Indala26 <hex>" followed by "FC: 123" and "Card: 1337".
+// The card the emulation test loads: Indala 26-bit FC 123, card 1337, the Proxmark's example card for `lf indala sim`,
+// encoded as its client encodes it. The Flipper prints the decode as "Indala26 <hex>" followed by "FC: 123" and
+// "Card: 1337". Only use a made-up card here. The page is public, and a real card's frame would publish it.
 export const TEST_FRAME = Uint8Array.from(
   "a00000008f49d2a1".match(/../g),
   (x) => parseInt(x, 16),
