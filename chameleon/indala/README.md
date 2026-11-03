@@ -12,9 +12,11 @@ The page has two steps. Connect takes the CU, and optionally a Flipper Zero for 
 for each test, and the results table below the firmware section gains a row for each run.
 
 - **Read a card.** The CU reads the card on its antenna a set number of times (`lf indala read`, command 3035) and
-  times each read. The frame most reads return counts as the card, and a read that returns any other frame counts as
-  wrong. The first read can't decide it, because a reader that returns wrong frames can return one first. The card
-  column lists the fingerprints with their counts if there are several. The page compares frames by their
+  times each read. The frame read most often across every run with the same card label (original card, T5577 clone
+  or other) counts as the card, and a read that returns any other frame counts as wrong. One run can't decide it,
+  because a reader that returns wrong frames can return more wrong frames than right ones in a run. A new run can
+  therefore change the counts of earlier rows. The card column lists the fingerprints with their counts if there
+  are several. The page compares frames by their
   fingerprint, the first 4 hex digits of the frame's SHA-256, and never shows the frame.
 - **Emulate to a Flipper.** The page loads an Indala test card (Indala 26-bit, FC 123, card 1337, frame
   `a00000008f49d2a1`) into the slot the person picks when they press Start, and makes it active. It then runs `rfid

@@ -99,9 +99,10 @@
             <p class="note">
               Lay the card flat on the CU's button side (the antenna is on that
               side, not the LED side). The CU reads the card a set number of
-              times, and records how long each read takes. The card most reads
-              return counts as the card, and a read that returns any other card
-              counts as wrong. The results never show the actual credential.
+              times, and records how long each read takes. The card read most
+              often, across every run with the same card label, counts as the
+              card, and a read that returns any other card counts as wrong. The
+              results never show the actual credential.
             </p>
             <div class="row gap-top">
               <label
@@ -293,7 +294,7 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=da961c33e6",
           "../common/flash-ui.js": "../common/flash-ui.js?v=19c1280404",
-          "./indala.js": "./indala.js?v=81650b4019",
+          "./indala.js": "./indala.js?v=6a79f0a778",
           "../../common/page.js": "../../common/page.js?v=925f61259f",
           "../../flipper/crystal/flipper.js": "../../flipper/crystal/flipper.js?v=9c7f39edf3"
         }
@@ -583,7 +584,7 @@
             for (let i = 0; i < n && !stopping; i++) {
               progress("Reading the card", i, n);
               const a = await cu.cmd(X.CMD.INDALA_SCAN, undefined, 8);
-              // X.summarise() decides which reads are wrong, once it can see the whole run
+              // X.table() decides which reads are wrong, from every run with the same card label
               const t = { s: null, fp: null };
               if (a.status === X.STATUS_LF_TAG_OK) {
                 t.s = a.ta - a.tb;

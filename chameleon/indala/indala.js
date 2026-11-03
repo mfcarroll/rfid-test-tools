@@ -84,20 +84,31 @@ export async function fingerprint(bytes) {
     .join("");
 }
 
-// The fingerprints a read run returned, most frequent first, as [fp, count]. A tie goes to the one read first.
-function fingerprintCounts(run) {
+// The fingerprints the given read tries returned, most frequent first, as [fp, count]. A tie goes to the one read
+// first.
+function fingerprintCounts(tries) {
   const n = new Map();
-  for (const t of run.tries) if (t.fp) n.set(t.fp, (n.get(t.fp) ?? 0) + 1);
+  for (const t of tries) if (t.fp) n.set(t.fp, (n.get(t.fp) ?? 0) + 1);
   return [...n].sort((a, b) => b[1] - a[1]);
 }
 
+// For each card label (a read run's test, such as "read: T5577 clone"), the fingerprint read most often across every
+// run with that label. The page takes it to be that card's frame. One run can't decide it, because a reader that
+// returns wrong frames can return more wrong frames than right ones in a run.
+function references(runs) {
+  const tries = new Map();
+  for (const r of runs)
+    if (!r.card) tries.set(r.test, [...(tries.get(r.test) ?? []), ...r.tries]);
+  return new Map(
+    [...tries].map(([test, ts]) => [test, fingerprintCounts(ts)[0]?.[0]]),
+  );
+}
+
 // One run: { firmware, test, card?, tries: [{ s, ok, wrong, fp }] }. s is null for a miss. card names a known card
-// (the emulation test's), and the emulation test sets ok and wrong itself. A read test has no known card. Its most
-// frequent fingerprint stands for the card, and a read with any other fingerprint is wrong. The first read can't be
-// the reference, because a reader that returns wrong frames can return one first.
-export function judge(run) {
+// (the emulation test's), and the emulation test sets ok and wrong itself. A read run has no known card: a read is
+// right if its fingerprint is ref, the card label's reference, and wrong otherwise.
+function judge(run, ref) {
   if (run.card) return run.tries;
-  const ref = fingerprintCounts(run)[0]?.[0];
   return run.tries.map((t) => ({
     ...t,
     ok: !!t.fp && t.fp === ref,
@@ -105,11 +116,11 @@ export function judge(run) {
   }));
 }
 
-export function summarise(run) {
-  const tries = judge(run);
+function summarise(run, ref) {
+  const tries = judge(run, ref);
   const hits = tries.filter((t) => t.ok);
   const times = hits.map((t) => t.s).sort((a, b) => a - b);
-  const counts = fingerprintCounts(run);
+  const counts = fingerprintCounts(run.tries);
   const fps =
     counts.length > 1
       ? counts.map(([fp, n]) => `${fp} ×${n}`)
@@ -131,7 +142,7 @@ const sec = (s) => (s === null ? "–" : `${s.toFixed(2)} s`);
 
 // The results as { head, rows } of text cells, one row per run. The card column shows the known card for an emulation
 // run. For a read run it shows the fingerprints seen, most frequent first and with counts if there are several, or "–"
-// when the person leaves fingerprints out.
+// when the person leaves fingerprints out. A new run can change earlier rows' counts, because it adds to the reference.
 export function table(runs, fingerprints = true) {
   const head = [
     "CU firmware",
@@ -142,8 +153,9 @@ export function table(runs, fingerprints = true) {
     "slowest",
     "card",
   ];
+  const refs = references(runs);
   const rows = runs
-    .map(summarise)
+    .map((r) => summarise(r, refs.get(r.test)))
     .map((r) => [
       r.firmware,
       r.test,
