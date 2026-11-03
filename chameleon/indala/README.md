@@ -30,8 +30,7 @@ possible cards. The page's "What is this?" link under the checkbox says so.
 
 ## Firmware
 
-- `firmware/pr509-444eb0aa-ultra-dfu-app.zip`: #509 (`feat/lf-indala`) at `444eb0aa`, built with
-  `firmware/build.sh`. Rebuild it when the PR moves.
+- #509's build is being replaced and isn't hosted here for now. Flash a #509 build with **Flash a file**.
 - `../common/firmware/stock-v2.3.0-ultra-dfu-app.zip`: stock v2.3.0, which has no Indala.
 - **Flash a file** takes any application DFU package from the computer, such as a nieldk release. The page doesn't
   host other people's firmware.
@@ -56,7 +55,6 @@ stock, so run this page's tests first.
 | ------------ | ---------------------------------------------------------------------------- |
 | `index.html` | the page                                                                     |
 | `indala.js`  | the commands per firmware, the test card, fingerprints and the results table |
-| `firmware/`  | #509's build                                                                 |
 
 The page also uses `../common/cu.js` and `../common/flash-ui.js` for the CU, and `../../flipper/crystal/flipper.js`
 (`rfidRead`) for the Flipper.

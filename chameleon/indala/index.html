@@ -209,7 +209,6 @@
             Flipper, then connect again.
           </p>
           <div class="row gap-top">
-            <button id="flashPr">Flash #509 (<span id="prname"></span>)</button>
             <button id="flashStock">Flash stock v2.3.0</button>
             <button id="flashFile">Flash a file…</button>
             <input id="fwfile" type="file" accept=".zip" hidden />
@@ -220,7 +219,8 @@
           <div class="note gap-top" id="flashinfo"></div>
           <p class="note">
             "Flash a file" takes an application DFU package (a .zip), such as a
-            nieldk release.
+            nieldk release. This page's own #509 build is being replaced. Until
+            it's back, flash a #509 build with "Flash a file".
           </p>
         </div>
       </section>
@@ -293,7 +293,7 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=da961c33e6",
           "../common/flash-ui.js": "../common/flash-ui.js?v=19c1280404",
-          "./indala.js": "./indala.js?v=6501816ac8",
+          "./indala.js": "./indala.js?v=81650b4019",
           "../../common/page.js": "../../common/page.js?v=925f61259f",
           "../../flipper/crystal/flipper.js": "../../flipper/crystal/flipper.js?v=9c7f39edf3"
         }
@@ -318,16 +318,10 @@
       } from "../../common/page.js";
       import * as X from "./indala.js";
 
-      const PR = {
-        zip: "firmware/pr509-444eb0aa-ultra-dfu-app.zip",
-        name: "#509 444eb0a",
-        version: "g444eb0a",
-      };
       const STOCK = {
         zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
         name: "stock v2.3.0",
       };
-      $("prname").textContent = PR.name.replace("#509 ", "");
 
       let cu = null,
         fl = null,
@@ -351,7 +345,6 @@
         "reconnect",
         "tab-read",
         "tab-emu",
-        "flashPr",
         "flashStock",
         "flashFile",
       ];
@@ -511,11 +504,8 @@
           const p = await detectProfile();
           $("profile").value = p;
           $("fwinfo").textContent = p
-            ? `Firmware ${fw}.` +
-              (p === "pr509" && !fw.includes(PR.version)
-                ? ` This isn't #509's current build (${PR.name.replace("#509 ", "")}). To test that build, use Flash #509 below.`
-                : "")
-            : `Firmware ${fw} has no Indala commands this page knows. Flash #509 below, then connect again.`;
+            ? `Firmware ${fw}.`
+            : `Firmware ${fw} has no Indala commands this page knows. Flash a #509 build below, then connect again.`;
           $("connectinfo").textContent = "";
           await showSlots();
           showReady();
@@ -551,8 +541,8 @@
       }
 
       bindFlashButtons({
-        firmware: { pr: PR, stock: STOCK, file: pickFile },
-        buttons: { pr: "flashPr", stock: "flashStock", file: "flashFile" },
+        firmware: { stock: STOCK, file: pickFile },
+        buttons: { stock: "flashStock", file: "flashFile" },
         port: () => cu?.port ?? null,
         release: async () => {
           await cu?.close();
