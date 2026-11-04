@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CU Card Search</title>
+    <link rel="stylesheet" href="../../common/style.css?v=5a564509ea" />
+  </head>
+  <body>
+    <main id="app" data-state="connect">
+      <a class="back" href="../../">← RFID test tools</a>
+      <h1>Chameleon Ultra card search (experimental)</h1>
+      <p class="sub">
+        Check what type of card / fob you have. The page tries every card type
+        the CU can read, including the Indala and Paradox reads from
+        <a href="https://github.com/RfidResearchGroup/ChameleonUltra/pull/509"
+          >PR 509</a
+        >
+        and
+        <a href="https://github.com/RfidResearchGroup/ChameleonUltra/pull/489"
+          >PR 489</a
+        >, records the raw LF signal, determines the modulation type (how the
+        card talks), and checks for an ISO 14443-A card on HF.
+      </p>
+
+      <div class="callout">
+        <p>
+          <b>Everything happens in this browser.</b> The page talks to the CU
+          over USB. Nothing is sent to any server, and it doesn't save anything
+          unless you press Copy or Download.
+        </p>
+      </div>
+      <div class="callout caution">
+        <p>
+          <b>The private details output can contain your card's credential.</b>
+          The report is split in two, showing what's safe to post publicly, and
+          what might contain sensitive info.
+        </p>
+      </div>
+
+      <ol class="steps" aria-label="Progress">
+        <li id="step-connect"><span>1</span>Connect</li>
+        <li id="step-test"><span>2</span>Search</li>
+      </ol>
+
+      <section class="flow" aria-live="polite">
+        <div class="only-connect">
+          <h2>Connect the Chameleon Ultra</h2>
+          <p class="note">
+            This page requires Chrome or Edge on a computer. Use USB, not
+            Bluetooth, and close anything else using the CU, such as the CU app
+            or the Python CLI.
+          </p>
+          <div class="row gap-top">
+            <button id="connect" class="primary">Connect CU</button>
+            <span id="connectinfo" class="note"></span>
+          </div>
+        </div>
+
+        <div class="only-ready">
+          <div class="row">
+            <span class="note" id="fwinfo">Checking the firmware…</span>
+            <button id="reconnect">Reconnect</button>
+          </div>
+          <p class="note warn" id="fwneed" hidden>
+            This firmware can't record the long raw signal the LF analysis
+            needs. The named reads and the HF check still work. To get the full
+            analysis, flash the firmware below.
+          </p>
+
+          <div class="gap-top">
+            <div class="title">1. Measure the empty field (optional)</div>
+            <p class="note">
+              Take every card away from the CU, then measure. The page compares
+              this reading with the field when the card is present. That shows
+              whether the card is LF even if it doesn't answer. Some cards only
+              respond after a special command, and this gives a clue that your
+              card works that way.
+            </p>
+            <div class="row">
+              <button id="baseline">Measure the empty field</button>
+              <span class="note" id="baselineinfo"></span>
+            </div>
+          </div>
+
+          <div class="gap-top">
+            <div class="title">2. Identify the card</div>
+            <p class="note">
+              Lay the card flat on the CU's button side (the antenna is on that
+              side, not the LED side), and leave it there until the page
+              finishes, about 15 seconds. With the experimental firmware this
+              also checks whether the card is a T55xx (and reads its
+              configuration) or an EM4x05.
+            </p>
+            <div class="row">
+              <button id="identify" class="primary">Search</button>
+              <span class="note" id="identifyinfo"></span>
+            </div>
+          </div>
+
+          <div id="runbox" class="gap-top" hidden>
+            <h2 class="phase" id="phase">starting</h2>
+            <div
+              class="bar"
+              role="progressbar"
+              aria-label="Progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <div id="progress"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="aside">
+          <div class="small"><b>Firmware</b></div>
+          <p class="note">
+            The LF analysis, the chip check and the Paradox and Indala reads
+            need the experimental firmware. It's stock firmware from
+            <code>main</code> with long raw captures, the chip check, PR 489's
+            Paradox read and PR 509's Indala read added (<a
+              href="https://github.com/mfcarroll/ChameleonUltra/tree/lf-search"
+              >source</a
+            >). Flashing replaces the CU's firmware and keeps the current slots.
+          </p>
+          <div class="row gap-top">
+            <button id="flashTest">
+              Flash the experimental firmware (<span id="fwname"></span>)
+            </button>
+            <button id="flashStock">Flash stock v2.3.0</button>
+            <button id="flashFile">Flash a file…</button>
+            <input id="fwfile" type="file" accept=".zip" hidden />
+            <button id="flashDfu" class="primary" hidden>
+              Allow the bootloader
+            </button>
+          </div>
+          <div class="note gap-top" id="flashinfo"></div>
+        </div>
+      </section>
+
+      <section class="flow" id="resultbox" hidden>
+        <h2>Safe report</h2>
+        <p class="note">
+          What kind of card it is and how it talks. No card numbers. You can
+          post this, for example in a GitHub issue.
+        </p>
+        <div class="cmdbox gap-top">
+          <pre class="cmd" id="safe"></pre>
+          <button class="copy">Copy</button>
+        </div>
+
+        <h2 class="gap-top">Private details</h2>
+        <div class="callout caution">
+          <p>
+            These may include your card's credential, decoded or in the raw
+            output. Don't post it publicly.
+          </p>
+        </div>
+        <details class="options">
+          <summary>Show the private details</summary>
+          <pre class="cmd gap-top" id="private"></pre>
+        </details>
+        <div class="row gap-top">
+          <button id="copyFull">Copy the full report</button>
+          <button id="download">Download the raw signal</button>
+        </div>
+        <p class="note">
+          The download is a JSON file with the report and every raw sample
+          captured, for analysis with other tools.
+        </p>
+      </section>
+
+      <details class="fold">
+        <summary><h2>What the page does</h2></summary>
+        <ol class="note">
+          <li>
+            <b>Connect</b> checks the CU's firmware version, and whether it has
+            the chip check code. The CU's field stays off.
+          </li>
+          <li>
+            <b>Measure the empty field</b> switches the CU to reader mode, turns
+            its LF field on for about 0.1 s and records the raw signal.
+          </li>
+          <li>
+            <b>Search</b> switches the CU to reader mode and runs each LF read
+            the firmware has: EM410x, HID Prox, ioProx, Viking, PAC/Stanley,
+            Jablotron, Farpointe/Pyramid and, on the experimental firmware,
+            Paradox and Indala. Those all run twice if nothing is found. Each
+            one turns the field on and listens. It then records the raw LF
+            signal (115 ms, again if no frame repeats) and works out its
+            modulation, bit rate and frame length in the browser. It checks the
+            frame against each protocol the CU reads, the same way as the CU's
+            own built-in decoders do. It also reports a frame that has the right
+            shape but fails a check the CU's read needs, such as a checksum. The
+            CU's read ignores those frames.
+          </li>
+          <li>
+            With the experimental firmware, <b>Search</b> sends the commands
+            Proxmark's <code>lf search</code> uses to try to work out the chip
+            type. No password or login is attempted. First it tries to read the
+            T55xx chip's page 1 block 1 (the trace block). A T55xx answers it by
+            repeating that block, and then the page also reads page 0 block 0,
+            the T5577's configuration block. If no T55xx answers, it attempts to
+            read the EM4x05 chip's word 0. An EM4x05 answers with word 0. None
+            of these can change the card.
+          </li>
+          <li>
+            On HF it runs an ISO 14443-A scan, and for a MIFARE Classic it asks
+            for an authentication nonce to judge its random number generator.
+            That stops before any key is used.
+          </li>
+          <li>
+            When it finishes, the page puts the CU back in the mode it found it
+            in. Nothing writes to the card, and nothing changes the CU's slots.
+          </li>
+        </ol>
+        <p class="note">
+          The CU's HF reader only covers ISO 14443-A (MIFARE, NTAG, DESFire,
+          most bank cards). An HF card of another kind, such as iCLASS, ISO
+          15693 or FeliCa, doesn't show up. On LF, a card that only answers
+          commands (Hitag, EM4x50 and some others) shows as a change in the
+          field with no signal.
+        </p>
+      </details>
+      <details class="fold" id="logbox">
+        <summary><h2>Log</h2></summary>
+        <pre id="log"></pre>
+      </details>
+      <p class="note" id="siteversion"></p>
+    </main>
+    <script type="importmap">
+      {
+        "imports": {
+          "../common/cu.js": "../common/cu.js?v=da961c33e6",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
+          "./framecheck.js": "./framecheck.js?v=5fcd5e361f",
+          "./identify.js": "./identify.js?v=499e059663",
+          "./lfdemod.js": "./lfdemod.js?v=5749888947",
+          "../../common/page.js": "../../common/page.js?v=925f61259f"
+        }
+      }
+    </script>
+    <script type="module">
+      import { SerialCU, STATUS_SUCCESS } from "../common/cu.js";
+      import { bindFlashButtons } from "../common/flash-ui.js";
+      import {
+        $,
+        log,
+        hasWebSerial,
+        bindCopyButtons,
+        saveJson,
+        showSiteCommit,
+      } from "../../common/page.js";
+      import * as X from "./identify.js";
+      import { analyse, t55xxAnswer, traceBlock } from "./lfdemod.js";
+      import {
+        em4x05Answer,
+        frameChecks,
+        shapeFits,
+        t55ConfigFromProbe,
+      } from "./framecheck.js";
+
+      const IDENTIFY = {
+        zip: "firmware/lf-search-360bfa73-ultra-dfu-app.zip",
+        name: "experimental 360bfa7",
+      };
+      const STOCK = {
+        zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
+        name: "stock v2.3.0",
+      };
+      $("fwname").textContent = IDENTIFY.name.replace("experimental ", "");
+
+      let cu = null,
+        busy = false,
+        long = false; // the firmware has long captures and the chip check
+      let report = null,
+        baseline = null,
+        captures = {};
+
+      function setState(state) {
+        $("app").dataset.state = state;
+        $("step-connect").className = state === "connect" ? "current" : "done";
+        $("step-test").className = state === "ready" ? "current" : "";
+      }
+      const CONTROLS = [
+        "baseline",
+        "identify",
+        "reconnect",
+        "flashTest",
+        "flashStock",
+        "flashFile",
+      ];
+      function setRunning(on) {
+        $("runbox").hidden = !on;
+        for (const id of CONTROLS) $(id).disabled = on;
+      }
+      function progress(phase, part) {
+        $("phase").textContent = phase;
+        $("progress").style.width = `${Math.round(100 * part)}%`;
+      }
+      async function run(what, fn) {
+        if (busy) return;
+        busy = true;
+        setRunning(true);
+        try {
+          await fn();
+        } catch (e) {
+          log(`${what} failed: ${e.message}`);
+        } finally {
+          busy = false;
+          setRunning(false);
+        }
+      }
+
+      // Reader mode for the duration of fn, then the mode the CU was in.
+      async function asReader(fn) {
+        const m = await cu.cmd(X.CMD.GET_DEVICE_MODE);
+        const was = m.status === STATUS_SUCCESS && m.data[0] === 1;
+        await cu.cmd(X.CMD.CHANGE_DEVICE_MODE, X.reqMode(true));
+        try {
+          return await fn();
+        } finally {
+          await cu.cmd(X.CMD.CHANGE_DEVICE_MODE, X.reqMode(was));
+        }
+      }
+
+      // One long capture: chunk 0 captures, later chunks fetch slices of it, chunk 0xff describes it.
+      async function fetchCapture(first) {
+        if (first.status !== X.STATUS.LF_TAG_OK || !first.data.length)
+          return null;
+        const parts = [first.data];
+        for (let c = 1; c < 0xff; c++) {
+          const r = await cu.cmd(X.CMD.LF_SNIFF, X.reqSniff(c));
+          if (r.status !== X.STATUS.LF_TAG_OK || !r.data.length) break;
+          parts.push(r.data);
+        }
+        const info = X.parseSniffInfo(
+          (await cu.cmd(X.CMD.LF_SNIFF, X.reqSniff(X.SNIFF_INFO_CHUNK))).data,
+        );
+        const bytes = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+        let o = 0;
+        for (const p of parts) bytes.set(p, (o += p.length) - p.length);
+        return { bytes, info };
+      }
+      const sniff = async () =>
+        fetchCapture(await cu.cmd(X.CMD.LF_SNIFF, X.reqSniff(0), 5));
+      const probe = async (p) =>
+        fetchCapture(await cu.cmd(X.CMD.LF_CHIP_PROBE, X.reqProbe(p), 5));
+
+      // ---------------------------------------------------------------- connect and firmware
+
+      async function checkFirmware() {
+        const fw = await cu.version();
+        // The chip check with no probe in it: the experimental firmware rejects it as a bad request, other firmware doesn't
+        // know the command.
+        const r = await cu.cmd(X.CMD.LF_CHIP_PROBE, new Uint8Array(0));
+        long = r.status !== X.STATUS.INVALID_CMD;
+        $("fwinfo").textContent =
+          `CU on ${fw}: ` +
+          (long ? "has long captures and the chip check" : "no long captures");
+        $("fwneed").hidden = long;
+        log(`connected: ${fw}, long captures ${long ? "yes" : "no"}`);
+        return fw;
+      }
+      let firmware = "";
+      const connectCU = () =>
+        run("connect", async () => {
+          if (!hasWebSerial()) return;
+          try {
+            const port = await navigator.serial.requestPort();
+            await cu?.close();
+            cu = new SerialCU();
+            await cu.open(port);
+          } catch (e) {
+            $("connectinfo").textContent = `Couldn't connect: ${e.message}`;
+            cu = null;
+            throw e;
+          }
+          firmware = await checkFirmware();
+          setState("ready");
+        });
+      $("connect").onclick = connectCU;
+      $("reconnect").onclick = connectCU;
+
+      bindFlashButtons({
+        firmware: { test: IDENTIFY, stock: STOCK },
+        port: () => cu?.port ?? null,
+        release: async () => {
+          await cu?.close();
+          cu = null;
+        },
+        busy: () => (busy ? "wait for the current step to finish" : null),
+        done: () => setState("connect"),
+      });
+
+      // ---------------------------------------------------------------- the steps
+
+      $("baseline").onclick = () =>
+        run("empty field", async () => {
+          if (!long)
+            return log(
+              "measuring the empty field needs the experimental firmware",
+            );
+          progress("Measuring the empty field", 0.2);
+          const c = await asReader(sniff);
+          if (!c) throw new Error("the CU returned no samples");
+          captures.empty = c;
+          baseline = analyse(c.bytes);
+          $("baselineinfo").textContent =
+            baseline.modulation === "none"
+              ? `level ${baseline.level}`
+              : `level ${baseline.level}, but something is modulating the field: is a card still near?`;
+          log(`empty field: level ${baseline.level}, ${baseline.modulation}`);
+        });
+
+      $("identify").onclick = () =>
+        run("search", async () => {
+          captures = captures.empty ? { empty: captures.empty } : {};
+          const r = {
+            firmware,
+            baseline: baseline && { level: baseline.level },
+            lf: { named: [] },
+            hf: null,
+          };
+          await asReader(async () => {
+            const n = X.LF_SCANS.length;
+            for (const [i, s] of X.LF_SCANS.entries()) {
+              progress(`Trying ${s.name}`, (0.6 * i) / n);
+              for (let tries = 0; tries < 2; tries++) {
+                const a = await cu.cmd(s.cmd, s.req, 5);
+                if (a.status === X.STATUS.LF_TAG_OK) {
+                  r.lf.named.push({ name: s.name, ...s.parse(a.data) });
+                  log(`${s.name}: read`);
+                  break;
+                }
+                if (a.status === X.STATUS.INVALID_CMD) break; // this firmware has no such read
+              }
+            }
+            if (long) {
+              progress("Recording the raw LF signal", 0.65);
+              // A card that moves during the recording leaves no clean repeating frame. One more try.
+              let c = await sniff();
+              if (c && analyse(c.bytes).frameBits == null) {
+                log("LF signal: no repeating frame, recording again");
+                c = (await sniff()) ?? c;
+              }
+              if (c) {
+                captures.card = c;
+                r.lf.signal = analyse(c.bytes);
+                r.lf.checks = frameChecks(r.lf.signal);
+                r.lf.fits = shapeFits(r.lf.signal);
+                r.lf.dropped = c.info?.dropped ?? 0;
+                if (baseline)
+                  r.lf.change = +(
+                    (100 * (r.lf.signal.level - baseline.level)) /
+                    baseline.level
+                  ).toFixed(1);
+                log(
+                  `LF signal: ${r.lf.signal.modulation} RF/${r.lf.signal.rate ?? "-"}, frame ${r.lf.signal.frameBits ?? "-"}`,
+                );
+              }
+            }
+            if (long && r.lf.signal) {
+              // Two T55xx reads with no password. Each only reads: 6 bits on air, where a write needs 32 more.
+              progress("Checking for a T55xx", 0.75);
+              let t55probe = null;
+              const t = await probe(X.PROBE_T55XX_TRACE);
+              if (t) {
+                captures.chip = t;
+                const a = t55xxAnswer(t.bytes, r.lf.signal);
+                t55probe = a.probe;
+                r.lf.chip = a.answer;
+                r.lf.chipBlock = a.block ?? null;
+                log(`chip check: ${a.answer}`);
+              }
+              if (r.lf.chip !== "yes") {
+                // Not a T55xx: the EM4x05 read of word 0, as the Proxmark's lf search sends it. 13 bits on air;
+                // a write, protect or disable needs a 45-bit data field after the command.
+                progress("Checking for an EM4x05", 0.8);
+                const e = await probe(X.PROBE_EM4X05_WORD0);
+                if (e) {
+                  captures.em4x05 = e;
+                  r.lf.em4x05 = em4x05Answer(analyse(e.bytes));
+                  log(`EM4x05 check: ${r.lf.em4x05?.chip ?? "no answer"}`);
+                }
+              }
+              if (r.lf.chip === "yes") {
+                progress("Reading the T55xx configuration", 0.8);
+                const c = await probe(X.PROBE_T55XX_CONFIG);
+                if (c) {
+                  captures.config = c;
+                  r.lf.config = t55ConfigFromProbe(
+                    analyse(c.bytes),
+                    r.lf.signal,
+                  );
+                  // the configuration says how the tag modulates, which settles how to read the trace block
+                  if (r.lf.config)
+                    r.lf.chipBlock = traceBlock(t55probe, r.lf.config);
+                  log(
+                    `T55xx configuration: ${r.lf.config?.word ?? "not read"}`,
+                  );
+                }
+              }
+            }
+            progress("Checking HF", 0.85);
+            const h = await cu.cmd(X.CMD.HF14A_SCAN, undefined, 5);
+            r.hf = {
+              cards:
+                h.status === X.STATUS.HF_TAG_OK ? X.parseHf14a(h.data) : [],
+            };
+            for (const card of r.hf.cards) {
+              if (!X.isClassic(card.sak)) continue;
+              const p = await cu.cmd(X.CMD.MF1_DETECT_PRNG, undefined, 5);
+              if (p.status === X.STATUS.HF_TAG_OK) card.prng = p.data[0];
+            }
+            log(`HF: ${r.hf.cards.length} card(s)`);
+          });
+          report = r;
+          showReport();
+          $("identifyinfo").textContent = "done: the report is below";
+        });
+
+      // ---------------------------------------------------------------- the report
+
+      function showReport() {
+        $("safe").textContent = X.safeMarkdown(report);
+        $("private").textContent = X.fullMarkdown(report)
+          .split("**Private details**")[1]
+          .trim();
+        $("resultbox").hidden = false;
+      }
+      $("copyFull").onclick = async () => {
+        if (
+          !confirm(
+            "The full report can contain your card's credential. Copy it anyway?",
+          )
+        )
+          return;
+        await navigator.clipboard.writeText(X.fullMarkdown(report));
+        $("copyFull").textContent = "Copied";
+        setTimeout(
+          () => ($("copyFull").textContent = "Copy the full report"),
+          1500,
+        );
+      };
+      $("download").onclick = () => {
+        if (
+          !confirm(
+            "The raw signal can contain your card's credential. Download it anyway?",
+          )
+        )
+          return;
+        const raw = {};
+        for (const [k, c] of Object.entries(captures)) {
+          let s = "";
+          for (const b of c.bytes) s += String.fromCharCode(b);
+          raw[k] = { info: c.info, samples16be: btoa(s) };
+        }
+        saveJson(`cu-search-${Date.now()}.json`, { report, captures: raw });
+      };
+
+      bindCopyButtons();
+      setState("connect");
+      showSiteCommit($("siteversion"));
+    </script>
+  </body>
+</html>

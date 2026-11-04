@@ -555,3 +555,23 @@ dl.options-list dd {
     margin-bottom: 8px;
   }
 }
+
+/* callouts: a short notice above or inside a section */
+.callout {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+.callout.caution {
+  border-left-color: var(--bad);
+}
+.callout p {
+  margin: 0 0 6px;
+}
+.callout p:last-child {
+  margin-bottom: 0;
+}
