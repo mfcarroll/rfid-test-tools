@@ -292,7 +292,7 @@ function hints(lf) {
   if (!s) return out;
   if (s.modulation === "none")
     out.push(
-      "No LF modulation. Either there's no LF card, or it's too far away: lay it flat on the CU's button side.",
+      "No LF modulation. Either there's no LF card, the card only answers a command first (Hitag, EM4x50 and some others), or it's too far away: lay it flat on the CU's button side.",
     );
   else if (!s.frameBits)
     out.push(

@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CU Field Probe</title>
+    <link rel="stylesheet" href="../../common/style.css?v=5a564509ea" />
+  </head>
+  <body>
+    <main id="app" data-state="connect">
+      <a class="back" href="../../">← RFID test tools</a>
+      <h1>Chameleon Ultra field probe (experimental)</h1>
+      <p class="sub">
+        Point the CU at a reader instead of a card, and find out what kind of
+        field the reader makes. On LF, the CU measures the carrier's frequency
+        and looks for the short gaps a reader leaves in its field when it sends
+        a command. On HF, it counts the ISO 14443-A polls the reader sends. The
+        CU logs each field, so you can take it to a reader on battery and read
+        the results here afterwards.
+      </p>
+
+      <div class="callout">
+        <p>
+          <b>Everything happens in this browser.</b> The page talks to the CU
+          over USB. Nothing is sent to any server, and it doesn't save anything
+          unless you press Copy or Download.
+        </p>
+      </div>
+      <div class="callout caution">
+        <p>
+          <b>While the probe is on, the CU doesn't emulate any card.</b> No slot
+          answers a reader. Turn the probe off here when you're done, or flash
+          stock firmware.
+        </p>
+      </div>
+
+      <ol class="steps" aria-label="Progress">
+        <li id="step-connect"><span>1</span>Connect</li>
+        <li id="step-probe"><span>2</span>Measure</li>
+      </ol>
+
+      <section class="flow" aria-live="polite">
+        <div class="only-connect">
+          <h2>Connect the Chameleon Ultra</h2>
+          <p class="note">
+            This page requires Chrome or Edge on a computer. Use USB, not
+            Bluetooth, and close anything else using the CU, such as the CU app
+            or the Python CLI.
+          </p>
+          <div class="row gap-top">
+            <button id="connect" class="primary">Connect CU</button>
+            <span id="connectinfo" class="note"></span>
+          </div>
+        </div>
+
+        <div class="only-ready">
+          <div class="row">
+            <span class="note" id="fwinfo">Checking the firmware…</span>
+            <button id="reconnect">Reconnect</button>
+          </div>
+          <p class="note warn" id="fwneed" hidden>
+            This firmware has no field probe. Flash the experimental firmware
+            below, then connect again.
+          </p>
+
+          <div class="gap-top">
+            <div class="title">1. Turn the probe on</div>
+            <p class="note">
+              The probe stays on through sleep, unplugging and reconnecting,
+              until you turn it off. It goes off if the battery runs flat.
+            </p>
+            <div class="row">
+              <button id="probeOn" class="primary">Turn the probe on</button>
+              <button id="probeOff">Turn it off</button>
+              <span class="note" id="probeinfo"></span>
+            </div>
+          </div>
+
+          <div class="gap-top">
+            <div class="title">2. Take it to a reader</div>
+            <p class="note">
+              Unplug the CU and hold its button side flat against the reader for
+              about 5 seconds, then take it away. The field LED and a cyan light
+              show an LF field being measured; green shows an HF field. You can
+              visit more than one reader, but the log keeps only the last 12 LF
+              measurements, and each reader's field is easier to read on its
+              own.
+            </p>
+            <p class="note">
+              With the CU still plugged in, you can hold it against a reader and
+              press <b>Measure now</b> instead. That measures LF once, straight
+              away.
+            </p>
+            <div class="row">
+              <button id="measure">Measure now</button>
+              <span class="note" id="measureinfo"></span>
+            </div>
+          </div>
+
+          <div class="gap-top">
+            <div class="title">3. Read the results</div>
+            <p class="note">
+              Plug the CU back in, connect, and read the log. Clear it before
+              measuring a different reader.
+            </p>
+            <div class="row">
+              <button id="readlog" class="primary">Read the log</button>
+              <button id="clearlog">Clear the log</button>
+              <span class="note" id="loginfo"></span>
+            </div>
+          </div>
+
+          <details class="options gap-top">
+            <summary>Advanced: envelope mode and raw captures</summary>
+            <p class="note gap-top">
+              The envelope capture looks for the reader's gaps. With the load on
+              (the default), the CU's detector follows the field quickly. With
+              it off, the detector holds the field's level and short gaps don't
+              show.
+            </p>
+            <div class="row">
+              <label
+                >Envelope load
+                <select id="envmode">
+                  <option value="1">on (constant load)</option>
+                  <option value="0">off</option>
+                  <option value="2">tone (fc/8)</option>
+                </select></label
+              >
+              <button id="setenv">Set</button>
+            </div>
+            <p class="note gap-top">
+              A raw capture records LF_RSSI with the CU held against a reader,
+              for analysis elsewhere. The samples can include a reader's
+              commands, so treat the download as private.
+            </p>
+            <div class="row">
+              <label
+                >Load
+                <select id="capmod">
+                  <option value="1">on</option>
+                  <option value="0">off</option>
+                  <option value="2">tone</option>
+                </select></label
+              >
+              <label
+                >Rate
+                <select id="caprate">
+                  <option value="200">200 kHz</option>
+                  <option value="100" selected>100 kHz</option>
+                  <option value="20">20 kHz</option>
+                </select></label
+              >
+              <label
+                >Samples
+                <select id="capn">
+                  <option value="4096">4096</option>
+                  <option value="10240">10240</option>
+                  <option value="14336" selected>14336</option>
+                </select></label
+              >
+              <button id="capture">Capture</button>
+              <button id="capdownload" disabled>Download</button>
+            </div>
+            <canvas id="capplot" class="gap-top" hidden></canvas>
+            <p class="note" id="capinfo"></p>
+          </details>
+        </div>
+
+        <div class="aside">
+          <div class="small"><b>Firmware</b></div>
+          <p class="note">
+            The probe needs the experimental firmware: the card search page's
+            firmware (<code>lf-search</code>) with the field probe added (<a
+              href="https://github.com/mfcarroll/ChameleonUltra/tree/exp/field-probe"
+              >source</a
+            >). Flashing replaces the CU's firmware and keeps the current slots.
+          </p>
+          <div class="row gap-top">
+            <button id="flashTest">
+              Flash the experimental firmware (<span id="fwname"></span>)
+            </button>
+            <button id="flashStock">Flash stock v2.3.0</button>
+            <button id="flashFile">Flash a file…</button>
+            <input id="fwfile" type="file" accept=".zip" hidden />
+            <button id="flashDfu" class="primary" hidden>
+              Allow the bootloader
+            </button>
+          </div>
+          <div class="note gap-top" id="flashinfo"></div>
+        </div>
+      </section>
+
+      <section class="flow" id="resultbox" hidden>
+        <h2>Safe report</h2>
+        <p class="note">
+          What kind of field the reader makes. You can post this, for example in
+          a GitHub issue.
+        </p>
+        <div class="cmdbox gap-top">
+          <pre class="cmd" id="safe"></pre>
+          <button class="copy">Copy</button>
+        </div>
+
+        <h2 class="gap-top">Private details</h2>
+        <div class="callout caution">
+          <p>
+            A reader's commands, decoded to bits, and the first bytes of HF
+            frames. A reader can send a password in a command, so don't post
+            these publicly.
+          </p>
+        </div>
+        <details class="options">
+          <summary>Show the private details</summary>
+          <pre class="cmd gap-top" id="private"></pre>
+        </details>
+        <div class="row gap-top">
+          <button id="download">Download the log</button>
+        </div>
+      </section>
+
+      <details class="fold">
+        <summary><h2>What the page does</h2></summary>
+        <ol class="note">
+          <li>
+            <b>Turn the probe on</b> sets the CU to tag mode and switches the
+            probe on. From then on the CU senses LF and HF fields whatever its
+            slots hold, and never answers.
+          </li>
+          <li>
+            When an <b>LF field</b> appears, the CU measures it at the start,
+            after 1 s and after 4 s. Each measurement records the field's level
+            with the CU's load off. It then records 102 ms of the field's
+            envelope at 100 kHz and finds every dip in it. The carrier's
+            ripple in that envelope gives the reader's carrier frequency.
+          </li>
+          <li>
+            When an <b>HF field</b> appears, the CU listens with its ISO
+            14443-A receiver and counts what the reader sends: polls (REQA and
+            WUPA), other frames and frames received with errors.
+          </li>
+          <li>
+            <b>Read the log</b> reads the CU's log and works out, in this
+            browser, what the measurements say.
+          </li>
+        </ol>
+        <p class="note">
+          The carrier frequency is measured against the CU's own crystal, which
+          can be off by up to ±40 ppm. A steady LF field means the reader waits
+          for a card to talk (EM4100, HID Prox, Indala, Paradox). Gaps in the
+          field mean the reader sends commands, as Hitag readers and readers of
+          password-protected T55xx or EM4x05 tags do. The CU's HF receiver only
+          decodes ISO 14443-A, so a reader of iCLASS, ISO 15693 or FeliCa cards
+          shows as a field with no frames.
+        </p>
+        <p class="note">
+          It has been checked against a Proxmark3, not yet against door
+          readers. The numbers are a guide, not a verdict.
+        </p>
+      </details>
+      <details class="fold" id="logbox">
+        <summary><h2>Log</h2></summary>
+        <pre id="log"></pre>
+      </details>
+      <p class="note" id="siteversion"></p>
+    </main>
+    <script type="importmap">
+      {
+        "imports": {
+          "../common/cu.js": "../common/cu.js?v=da961c33e6",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
+          "./probe.js": "./probe.js?v=5e12d7fe7b",
+          "../../common/page.js": "../../common/page.js?v=925f61259f"
+        }
+      }
+    </script>
+    <script type="module">
+      import { SerialCU } from "../common/cu.js";
+      import { bindFlashButtons } from "../common/flash-ui.js";
+      import {
+        $,
+        log,
+        hasWebSerial,
+        bindCopyButtons,
+        saveJson,
+        showSiteCommit,
+      } from "../../common/page.js";
+      import * as P from "./probe.js";
+
+      const PROBE_FW = {
+        zip: "firmware/field-probe-7131585b-ultra-dfu-app.zip",
+        name: "experimental 7131585b",
+      };
+      const STOCK = {
+        zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
+        name: "stock v2.3.0",
+      };
+      $("fwname").textContent = PROBE_FW.name.replace("experimental ", "");
+
+      let cu = null,
+        busy = false,
+        has = false, // the firmware has the probe
+        firmware = "",
+        report = null,
+        rawLog = null,
+        lastCapture = null;
+
+      function setState(state) {
+        $("app").dataset.state = state;
+        $("step-connect").className = state === "connect" ? "current" : "done";
+        $("step-probe").className = state === "ready" ? "current" : "";
+      }
+      const CONTROLS = [
+        "probeOn",
+        "probeOff",
+        "measure",
+        "readlog",
+        "clearlog",
+        "setenv",
+        "capture",
+        "reconnect",
+        "flashTest",
+        "flashStock",
+        "flashFile",
+      ];
+      async function run(what, fn) {
+        if (busy) return;
+        busy = true;
+        for (const id of CONTROLS) $(id).disabled = true;
+        try {
+          await fn();
+        } catch (e) {
+          log(`${what} failed: ${e.message}`);
+        } finally {
+          busy = false;
+          for (const id of CONTROLS) $(id).disabled = false;
+        }
+      }
+      const need = () => {
+        if (!has) throw new Error("this firmware has no field probe");
+      };
+
+      // ---------------------------------------------------------------- connect and firmware
+      function showMode(m) {
+        $("probeinfo").textContent = m.on
+          ? "The probe is on: the CU won't emulate."
+          : "The probe is off: the CU emulates as usual.";
+        $("probeinfo").className = m.on ? "note warn" : "note";
+        $("envmode").value = String(m.envMode);
+      }
+      async function checkFirmware() {
+        const fw = await cu.version();
+        const r = await cu.cmd(P.CMD.PROBE_MODE);
+        has = r.status === P.STATUS.SUCCESS;
+        const m = has ? P.parseMode(r.data) : null;
+        if (m && (m.version !== P.LOG_VERSION || m.recSize !== P.REC_SIZE)) {
+          has = false;
+          log(`the probe's log is version ${m.version}; this page reads version ${P.LOG_VERSION}`);
+        }
+        $("fwinfo").textContent = `CU on ${fw}: ` + (has ? "has the field probe" : "no field probe");
+        $("fwneed").hidden = has;
+        if (m && has) showMode(m);
+        log(`connected: ${fw}, field probe ${has ? "yes" : "no"}`);
+        return fw;
+      }
+      const connectCU = () =>
+        run("connect", async () => {
+          if (!hasWebSerial()) return;
+          try {
+            const port = await navigator.serial.requestPort();
+            await cu?.close();
+            cu = new SerialCU();
+            await cu.open(port);
+          } catch (e) {
+            $("connectinfo").textContent = `Couldn't connect: ${e.message}`;
+            cu = null;
+            throw e;
+          }
+          firmware = await checkFirmware();
+          setState("ready");
+        });
+      $("connect").onclick = connectCU;
+      $("reconnect").onclick = connectCU;
+      bindFlashButtons({
+        firmware: { test: PROBE_FW, stock: STOCK },
+        port: () => cu?.port ?? null,
+        release: async () => {
+          await cu?.close();
+          cu = null;
+        },
+        busy: () => (busy ? "wait for the current step to finish" : null),
+        done: () => setState("connect"),
+      });
+
+      // The probe works in tag mode only.
+      async function tagMode() {
+        const m = await cu.cmd(P.CMD.GET_DEVICE_MODE);
+        if (m.data[0] !== 0) await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, P.reqMode(false));
+      }
+      async function setProbe(on, envMode) {
+        need();
+        await tagMode();
+        const r = await cu.cmd(P.CMD.PROBE_MODE, P.reqMode(on, envMode));
+        if (r.status !== P.STATUS.SUCCESS) throw new Error(`status 0x${r.status.toString(16)}`);
+        const m = P.parseMode(r.data);
+        showMode(m);
+        log(`probe ${m.on ? "on" : "off"}, envelope load ${P.MOD_NAMES[m.envMode]}`);
+        return m;
+      }
+      $("probeOn").onclick = () => run("probe on", () => setProbe(true));
+      $("probeOff").onclick = () => run("probe off", () => setProbe(false));
+      $("setenv").onclick = () =>
+        run("envelope mode", async () => {
+          const r = P.parseMode((await cu.cmd(P.CMD.PROBE_MODE)).data);
+          await setProbe(r.on, Number($("envmode").value));
+        });
+
+      // ---------------------------------------------------------------- measuring and the log
+      async function readLog() {
+        const parts = [];
+        let got = 0;
+        while (got < P.LOG_SIZE) {
+          const r = await cu.cmd(P.CMD.PROBE_LOG, P.reqLog(got));
+          if (r.status !== P.STATUS.SUCCESS || !r.data.length) break;
+          parts.push(r.data);
+          got += r.data.length;
+        }
+        const bytes = new Uint8Array(got);
+        let o = 0;
+        for (const p of parts) bytes.set(p, (o += p.length) - p.length);
+        return bytes;
+      }
+      function showReport() {
+        $("safe").textContent = P.safeMarkdown(report);
+        $("private").textContent = P.privateMarkdown(report).split("**Private details**")[1].trim();
+        $("resultbox").hidden = false;
+      }
+      async function loadReport() {
+        const bytes = await readLog();
+        const parsed = P.parseLog(bytes);
+        if (parsed.error) throw new Error(parsed.error);
+        rawLog = bytes;
+        report = { firmware, log: parsed };
+        showReport();
+        const c = parsed.counts;
+        $("loginfo").textContent = `${c.lfFields} LF field(s), ${c.lfRecs} LF measurement(s), ${c.hfFields} HF field(s)`;
+        log(`log read: ${$("loginfo").textContent}`);
+      }
+      $("readlog").onclick = () => run("reading the log", async () => (need(), await loadReport()));
+      $("clearlog").onclick = () =>
+        run("clearing the log", async () => {
+          need();
+          if (!confirm("Clear the CU's probe log?")) return;
+          await cu.cmd(P.CMD.PROBE_CLEAR);
+          $("resultbox").hidden = true;
+          $("loginfo").textContent = "cleared";
+          log("log cleared");
+        });
+      $("measure").onclick = () =>
+        run("measuring", async () => {
+          need();
+          await tagMode();
+          const m = P.parseMode((await cu.cmd(P.CMD.PROBE_MODE)).data);
+          if (!m.on) await setProbe(true);
+          $("measureinfo").textContent = "measuring…";
+          const r = await cu.cmd(P.CMD.PROBE_MEASURE, undefined, 5);
+          if (r.status !== P.STATUS.SUCCESS) throw new Error(`status 0x${r.status.toString(16)}`);
+          const rec = P.parseRec(new DataView(r.data.buffer, r.data.byteOffset, r.data.byteLength));
+          const d = P.describeRound(rec);
+          $("measureinfo").textContent = d.field
+            ? `field, ${d.carrier ? (d.carrier.hz / 1000).toFixed(3) + " kHz" : "no carrier line"}, ${rec.dipsTotal} dip(s)`
+            : "no field";
+          await loadReport();
+        });
+
+      // ---------------------------------------------------------------- raw captures
+      function plot(samples) {
+        const c = $("capplot");
+        c.hidden = false;
+        const w = (c.width = c.clientWidth * devicePixelRatio);
+        const h = (c.height = c.clientHeight * devicePixelRatio);
+        const g = c.getContext("2d");
+        g.clearRect(0, 0, w, h);
+        let mn = Infinity,
+          mx = -Infinity;
+        for (const s of samples) (mn = Math.min(mn, s)), (mx = Math.max(mx, s));
+        const span = mx - mn || 1;
+        g.strokeStyle = getComputedStyle(document.body).getPropertyValue("--accent");
+        g.beginPath();
+        // one column per pixel: its minimum to its maximum, so a gap a sample wide still shows
+        const per = samples.length / w;
+        for (let x = 0; x < w; x++) {
+          let lo = Infinity,
+            hi = -Infinity;
+          for (let i = Math.floor(x * per); i < Math.floor((x + 1) * per) && i < samples.length; i++)
+            (lo = Math.min(lo, samples[i])), (hi = Math.max(hi, samples[i]));
+          if (lo === Infinity) continue;
+          g.moveTo(x, h - ((lo - mn) / span) * h);
+          g.lineTo(x, h - ((hi - mn) / span) * h + 1);
+        }
+        g.stroke();
+      }
+      $("capture").onclick = () =>
+        run("capture", async () => {
+          need();
+          await tagMode();
+          const m = P.parseMode((await cu.cmd(P.CMD.PROBE_MODE)).data);
+          if (!m.on) await setProbe(true);
+          const req = {
+            mod: Number($("capmod").value),
+            rateKhz: Number($("caprate").value),
+            n: Number($("capn").value),
+          };
+          const r = await cu.cmd(P.CMD.PROBE_CAPTURE, P.reqCapture(req), 5);
+          if (r.status !== P.STATUS.SUCCESS) throw new Error(`status 0x${r.status.toString(16)}`);
+          const parts = [];
+          for (let c = 0; c < 0xff; c++) {
+            const d = await cu.cmd(P.CMD.PROBE_CAPTURE_READ, P.reqCaptureRead(c));
+            if (!d.data.length) break;
+            parts.push(d.data);
+          }
+          const bytes = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+          let o = 0;
+          for (const p of parts) bytes.set(p, (o += p.length) - p.length);
+          const samples = new Int16Array(bytes.buffer, 0, bytes.length >> 1);
+          lastCapture = { ...req, samples: Array.from(samples) };
+          plot(samples);
+          $("capdownload").disabled = false;
+          $("capinfo").textContent = `${samples.length} samples at ${req.rateKhz} kHz, load ${P.MOD_NAMES[req.mod]}`;
+          log(`capture: ${$("capinfo").textContent}`);
+        });
+      $("capdownload").onclick = () => {
+        if (!confirm("A raw capture can include a reader's commands. Download it anyway?")) return;
+        saveJson(`cu-field-capture-${Date.now()}.json`, { firmware, ...lastCapture });
+      };
+
+      $("download").onclick = () => {
+        if (!confirm("The log can include a reader's commands. Download it anyway?")) return;
+        let s = "";
+        for (const b of rawLog) s += String.fromCharCode(b);
+        saveJson(`cu-field-log-${Date.now()}.json`, { report, logBytes: btoa(s) });
+      };
+      bindCopyButtons();
+      setState("connect");
+      showSiteCommit($("siteversion"));
+    </script>
+  </body>
+</html>
