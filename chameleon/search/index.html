@@ -92,7 +92,7 @@
               side, not the LED side), and leave it there until the page
               finishes, about 15 seconds. With the experimental firmware this
               also checks whether the card is a T55xx (and reads its
-              configuration) or an EM4x05.
+              configuration), an EM4x05 or a Hitag 2.
             </p>
             <div class="row">
               <button id="identify" class="primary">Search</button>
@@ -203,8 +203,10 @@
             T55xx chip's page 1 block 1 (the trace block). A T55xx answers it by
             repeating that block, and then the page also reads page 0 block 0,
             the T5577's configuration block. If no T55xx answers, it attempts to
-            read the EM4x05 chip's word 0. An EM4x05 answers with word 0. None
-            of these can change the card.
+            read the EM4x05 chip's word 0. An EM4x05 answers with word 0. If
+            neither answers, it sends the Hitag 2 start command, which a Hitag 2
+            or Hitag S tag answers with its serial number. None of these can
+            change the card.
           </li>
           <li>
             On HF it runs an ISO 14443-A scan, and for a MIFARE Classic it asks
@@ -221,7 +223,8 @@
           most bank cards). An HF card of another kind, such as iCLASS, ISO
           15693 or FeliCa, doesn't show up. On LF, a card that only answers
           commands (Hitag, EM4x50 and some others) shows no signal, and
-          usually no change in level either.
+          usually no change in level either. The page sends the Hitag 2 start
+          command, but none for Hitag 1 or EM4x50.
         </p>
       </details>
       <details class="fold" id="logbox">
@@ -235,8 +238,8 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=da961c33e6",
           "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
-          "./framecheck.js": "./framecheck.js?v=5fcd5e361f",
-          "./identify.js": "./identify.js?v=7ba969d74f",
+          "./framecheck.js": "./framecheck.js?v=6e19ab65f9",
+          "./identify.js": "./identify.js?v=7ae8c66b46",
           "./lfdemod.js": "./lfdemod.js?v=5749888947",
           "../../common/page.js": "../../common/page.js?v=925f61259f"
         }
@@ -257,14 +260,15 @@
       import { analyse, t55xxAnswer, traceBlock } from "./lfdemod.js";
       import {
         em4x05Answer,
+        hitag2Answer,
         frameChecks,
         shapeFits,
         t55ConfigFromProbe,
       } from "./framecheck.js";
 
       const IDENTIFY = {
-        zip: "firmware/lf-search-360bfa73-ultra-dfu-app.zip",
-        name: "experimental 360bfa7",
+        zip: "firmware/lf-search-aa05875a-ultra-dfu-app.zip",
+        name: "experimental aa05875",
       };
       const STOCK = {
         zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
@@ -484,6 +488,19 @@
                   captures.em4x05 = e;
                   r.lf.em4x05 = em4x05Answer(analyse(e.bytes));
                   log(`EM4x05 check: ${r.lf.em4x05?.chip ?? "no answer"}`);
+                }
+                // Neither chip answered: the Hitag 2 start command, the one the Proxmark's `lf search` sends.
+                // A tag can miss one, so it goes out twice before the page gives up.
+                if (!r.lf.em4x05) {
+                  progress("Checking for a Hitag", 0.82);
+                  for (let tries = 0; tries < 2 && !r.lf.hitag2; tries++) {
+                    const h = await probe(X.PROBE_HITAG2_START);
+                    if (!h) break; // this firmware has no Hitag check
+                    captures[`hitag${tries}`] = h;
+                    r.lf.hitag2 = hitag2Answer(h.bytes);
+                  }
+                  if (r.lf.hitag2 !== undefined)
+                    log(`Hitag check: ${r.lf.hitag2 ? "answered" : "no answer"}`);
                 }
               }
               if (r.lf.chip === "yes") {

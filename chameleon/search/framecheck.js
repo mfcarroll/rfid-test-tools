@@ -5,7 +5,7 @@
 // Each check returns null (not that protocol), or { name, safe, private }. The safe part says which parts of the frame
 // hold and how it is sent. The private part holds the numbers.
 
-import { paradoxFrame } from "./lfdemod.js";
+import { paradoxFrame, samples16 } from "./lfdemod.js";
 
 const flip = (b) => [...b].map((c) => (c === "1" ? "0" : "1")).join("");
 const val = (b, from, n) => parseInt(b.slice(from, from + n), 2);
@@ -502,6 +502,67 @@ export function em4x05Answer(probe) {
           customerCode: (word >>> 9) & 0x2ff,
         };
       }
+  return null;
+}
+
+// ---------------------------------------------------------------- the Hitag 2 answer
+
+// After the chip probe's Hitag 2 start command (START_AUTH, 11000), a Hitag 2 or Hitag S tag answers once, about
+// 7 ms into the capture on a CU: a header of 1 bits (5 from a real Hitag 2) and its 32-bit serial, Manchester-coded at
+// 32 carrier cycles per bit, so 16 samples per half bit. The decoder finds the longest stretch where the signal stays
+// above or below zero for one or two half bits at a time, reads it as Manchester, and takes the serial from the 32
+// bits after the header. The capture's first 4.8 ms hold the CU's own settling and are skipped.
+const HT_FROM = 600,
+  HT_TO = 4400,
+  HT_HALF = 16;
+export function hitag2Answer(bytes) {
+  const x = samples16(bytes);
+  if (x.length < HT_TO + 512) return null;
+  const quiet = [...x.slice(HT_TO)].sort((a, b) => a - b);
+  const mid = quiet[quiet.length >> 1];
+  const r = x.slice(HT_FROM, HT_TO).map((v) => v - mid);
+  const dev = quiet.map((v) => Math.abs(v - mid)).sort((a, b) => a - b);
+  const noise = dev[dev.length >> 1] + 1;
+  const mags = [...r].map(Math.abs).sort((a, b) => a - b);
+  const peak = mags[Math.floor(0.99 * (mags.length - 1))];
+  if (peak < 10 * noise) return null;
+  // The sign with hysteresis, as runs of [level, samples].
+  const t = 0.3 * peak;
+  const runs = [];
+  let level = 0;
+  for (const v of r) {
+    const now = v > t ? 1 : v < -t ? -1 : level;
+    if (now !== level || !runs.length) runs.push([now, 0]);
+    level = now;
+    runs.at(-1)[1]++;
+  }
+  // The longest stretch of runs one or two half bits long.
+  const halves = (n) =>
+    n >= 0.6 * HT_HALF && n <= 1.4 * HT_HALF ? 1 : n >= 1.6 * HT_HALF && n <= 2.4 * HT_HALF ? 2 : 0;
+  let best = [0, 0];
+  for (let i = 0, start = 0; i <= runs.length; i++)
+    if (i === runs.length || runs[i][0] === 0 || !halves(runs[i][1])) {
+      if (i - start > best[1] - best[0]) best = [start, i];
+      start = i + 1;
+    }
+  let hs = "";
+  for (const [lv, n] of runs.slice(best[0], best[1])) hs += (lv > 0 ? "H" : "L").repeat(halves(n));
+  if (hs.length < 2 * 37) return null;
+  for (const polarity of ["HL", "LH"])
+    for (const phase of [0, 1]) {
+      let bits = "";
+      for (let k = phase; k + 1 < hs.length; k += 2) {
+        const p = hs.slice(k, k + 2);
+        if (p === polarity) bits += "1";
+        else if (p[0] !== p[1]) bits += "0";
+        else break;
+      }
+      const lead = bits.match(/^1*/)[0].length;
+      const header = Math.min(lead, bits.length - 32);
+      if (header < 5) continue;
+      const serial = bits.slice(header, header + 32);
+      return { header, serial: parseInt(serial, 2).toString(16).padStart(8, "0"), bits: bits.length };
+    }
   return null;
 }
 

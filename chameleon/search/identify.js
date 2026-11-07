@@ -37,6 +37,7 @@ export const STATUS = {
 export const PROBE_T55XX_TRACE = 1;
 export const PROBE_T55XX_CONFIG = 3;
 export const PROBE_EM4X05_WORD0 = 2;
+export const PROBE_HITAG2_START = 4;
 
 const hex = (d) =>
   Array.from(d, (b) => b.toString(16).padStart(2, "0")).join("");
@@ -289,7 +290,8 @@ const bitsHex = (bits) => {
 function hints(lf) {
   const s = lf.signal,
     out = [];
-  if (!s) return out;
+  // A Hitag answers its start command once, after the recording that looks for a repeating frame.
+  if (!s || lf.hitag2) return out;
   if (s.modulation === "none")
     out.push(
       "No LF modulation. Either there's no LF card, the card only answers a command first (Hitag, EM4x50 and some others), or it's too far away: lay it flat on the CU's button side.",
@@ -364,6 +366,13 @@ export function safeMarkdown(r) {
             ? `answered, an ${lf.em4x05.chip} (${lf.em4x05.capacitor}, customer code ${lf.em4x05.customerCode})`
             : "no EM4x05 answer"),
       );
+    if (lf.hitag2 !== undefined)
+      L.push(
+        "- Chip check (Hitag 2 start command): " +
+          (lf.hitag2
+            ? `answered, a Hitag 2 or Hitag S tag (Manchester, RF/32, a ${lf.hitag2.header}-bit header and a 32-bit serial)`
+            : "no Hitag answer"),
+      );
     if (lf.config) L.push(`- T55xx configuration: ${t55ConfigLine(lf.config)}`);
     else if (lf.chip === "yes")
       L.push(
@@ -413,6 +422,7 @@ export function fullMarkdown(r) {
     for (const c of r.lf.checks ?? [])
       L.push(`- ${c.name} fields from the frame: ${JSON.stringify(c.private)}`);
     if (r.lf.em4x05) L.push(`- EM4x05 word 0: ${r.lf.em4x05.word}`);
+    if (r.lf.hitag2) L.push(`- Hitag serial: ${r.lf.hitag2.serial}`);
     if (r.lf.chipBlock) L.push(`- T55xx answer: ${r.lf.chipBlock}`);
   }
   if (r.hf) for (const c of r.hf.cards) L.push(`- HF UID: ${c.uid}`);

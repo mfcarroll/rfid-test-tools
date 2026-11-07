@@ -20,7 +20,10 @@ Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/search/ (Chrome or
   block 0, the configuration, as `lf t55xx detect` starts. Each read is 6 bits on air (opcode, lock bit 0, address);
   a write needs 32 more, so neither can change the card. If no T55xx answers, the chip probe with the EM4x05 read of
   word 0, encoded as the Proxmark's `EM4xReadWord` sends it: 13 bits on air, and a write, protect or disable needs a
-  45-bit data field after the command. An EM4x05 answers `00001010` and the word, which names the chip.
+  45-bit data field after the command. An EM4x05 answers `00001010` and the word, which names the chip. If no EM4x05
+  answers either, the chip probe with the Hitag 2 start command (START_AUTH, `11000`), up to twice. A Hitag 2 or
+  Hitag S tag answers with a header of 1 bits and its 32-bit serial, Manchester-coded at 32 carrier cycles per bit.
+  The serial goes in the private details: many Hitag 2 door systems use it as the credential.
 
 Nothing writes to the card or changes the CU's slots. The page puts the CU back in the mode it found it in.
 
@@ -28,6 +31,11 @@ The page leaves out the CU's EM4x05 read (3030). If the tag's configuration asks
 its downlink doesn't match the Proxmark's. The chip probe's EM4x05 read was checked on air (a Proxmark recorded the
 same 13 bits and timing as its own read) and on an EM4305: three answers, each equal to word 0 as the Proxmark dumps
 it, and the chip's words were the same before and after.
+
+The Hitag 2 start command was checked on air: a Proxmark3's `lf hitag sniff` decodes it as START AUTH, and
+`lf hitag sim -2 --noalt` received it with 31/31/21/21/21-cycle intervals and answered. The page decoded that
+answer as the simulator's demo serial in 4 of 6 probes; the simulator missed the first two while it set its
+threshold. Not yet tried on a real Hitag tag.
 
 ## The report
 
@@ -81,17 +89,17 @@ read finds nothing on it, and the page's frame check reports the frame with "CRC
 
 ## Firmware
 
-- `firmware/lf-search-360bfa73-ultra-dfu-app.zip`: `lf-search` at `360bfa73`
+- `firmware/lf-search-aa05875a-ultra-dfu-app.zip`: `lf-search` at `aa05875a`
   ([source](https://github.com/mfcarroll/ChameleonUltra/tree/lf-search)), upstream `main` plus long raw
   captures for `lf sniff` (up to 28672 bytes in 4000-byte slices, 16-bit samples, sample rate, phase and gain), the
-  chip probe (3140) with the T55xx trace and configuration reads, PR 489's Paradox read (3022) and PR 509's Indala
-  read (3035), both merged unchanged.
+  chip probe (3140) with the T55xx trace and configuration reads, the EM4x05 read of word 0 and the Hitag 2 start
+  command, PR 489's Paradox read (3022) and PR 509's Indala read (3035), both merged unchanged.
 - `../common/firmware/stock-v2.3.0-ultra-dfu-app.zip`: stock v2.3.0. With it the page runs the named reads and the
   HF check only.
 
 ## Limits
 
 - The CU's HF reader only covers ISO 14443-A.
-- On LF, a card that only answers commands (Hitag, EM4x50 and others) shows as a change in the field with no
-  signal.
+- On LF, a card that only answers commands shows no signal. The page sends the Hitag 2 start command, but none for
+  Hitag 1, EM4x50 or others.
 - The analysis has been tried on T5577 clones only, on the CU's antenna.

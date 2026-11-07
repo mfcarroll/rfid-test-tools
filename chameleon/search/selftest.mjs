@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { analyse, paradoxFrame, t55xxAnswer, traceBlock } from "./lfdemod.js";
 import {
   em4x05Answer,
+  hitag2Answer,
   frameChecks,
   frameCheckLine,
   shapeFits,
@@ -461,6 +462,20 @@ if (!ixOk) bad++;
   console.log(
     `${none.length ? "FAIL" : "ok  "} no EM4x05 answer in other captures${none.length ? `: ${none}` : ""}`,
   );
+  if (none.length) bad++;
+}
+
+// The Hitag 2 start probe against a Proxmark3's `lf hitag sim -2 --noalt` (its built-in demo tag, page 0 024e0220,
+// a 6-bit header), and against no tag.
+{
+  const a = hitag2Answer(readFileSync(new URL("hitag2-probe-sim-024e0220.bin", dir)));
+  const ok = a?.serial === "024e0220" && a?.header === 6;
+  console.log(`${ok ? "ok  " : "FAIL"} a Hitag 2 answer decodes: ${JSON.stringify(a)}`);
+  if (!ok) bad++;
+  const none = ["hitag2-probe-no-tag", "t55xx-probe-fdxb", "em410x", "hid", "indala"].filter((n) =>
+    hitag2Answer(readFileSync(new URL(n + ".bin", dir))),
+  );
+  console.log(`${none.length ? "FAIL" : "ok  "} no Hitag 2 answer in other captures${none.length ? `: ${none}` : ""}`);
   if (none.length) bad++;
 }
 
