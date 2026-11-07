@@ -36,8 +36,12 @@ reader in low-power card detection does.
 - The envelope needs the CU's load on. With it off, the CU's detector holds the field's level and a reader's gaps
   don't show.
 - The HF receiver only decodes ISO 14443-A, and reports nothing at all for other HF types.
-- The log keeps the last 12 LF measurements, 32 LF fields and 32 HF fields. Flashing the firmware clears it and turns
-  the probe off.
+- The log keeps the last 12 LF measurements, 32 LF fields and 32 HF fields. Flashing the firmware clears it, and the
+  probe starts on after a flash.
+- While the probe is on, the CU's buttons only wake it. A slot change or a reader-mode button function would spoil a
+  measurement.
+- A reader's field has to last until the CU has woken and started its first measurement. A single PM3
+  `lf hitag reader` on battery sometimes doesn't, and the log then shows a wake with no field.
 - If the CU resets in the middle of a run (its watchdog, a lockup or a firmware error), the log survives, and the
   report says how many times the CU reset and why. A flat battery still clears the log.
 

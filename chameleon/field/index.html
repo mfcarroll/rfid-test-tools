@@ -29,8 +29,9 @@
       <div class="callout caution">
         <p>
           <b>While the probe is on, the CU doesn't emulate any card.</b> No slot
-          answers a reader. Turn the probe off here when you're done, or flash
-          stock firmware.
+          answers a reader, and the buttons only wake the CU. The experimental
+          firmware starts with the probe on. Turn it off here when you're done,
+          or flash stock firmware.
         </p>
       </div>
 
@@ -64,10 +65,11 @@
           </p>
 
           <div class="gap-top">
-            <div class="title">1. Turn the probe on</div>
+            <div class="title">1. Check the probe is on</div>
             <p class="note">
-              The probe stays on through sleep, unplugging and reconnecting,
-              until you turn it off. It goes off if the battery runs flat.
+              The experimental firmware starts with the probe on. It stays on
+              through sleep, unplugging and reconnecting, until you turn it off.
+              It goes off if the battery runs flat.
             </p>
             <div class="row">
               <button id="probeOn" class="primary">Turn the probe on</button>
@@ -100,7 +102,8 @@
           <div class="gap-top">
             <div class="title">3. Read the results</div>
             <p class="note">
-              Plug the CU back in, connect, and read the log. Clear it before
+              Plug the CU back in, connect, and read the log. Read it before
+              you flash anything, because a flash clears it. Clear it before
               measuring a different reader.
             </p>
             <div class="row">
@@ -223,9 +226,11 @@
         <summary><h2>What the page does</h2></summary>
         <ol class="note">
           <li>
-            <b>Turn the probe on</b> sets the CU to tag mode and switches the
-            probe on. From then on the CU senses LF and HF fields whatever its
-            slots hold, and never answers.
+            The experimental firmware starts with the probe on, and
+            <b>Turn the probe on</b> sets the CU to tag mode and switches it on
+            again. While the probe is on, the CU senses LF and HF fields
+            whatever its slots hold, never answers, and ignores its buttons
+            except to wake up.
           </li>
           <li>
             When an <b>LF field</b> appears, the CU measures it at the start,
@@ -290,8 +295,8 @@
       import * as P from "./probe.js";
 
       const PROBE_FW = {
-        zip: "firmware/field-probe-2dd7bf30-ultra-dfu-app.zip",
-        name: "experimental 2dd7bf30",
+        zip: "firmware/field-probe-2ce29a58-ultra-dfu-app.zip",
+        name: "experimental 2ce29a58",
       };
       const STOCK = {
         zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
