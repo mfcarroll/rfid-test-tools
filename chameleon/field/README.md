@@ -38,6 +38,8 @@ reader in low-power card detection does.
 - The HF receiver only decodes ISO 14443-A, and reports nothing at all for other HF types.
 - The log keeps the last 12 LF measurements, 32 LF fields and 32 HF fields. Flashing the firmware clears it and turns
   the probe off.
+- If the CU resets in the middle of a run (its watchdog, a lockup or a firmware error), the log survives, and the
+  report says how many times the CU reset and why. A flat battery still clears the log.
 
 ## Firmware
 
@@ -47,11 +49,13 @@ reader in low-power card detection does.
 | command | request | reply |
 | --- | --- | --- |
 | 3160 mode | empty, or on (0/1) and the envelope load (0 off, 1 on, 2 tone) | on, load, log version, record size (BE16), log size (BE16) |
-| 3161 log | byte offset (BE16) | up to 4000 bytes of the log |
+| 3161 log | byte offset (BE16), optionally the most bytes to return (BE16) | up to that many bytes of the log, at most 4000 |
 | 3162 clear | – | – |
 | 3163 measure | – | one LF measurement record, also logged |
 | 3164 capture | load, rate in kHz, samples (BE16), analog input, gain divisor | samples taken (BE32) |
 | 3165 capture read | chunk | 4000 bytes of the capture, 16-bit little-endian |
 
-The log's layout is `fp_store_t` in `field_probe.h`, packed and little-endian. `node selftest.mjs` checks the
+The log's layout is `fp_store_t` in `field_probe.h`, packed and little-endian. Version 2 adds the crash record, this
+boot's reset reason and a count of USB replies the CU dropped. The page reads the 36-byte header first, then the rest
+in 512-byte pieces, and asks for each piece twice before it gives up. `node selftest.mjs` checks the
 page's parser and report against a synthetic log in that layout.

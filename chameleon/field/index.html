@@ -290,8 +290,8 @@
       import * as P from "./probe.js";
 
       const PROBE_FW = {
-        zip: "firmware/field-probe-d6b5c728-ultra-dfu-app.zip",
-        name: "experimental d6b5c728",
+        zip: "firmware/field-probe-2dd7bf30-ultra-dfu-app.zip",
+        name: "experimental 2dd7bf30",
       };
       const STOCK = {
         zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
@@ -363,6 +363,13 @@
         $("fwneed").hidden = has;
         if (m && has) showMode(m);
         log(`connected: ${fw}, field probe ${has ? "yes" : "no"}`);
+        if (has) {
+          try {
+            await readHeader();
+          } catch (e) {
+            log(`reading the log's header failed: ${e.message}`);
+          }
+        }
         return fw;
       }
       const connectCU = () =>
@@ -427,19 +434,35 @@
         });
 
       // ---------------------------------------------------------------- measuring and the log
+      // One piece of the log, asked for twice before giving up.
+      async function logPiece(offset, max) {
+        for (let tries = 1; ; tries++) {
+          try {
+            const r = await cu.cmd(P.CMD.PROBE_LOG, P.reqLog(offset, max), 8);
+            if (r.status !== P.STATUS.SUCCESS) throw new Error(`status 0x${r.status.toString(16)}`);
+            return r.data;
+          } catch (e) {
+            log(`reading the log at byte ${offset}: ${e.message}${tries < 2 ? ", trying again" : ""}`);
+            if (tries >= 2) throw new Error(`the log stopped at byte ${offset} of ${P.LOG_SIZE}`);
+          }
+        }
+      }
+      // The header first, logged on its own, then the rest in 512-byte pieces.
+      async function readHeader() {
+        const h = P.parseHeader(await logPiece(0, P.HEADER));
+        log(h.error ? `log header: ${h.error}` : `log: ${P.headerLine(h)}`);
+        return h;
+      }
       async function readLog() {
-        const parts = [];
+        const bytes = new Uint8Array(P.LOG_SIZE);
         let got = 0;
         while (got < P.LOG_SIZE) {
-          const r = await cu.cmd(P.CMD.PROBE_LOG, P.reqLog(got), 8);
-          if (r.status !== P.STATUS.SUCCESS || !r.data.length) break;
-          parts.push(r.data);
-          got += r.data.length;
+          const d = await logPiece(got, Math.min(512, P.LOG_SIZE - got));
+          if (!d.length) break;
+          bytes.set(d, got);
+          got += d.length;
         }
-        const bytes = new Uint8Array(got);
-        let o = 0;
-        for (const p of parts) bytes.set(p, (o += p.length) - p.length);
-        return bytes;
+        return bytes.subarray(0, got);
       }
       function showReport() {
         $("safe").textContent = P.safeMarkdown(report);
@@ -447,6 +470,7 @@
         $("resultbox").hidden = false;
       }
       async function loadReport() {
+        await readHeader();
         const bytes = await readLog();
         const parsed = P.parseLog(bytes);
         if (parsed.error) throw new Error(parsed.error);

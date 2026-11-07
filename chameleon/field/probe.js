@@ -25,7 +25,7 @@ export const STATUS = {
 };
 export const MOD = { LOW: 0, HIGH: 1, TONE: 2 };
 export const MOD_NAMES = ["off", "on (constant load)", "tone (fc/8)"];
-export const LOG_VERSION = 1;
+export const LOG_VERSION = 2;
 
 const NOMINAL_HZ = 125000;
 const FIELD_LEVEL = 200; // ADC counts: below this at p90, LF_RSSI saw no field
@@ -34,7 +34,11 @@ const FIELD_LEVEL = 200; // ADC counts: below this at p90, LF_RSSI saw no field
 
 export const reqMode = (on, envMode) =>
   envMode == null ? Uint8Array.of(on ? 1 : 0) : Uint8Array.of(on ? 1 : 0, envMode);
-export const reqLog = (offset) => Uint8Array.of(offset >> 8, offset & 0xff);
+// The log from a byte offset, at most max bytes (the firmware sends up to 4000 if max is left out).
+export const reqLog = (offset, max) =>
+  max == null
+    ? Uint8Array.of(offset >> 8, offset & 0xff)
+    : Uint8Array.of(offset >> 8, offset & 0xff, max >> 8, max & 0xff);
 export const reqCapture = ({ mod, rateKhz, n, ain = 0, gain = 6 }) =>
   Uint8Array.of(mod, rateKhz, n >> 8, n & 0xff, ain, gain);
 export const reqCaptureRead = (chunk) => Uint8Array.of(chunk);
@@ -57,8 +61,8 @@ const LF_RECS = 12,
   DIPS = 40,
   LF_FIELDS = 32,
   HF_FIELDS = 32;
-const HEADER = 20,
-  CAP = 22,
+export const HEADER = 36;
+const CAP = 22,
   REC = 20 + 3 * CAP + DIPS * 6,
   LF_FIELD = 10,
   HF_FIELD = 26;
@@ -130,27 +134,55 @@ function ring(count, max, read) {
   return out;
 }
 
-export function parseLog(bytes) {
-  if (bytes.length < LOG_SIZE) return { error: `the log is ${bytes.length} bytes, expected ${LOG_SIZE}` };
+const CRASH_KINDS = ["none", "the watchdog", "a lockup", "a firmware error"];
+
+// The log's header on its own: the page reads it first, so a reset or an empty log shows before the rest arrives.
+export function parseHeader(bytes) {
+  if (bytes.length < HEADER) return { error: `the log's header is ${bytes.length} bytes, expected ${HEADER}` };
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const magic = v.getUint32(0, true);
+  if (v.getUint32(0, true) !== MAGIC) return { error: "the log is empty or unreadable (no valid header)" };
   const version = v.getUint8(4);
   const recSize = v.getUint16(8, true);
-  if (magic !== MAGIC) return { error: "the log is empty or unreadable (no valid header)" };
   if (version !== LOG_VERSION || recSize !== REC)
     return { error: `log version ${version}, record ${recSize} bytes: this page reads version ${LOG_VERSION}` };
-  const lfRecs = v.getUint16(12, true),
-    lfFields = v.getUint16(14, true),
-    hfFields = v.getUint16(16, true);
+  return {
+    on: v.getUint8(5) === 1,
+    envMode: v.getUint8(6),
+    wake: v.getUint16(10, true),
+    counts: { lfRecs: v.getUint16(12, true), lfFields: v.getUint16(14, true), hfFields: v.getUint16(16, true) },
+    crash: {
+      count: v.getUint8(7),
+      kind: CRASH_KINDS[v.getUint16(18, true)] ?? `kind ${v.getUint16(18, true)}`,
+      err: v.getUint32(20, true),
+      where: v.getUint32(24, true),
+      wake: v.getUint16(28, true),
+    },
+    bootReason: v.getUint16(30, true),
+    usb: { dropped: v.getUint16(32, true), err: v.getUint16(34, true) },
+  };
+}
+
+// One line for the page's event log.
+export function headerLine(h) {
+  const c = h.counts;
+  let t = `probe ${h.on ? "on" : "off"}, wake ${h.wake}, ${c.lfFields} LF field(s), ${c.lfRecs} LF round(s), ${c.hfFields} HF field(s)`;
+  if (h.crash.count) t += `; ${h.crash.count} reset(s) by a crash, the last by ${h.crash.kind} in wake ${h.crash.wake}`;
+  if (h.usb.dropped) t += `; ${h.usb.dropped} USB repl(ies) dropped, last error ${h.usb.err}`;
+  return t;
+}
+
+export function parseLog(bytes) {
+  if (bytes.length < LOG_SIZE) return { error: `the log is ${bytes.length} bytes, expected ${LOG_SIZE}` };
+  const h = parseHeader(bytes);
+  if (h.error) return h;
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const { lfRecs, lfFields, hfFields } = h.counts;
   const lfBase = HEADER,
     fieldBase = lfBase + LF_RECS * REC,
     hfBase = fieldBase + LF_FIELDS * LF_FIELD;
   const dur = (x) => (x === 0xffffffff ? null : x);
   return {
-    on: v.getUint8(5) === 1,
-    envMode: v.getUint8(6),
-    wake: v.getUint16(10, true),
-    counts: { lfRecs, lfFields, hfFields },
+    ...h,
     rounds: ring(lfRecs, LF_RECS, (i) => parseRec(v, lfBase + i * REC)),
     lfFields: ring(lfFields, LF_FIELDS, (i) => {
       const o = fieldBase + i * LF_FIELD;
@@ -351,6 +383,12 @@ export function safeMarkdown(r) {
   L.push("**Chameleon Ultra field probe report** (safe to share)", "");
   L.push(`- Firmware: ${r.firmware}`);
   L.push(`- Log: ${r.log.counts.lfFields} LF field(s), ${r.log.counts.lfRecs} LF round(s), ${r.log.counts.hfFields} HF field(s); envelope LF_MOD ${MOD_NAMES[r.log.envMode] ?? r.log.envMode}`);
+  const cr = r.log.crash;
+  if (cr?.count) {
+    const err = cr.kind === CRASH_KINDS[3] ? ` (error 0x${cr.err.toString(16)}, at 0x${cr.where.toString(16)})` : "";
+    L.push(`- ⚠ The CU reset ${cr.count} time(s) during the run. The last reset was by ${cr.kind}${err}, in wake ${cr.wake}.`);
+  }
+  if (r.log.usb?.dropped) L.push(`- ⚠ The CU dropped ${r.log.usb.dropped} USB repl(ies), the last with error ${r.log.usb.err}.`);
   L.push("", "**LF (125 kHz band)**");
   const lf = lfVerdict(r.log.rounds);
   if (!lf.field) L.push(`- ${lf.text}`);

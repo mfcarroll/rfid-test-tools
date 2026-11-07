@@ -7,14 +7,14 @@ const check = (ok, what) => {
   if (!ok) failed++;
 };
 
-check(P.LOG_SIZE === 5084, `log size ${P.LOG_SIZE} matches sizeof(fp_store_t) in the firmware map (0x13dc)`);
+check(P.LOG_SIZE === 5100, `log size ${P.LOG_SIZE} matches sizeof(fp_store_t) in the firmware map (0x13ec)`);
 check(P.REC_SIZE === 326, `record size ${P.REC_SIZE} is 326`);
 
 // ---------------------------------------------------------------- a synthetic log
 const buf = new Uint8Array(P.LOG_SIZE);
 const v = new DataView(buf.buffer);
 v.setUint32(0, 0x31425046, true);
-v.setUint8(4, 1);
+v.setUint8(4, 2);
 v.setUint8(5, 1);
 v.setUint8(6, P.MOD.HIGH);
 v.setUint16(8, 326, true);
@@ -33,7 +33,7 @@ function cap(o, { mode, rate, p50, p90, line = 0, snr = 0 }) {
   v.setInt16(o + 20, Math.round(snr * 10), true);
 }
 function rec(i, { carrier, dips }) {
-  const o = 20 + i * 326;
+  const o = P.HEADER + i * 326;
   v.setUint16(o, 3, true);
   v.setUint16(o + 2, 1, true);
   v.setUint32(o + 4, 1000 * i + 200, true);
@@ -59,7 +59,7 @@ const t = [0, 230, 460, 640, 820, 1000].map((us) => 1000 + us / 10);
 rec(0, { carrier: 124983.5, dips: t.map((s) => [s, 8, 4000]) });
 rec(1, { carrier: 124983.5, dips: [] });
 // LF field
-const fo = 20 + 12 * 326;
+const fo = P.HEADER + 12 * 326;
 v.setUint16(fo, 3, true);
 v.setUint32(fo + 2, 150, true);
 v.setUint32(fo + 6, 5200, true);
@@ -92,6 +92,21 @@ const r = { firmware: "test", log };
 const safe = P.safeMarkdown(r);
 check(!/11000/.test(safe), "the safe report leaves the bits out");
 check(/11000/.test(P.privateMarkdown(r)), "the private details hold the bits");
-check(P.parseLog(new Uint8Array(P.LOG_SIZE)).error != null, "an empty log is an error, not a report");
+check(P.parseLog(new Uint8Array(P.LOG_SIZE)).error != null, "an unreadable log is an error, not a report");
+check(!/reset/.test(safe), "no crash line without a crash");
+// A crash by a firmware error, and a dropped reply
+v.setUint8(7, 1);
+v.setUint16(18, 3, true);
+v.setUint32(20, 3, true);
+v.setUint32(24, 2531, true);
+v.setUint16(28, 2, true);
+v.setUint16(32, 1, true);
+v.setUint16(34, 17, true);
+const h = P.parseHeader(buf.subarray(0, P.HEADER));
+check(!h.error && h.crash.count === 1 && h.crash.kind === "a firmware error" && h.usb.dropped === 1, "header alone parses the crash and USB record");
+check(/1 reset\(s\) by a crash, the last by a firmware error in wake 2/.test(P.headerLine(h)), `header line: ${P.headerLine(h)}`);
+const safe2 = P.safeMarkdown({ firmware: "test", log: P.parseLog(buf) });
+check(/reset 1 time\(s\).*firmware error \(error 0x3, at 0x9e3\), in wake 2/.test(safe2), "the safe report names the crash");
+check(/dropped 1 USB/.test(safe2), "the safe report names the dropped reply");
 console.log("\n" + safe + "\n\n" + P.privateMarkdown(r));
 process.exit(failed ? 1 : 0);
