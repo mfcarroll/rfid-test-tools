@@ -229,10 +229,12 @@
           </li>
           <li>
             When an <b>LF field</b> appears, the CU measures it at the start,
-            after 1 s and after 4 s. Each measurement records the field's level
-            with the CU's load off. It then records 102 ms of the field's
-            envelope at 100 kHz and finds every dip in it. The carrier's
-            ripple in that envelope gives the reader's carrier frequency.
+            after 1 s and after 4 s. Each measurement first records 102 ms of
+            the field's envelope at 100 kHz, while a reader that sends one
+            command may still be sending, and finds every dip in it. The
+            carrier's ripple in that envelope gives the reader's carrier
+            frequency. Then it records the field's level with the CU's load
+            off.
           </li>
           <li>
             When an <b>HF field</b> appears, the CU listens with its ISO
@@ -269,7 +271,7 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=da961c33e6",
           "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
-          "./probe.js": "./probe.js?v=5e12d7fe7b",
+          "./probe.js": "./probe.js?v=25ed0aa4cb",
           "../../common/page.js": "../../common/page.js?v=925f61259f"
         }
       }
@@ -288,8 +290,8 @@
       import * as P from "./probe.js";
 
       const PROBE_FW = {
-        zip: "firmware/field-probe-7131585b-ultra-dfu-app.zip",
-        name: "experimental 7131585b",
+        zip: "firmware/field-probe-d6b5c728-ultra-dfu-app.zip",
+        name: "experimental d6b5c728",
       };
       const STOCK = {
         zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
@@ -381,6 +383,15 @@
         });
       $("connect").onclick = connectCU;
       $("reconnect").onclick = connectCU;
+      // A CU that restarts, or is unplugged, disappears from USB. Say so, rather than let the next button time out.
+      navigator.serial?.addEventListener("disconnect", (e) => {
+        if (!cu || e.target !== cu.port) return;
+        cu.close();
+        cu = null;
+        setState("connect");
+        $("connectinfo").textContent = "The CU disconnected. Plug it in and connect again.";
+        log("the CU disconnected");
+      });
       bindFlashButtons({
         firmware: { test: PROBE_FW, stock: STOCK },
         port: () => cu?.port ?? null,
@@ -394,13 +405,13 @@
 
       // The probe works in tag mode only.
       async function tagMode() {
-        const m = await cu.cmd(P.CMD.GET_DEVICE_MODE);
+        const m = await cu.cmd(P.CMD.GET_DEVICE_MODE, undefined, 8);
         if (m.data[0] !== 0) await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, P.reqMode(false));
       }
       async function setProbe(on, envMode) {
         need();
         await tagMode();
-        const r = await cu.cmd(P.CMD.PROBE_MODE, P.reqMode(on, envMode));
+        const r = await cu.cmd(P.CMD.PROBE_MODE, P.reqMode(on, envMode), 8);
         if (r.status !== P.STATUS.SUCCESS) throw new Error(`status 0x${r.status.toString(16)}`);
         const m = P.parseMode(r.data);
         showMode(m);
@@ -411,7 +422,7 @@
       $("probeOff").onclick = () => run("probe off", () => setProbe(false));
       $("setenv").onclick = () =>
         run("envelope mode", async () => {
-          const r = P.parseMode((await cu.cmd(P.CMD.PROBE_MODE)).data);
+          const r = P.parseMode((await cu.cmd(P.CMD.PROBE_MODE, undefined, 8)).data);
           await setProbe(r.on, Number($("envmode").value));
         });
 
@@ -420,7 +431,7 @@
         const parts = [];
         let got = 0;
         while (got < P.LOG_SIZE) {
-          const r = await cu.cmd(P.CMD.PROBE_LOG, P.reqLog(got));
+          const r = await cu.cmd(P.CMD.PROBE_LOG, P.reqLog(got), 8);
           if (r.status !== P.STATUS.SUCCESS || !r.data.length) break;
           parts.push(r.data);
           got += r.data.length;
@@ -460,10 +471,10 @@
         run("measuring", async () => {
           need();
           await tagMode();
-          const m = P.parseMode((await cu.cmd(P.CMD.PROBE_MODE)).data);
+          const m = P.parseMode((await cu.cmd(P.CMD.PROBE_MODE, undefined, 8)).data);
           if (!m.on) await setProbe(true);
           $("measureinfo").textContent = "measuring…";
-          const r = await cu.cmd(P.CMD.PROBE_MEASURE, undefined, 5);
+          const r = await cu.cmd(P.CMD.PROBE_MEASURE, undefined, 10);
           if (r.status !== P.STATUS.SUCCESS) throw new Error(`status 0x${r.status.toString(16)}`);
           const rec = P.parseRec(new DataView(r.data.buffer, r.data.byteOffset, r.data.byteLength));
           const d = P.describeRound(rec);
@@ -504,18 +515,18 @@
         run("capture", async () => {
           need();
           await tagMode();
-          const m = P.parseMode((await cu.cmd(P.CMD.PROBE_MODE)).data);
+          const m = P.parseMode((await cu.cmd(P.CMD.PROBE_MODE, undefined, 8)).data);
           if (!m.on) await setProbe(true);
           const req = {
             mod: Number($("capmod").value),
             rateKhz: Number($("caprate").value),
             n: Number($("capn").value),
           };
-          const r = await cu.cmd(P.CMD.PROBE_CAPTURE, P.reqCapture(req), 5);
+          const r = await cu.cmd(P.CMD.PROBE_CAPTURE, P.reqCapture(req), 10);
           if (r.status !== P.STATUS.SUCCESS) throw new Error(`status 0x${r.status.toString(16)}`);
           const parts = [];
           for (let c = 0; c < 0xff; c++) {
-            const d = await cu.cmd(P.CMD.PROBE_CAPTURE_READ, P.reqCaptureRead(c));
+            const d = await cu.cmd(P.CMD.PROBE_CAPTURE_READ, P.reqCaptureRead(c), 8);
             if (!d.data.length) break;
             parts.push(d.data);
           }

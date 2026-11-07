@@ -264,7 +264,8 @@ export function describeRound(rec) {
   return {
     field,
     level: level.p50,
-    railed: rec.railed,
+    // The level capture's p90 can be at the rail while its p50 is near zero: the field was on for part of it.
+    railed: rec.railed && level.p50 >= 16000,
     carrier: rec.carrierHz
       ? {
           hz: rec.carrierHz,
@@ -273,6 +274,9 @@ export function describeRound(rec) {
           how: CARRIER_HOW[rec.carrierHow] ?? "?",
           class: carrierClass(rec.carrierHz),
           ambiguous: rec.ambiguous,
+          // Only the envelope's line has matched a known carrier on the bench. The load tone's fallback, used when
+          // the field switched during the envelope capture, gave a carrier 4860 ppm off on a Proxmark3.
+          sure: rec.carrierHow === 2,
         }
       : null,
     dips,
@@ -285,7 +289,7 @@ export function lfVerdict(rounds) {
   const seen = rounds.map(describeRound).filter((d) => d.field);
   if (!seen.length) return { field: false, text: "No LF field measured." };
   const carriers = seen.map((d) => d.carrier).filter(Boolean);
-  const best = carriers.sort((a, b) => b.snr - a.snr)[0] ?? null;
+  const best = carriers.filter((c) => c.sure).sort((a, b) => b.snr - a.snr)[0] ?? null;
   const bursts = seen.flatMap((d) => d.dips.bursts);
   const commands = bursts.filter((b) => b.gaps >= 3);
   const offs = seen.flatMap((d) => d.dips.fieldOff);
@@ -355,7 +359,10 @@ export function safeMarkdown(r) {
       L.push(
         `- Carrier: ${kHz(lf.best.hz)} (${sgn(lf.best.ppm)} ppm from 125 kHz on the CU's clock, SNR ${lf.best.snr.toFixed(1)} dB, placed by ${lf.best.how}${lf.best.ambiguous ? ", ambiguous" : ""}): ${lf.best.class}`,
       );
-    else L.push("- Carrier: no clean line found");
+    else
+      L.push(
+        "- Carrier: not measured, because the field switched during every measurement.",
+      );
     L.push(`- ${lf.talk}`);
   }
   for (const rec of r.log.rounds) {
@@ -365,12 +372,22 @@ export function safeMarkdown(r) {
       `wake ${rec.wake} +${(rec.tMs / 1000).toFixed(1)} s, ${where}`,
       d.field ? `level ${d.level}${d.railed ? " (railed)" : ""}` : "no field",
     ];
-    if (d.carrier) parts.push(`carrier ${kHz(d.carrier.hz)} ${d.carrier.snr.toFixed(0)} dB`);
+    if (d.carrier)
+      parts.push(`carrier ${kHz(d.carrier.hz)} ${d.carrier.snr.toFixed(0)} dB${d.carrier.sure ? "" : " (uncertain: the field switched)"}`);
     parts.push(`${rec.dipsTotal} dip(s)`);
-    for (const b of d.dips.bursts.filter((b) => b.gaps >= 2))
-      parts.push(
-        `burst of ${b.gaps} gaps ~${b.gapUs?.toFixed(0)} µs, intervals ${b.shortUs?.toFixed(0) ?? "-"}/${b.longUs?.toFixed(0) ?? "-"} µs${b.family ? ` (${b.family})` : ""}${b.command ? `: ${b.command}` : ""}`,
-      );
+    // A reader that repeats a command gives the same burst several times: one entry each, with a count.
+    // The gap width varies by a sample or so between repeats, so it stays out of the comparison.
+    const seen = new Map();
+    for (const b of d.dips.bursts.filter((b) => b.gaps >= 2)) {
+      const key = `${b.gaps}|${b.shortUs}|${b.longUs}|${b.family}|${b.command}`;
+      const e = seen.get(key) ?? { b, count: 0 };
+      e.count++;
+      seen.set(key, e);
+    }
+    for (const { b, count } of seen.values()) {
+      const text = `burst of ${b.gaps} gaps ~${b.gapUs?.toFixed(0)} µs, intervals ${b.shortUs?.toFixed(0) ?? "-"}/${b.longUs?.toFixed(0) ?? "-"} µs${b.family ? ` (${b.family})` : ""}${b.command ? `: ${b.command}` : ""}`;
+      parts.push(count > 1 ? `${count} × ${text}` : text);
+    }
     if (d.dips.fieldOff.length) parts.push(`${d.dips.fieldOff.length} field-off stretch(es) ≥ 2 ms`);
     if (rec.ended) parts.push("field gone by the end");
     L.push(`  - ${parts.join("; ")}`);

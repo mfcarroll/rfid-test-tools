@@ -11,8 +11,9 @@ it's next connected.
 
 **LF.** When a field appears, the CU measures it at the start, after 1 s and after 4 s. Each measurement records:
 
+- 102 ms of the field's envelope at 100 kHz, with the CU's load on, and every dip in it (start, width, depth). This
+  comes first, while a reader that sends one command and stops may still be sending.
 - the field's level on LF_RSSI with the CU's load off
-- 102 ms of the field's envelope at 100 kHz, with the CU's load on, and every dip in it (start, width, depth)
 - the reader's carrier frequency, from the carrier's ripple in that envelope: at 100 kHz, carriers from 100 to 150 kHz
   each land on their own frequency. If the field switches during the capture, a 15.6 kHz load tone sampled at two
   rates stands in.
