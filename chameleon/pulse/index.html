@@ -53,7 +53,9 @@
               1–7. The firmware fixes each slot's mode, listed below. Load the
               card into any slot first, with your usual app or by reading it
               here. A backup of every slot downloads before anything changes.
-              Slot 8 isn't changed.
+              Slot 8's LF card is removed and slot 8 is disabled, so the CU's
+              buttons skip it. An HF card in slot 8 stays, disabled; a restore
+              enables it again.
             </p>
             <div class="row gap-top">
               <label class="note"
@@ -308,7 +310,7 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=da961c33e6",
           "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
-          "./pulse.js": "./pulse.js?v=c133d3c56d",
+          "./pulse.js": "./pulse.js?v=3607f9c018",
           "../../common/page.js": "../../common/page.js?v=925f61259f"
         }
       }
@@ -515,7 +517,11 @@
             now.textContent += " — will be replaced";
           }
           td(
-            plan.has(s.slot) ? X.presetName(plan.get(s.slot)) : "not changed",
+            plan.has(s.slot)
+              ? X.presetName(plan.get(s.slot))
+              : s.slot === X.SPARE
+                ? "emptied and disabled"
+                : "not changed",
             plan.has(s.slot) ? "" : "dim",
           );
           tb.append(tr);
@@ -571,6 +577,7 @@
                 (replaced.length
                   ? `\n\nThis replaces the LF card in ${replaced.join(", ")}.`
                   : "") +
+                `\n\nSlot 8 is disabled${last.slots[X.SPARE].lfType ? ` and its LF card (${X.lfName(last.slots[X.SPARE].lfType)}) removed` : ""}.` +
                 (lost.length
                   ? `\n\n⚠ The backup can't hold ${lost.join(", ")}. This firmware can't read that card type, and replacing it loses the card.`
                   : ""),
@@ -603,6 +610,13 @@
                 `slot ${t + 1}: ${t === from.slot ? "kept its card" : "card copied"}, mode ${X.presetName(mode)}`,
               );
             }
+            $("planinfo").textContent = "slot 8…";
+            const sp = X.SPARE;
+            await cu.cmd(X.CMD.DELETE_SLOT_SENSE_TYPE, X.reqSlotLf(sp)); // an empty LF side answers with an error
+            await cu.cmd(X.CMD.DELETE_SLOT_TAG_NICK, X.reqSlotLf(sp));
+            await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(sp, false));
+            await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableHf(sp, false));
+            log("slot 8: LF card removed, slot disabled (an HF card stays, disabled)");
             await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(targets[0][0]));
             await ok(X.CMD.SLOT_DATA_CONFIG_SAVE);
             log(`saved; slot ${targets[0][0] + 1} is active`);
@@ -859,6 +873,7 @@
             slot: s.slot,
             lfType: s.lfType,
             lfEnabled: !!enabled[s.slot * 2 + 1],
+            hfEnabled: !!enabled[s.slot * 2],
             preset: s.stored,
             nick: null,
             card: null,
@@ -952,6 +967,8 @@
             if (e.nick)
               await ok(X.CMD.SET_SLOT_TAG_NICK, X.reqNickLf(e.slot, e.nick));
             else await cu.cmd(X.CMD.DELETE_SLOT_TAG_NICK, X.reqSlotLf(e.slot));
+            if (e.hfEnabled !== undefined)
+              await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableHf(e.slot, e.hfEnabled));
             // the pulse test firmware fixes the slots' modes, so a backup's modes aren't restored
           }
           await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(b.active));

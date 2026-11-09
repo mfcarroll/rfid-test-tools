@@ -230,6 +230,11 @@ export const reqSlotType = (slot, type) =>
 export const reqEnableLf = (slot, on = true) =>
   Uint8Array.of(slot, SENSE_LF, on ? 1 : 0);
 export const reqSlotLf = (slot) => Uint8Array.of(slot, SENSE_LF);
+const SENSE_HF = 2;
+export const reqEnableHf = (slot, on = true) =>
+  Uint8Array.of(slot, SENSE_HF, on ? 1 : 0);
+// Slot 8 (index 7) is emptied and disabled for the test, so the CU's buttons skip it.
+export const SPARE = 7;
 export const hex = (b) =>
   [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
 export const unhex = (h) =>
