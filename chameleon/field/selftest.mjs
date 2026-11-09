@@ -111,6 +111,7 @@ const d1 = P.describeRound(log.rounds[1]);
 check(d1.carrier?.sure && d1.carrier.gatedMs === 40, `a gated carrier is sure, from 40 ms (${d1.carrier?.gatedMs})`);
 check(lf.pulse?.onMs === 60 && lf.pulse?.offMs === 140 && lf.pulse?.count === 4, `pulse on ${lf.pulse?.onMs} off ${lf.pulse?.offMs} ×${lf.pulse?.count}`);
 check(log.lfFields[0].drops === 4, "the field's drops parse");
+check(P.describeTiming({ total: 2, runs: [{ on: true, ms: 1057 }, { on: false, ms: 735 }] }).edge, "a field that ends during the capture is an edge, not a pulse");
 const hf = P.hfVerdict(log.hfFields);
 check(/14443-A/.test(hf.text) && /low-power/.test(hf.text), "HF verdict: 14443-A polling in short bursts");
 const r = { firmware: "test", log };

@@ -148,6 +148,8 @@ function parseTiming(v, o) {
 export function describeTiming(t) {
   if (!t || !t.total) return null;
   if (t.total === 1) return t.runs[0]?.on ? { steady: true } : null;
+  // One switch is a field that came or went during the capture, not a pulse.
+  if (t.total === 2) return { steady: false, edge: true, on: [], off: [], onMs: null, offMs: null };
   const inner = t.runs.slice(1, t.total === t.runs.length ? -1 : undefined);
   const on = inner.filter((r) => r.on).map((r) => r.ms);
   const off = inner.filter((r) => !r.on).map((r) => r.ms);
@@ -364,7 +366,7 @@ export function lfVerdict(rounds) {
   const commands = bursts.filter((b) => b.gaps >= 3);
   const offs = seen.flatMap((d) => d.dips.fieldOff);
   const timings = rounds.map((r) => describeTiming(r.timing)).filter(Boolean);
-  const pulsing = timings.filter((t) => !t.steady);
+  const pulsing = timings.filter((t) => !t.steady && !t.edge);
   let pulse = null;
   if (pulsing.length) {
     const on = pulsing.flatMap((t) => t.on),
@@ -508,6 +510,7 @@ export function privateMarkdown(r) {
   const L = ["**Private details**", ""];
   for (const rec of r.log.rounds) {
     const d = describeRound(rec);
+    if (!d.field) continue; // with no field, the dips are noise
     const bits = d.dips.bursts.filter((b) => b.bits).map((b) => b.bits);
     if (bits.length) L.push(`- wake ${rec.wake} +${(rec.tMs / 1000).toFixed(1)} s: command bits, from the intervals between gaps: ${bits.join(" ")}`);
   }
