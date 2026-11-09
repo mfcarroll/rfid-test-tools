@@ -21,7 +21,7 @@ it's next connected.
 - the field's timing: 1.8 s with the load off, in 1 ms steps, as on and off stretches. On a Proxmark3 pulsing 50 ms
   on and 100 ms off, it read 55 and 95 ms: the CU's detector takes about 5 ms to fall.
 
-While a field lasts, the LEDs are cyan with the field LED on. Each time the field drops out, they flash red for 150 ms,
+While a field lasts, the LEDs are cyan and the field LED follows the field. Each time the field drops out, the slots flash red for 150 ms,
 and the CU counts the drops. It can't watch while its own load is on (about 0.4 s of each measurement).
 
 The page groups the dips into bursts and reads the intervals between gaps as bits. A steady carrier means the
