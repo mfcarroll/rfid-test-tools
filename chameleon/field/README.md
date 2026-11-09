@@ -15,8 +15,14 @@ it's next connected.
   comes first, while a reader that sends one command and stops may still be sending.
 - the field's level on LF_RSSI with the CU's load off
 - the reader's carrier frequency, from the carrier's ripple in that envelope: at 100 kHz, carriers from 100 to 150 kHz
-  each land on their own frequency. If the field switches during the capture, a 15.6 kHz load tone sampled at two
-  rates stands in.
+  each land on their own frequency. If the field switches during the capture, the carrier comes from the longest
+  stretch with the field on, if it lasts 20 ms. A 15.6 kHz load tone sampled at two rates stands in only for a steady
+  field: on a switching one it reported its own line, or the switching itself (124.4 and 120.1 kHz at a door reader).
+- the field's timing: 1.8 s with the load off, in 1 ms steps, as on and off stretches. On a Proxmark3 pulsing 50 ms
+  on and 100 ms off, it read 55 and 95 ms: the CU's detector takes about 5 ms to fall.
+
+While a field lasts, the LEDs are cyan with the field LED on. Each time the field drops out, they flash red for 150 ms,
+and the CU counts the drops. It can't watch while its own load is on (about 0.4 s of each measurement).
 
 The page groups the dips into bursts and reads the intervals between gaps as bits. A steady carrier means the
 reader waits for a tag to talk. Command-like gaps mean the reader talks first (Hitag, password-protected T55xx or
@@ -28,13 +34,13 @@ reader in low-power card detection does.
 
 ## Limits
 
-- Checked against a Proxmark3, on USB and on battery, not yet against a door reader. On LF the CU found the
+- Checked against a Proxmark3, on USB and on battery. Testers have run it at door readers. On LF the CU found the
   Proxmark's carrier at the same offset as earlier measurements, and decoded a Hitag 2 start command
   (`lf cmdread … -c W11000`) to its bits. On HF it counted a 14443-A reader's polls, and logged 14443-B, ISO 15693
   and iCLASS readers as fields with no frames.
 - The carrier frequency is on the CU's own crystal, which can be off by up to ±40 ppm.
-- The envelope needs the CU's load on. With it off, the CU's detector holds the field's level and a reader's gaps
-  don't show.
+- The envelope needs the CU's load on. With it off, the CU's detector holds the field's level through gaps of a few
+  ms, so the timing capture only shows gaps of several ms or more.
 - The HF receiver only decodes ISO 14443-A, and reports nothing at all for other HF types.
 - The log keeps the last 12 LF measurements, 32 LF fields and 32 HF fields. Flashing the firmware clears it, and the
   probe starts on after a flash.

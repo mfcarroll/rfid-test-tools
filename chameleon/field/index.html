@@ -83,7 +83,9 @@
             <p class="note">
               Unplug the CU and hold its button side flat against the reader for
               about 5 seconds, then take it away. The field LED and a cyan light
-              show an LF field being measured; green shows an HF field. You can
+              show an LF field being measured; green shows an HF field. A red
+              flash means the reader's field dropped out for a moment: some
+              readers switch their field on and off all the time. You can
               visit more than one reader, but the log keeps only the last 12 LF
               measurements, and each reader's field is easier to read on its
               own.
@@ -295,8 +297,8 @@
       import * as P from "./probe.js";
 
       const PROBE_FW = {
-        zip: "firmware/field-probe-2ce29a58-ultra-dfu-app.zip",
-        name: "experimental 2ce29a58",
+        zip: "firmware/field-probe-f30acef8-ultra-dfu-app.zip",
+        name: "experimental f30acef8",
       };
       const STOCK = {
         zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",

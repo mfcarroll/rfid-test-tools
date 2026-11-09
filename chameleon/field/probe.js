@@ -25,7 +25,7 @@ export const STATUS = {
 };
 export const MOD = { LOW: 0, HIGH: 1, TONE: 2 };
 export const MOD_NAMES = ["off", "on (constant load)", "tone (fc/8)"];
-export const LOG_VERSION = 2;
+export const LOG_VERSION = 3;
 
 const NOMINAL_HZ = 125000;
 const FIELD_LEVEL = 200; // ADC counts: below this at p90, LF_RSSI saw no field
@@ -59,24 +59,28 @@ export function parseMode(d) {
 
 const LF_RECS = 12,
   DIPS = 40,
+  RUNS = 48,
   LF_FIELDS = 32,
   HF_FIELDS = 32;
 export const HEADER = 36;
 const CAP = 22,
-  REC = 20 + 3 * CAP + DIPS * 6,
-  LF_FIELD = 10,
+  TIMING = 20 + 3 * CAP + DIPS * 6 + 2, // after carrier_n
+  REC = TIMING + 8 + RUNS * 2,
+  LF_FIELD = 12,
   HF_FIELD = 26;
 export const LOG_SIZE = HEADER + LF_RECS * REC + LF_FIELDS * LF_FIELD + HF_FIELDS * HF_FIELD;
 export const REC_SIZE = REC;
 const MAGIC = 0x31425046;
 
-const FLAGS = { manual: 0x01, ended: 0x02, railed: 0x04, ambiguous: 0x08 };
+const FLAGS = { manual: 0x01, ended: 0x02, railed: 0x04, ambiguous: 0x08, switched: 0x10 };
 export const CARRIER_HOW = [
   "none",
   "the load tone at two sample rates",
   "the envelope's line",
   "the load tone, assumed nearest 125 kHz",
+  "the envelope's line over its longest stretch with the field on",
 ];
+const SURE = [2, 4]; // the envelope's line, whole or gated: the only ones matched to a known carrier on the bench
 
 function parseCap(v, o) {
   return {
@@ -118,13 +122,36 @@ export function parseRec(v, o = 0) {
     ended: (flags & FLAGS.ended) !== 0,
     railed: (flags & FLAGS.railed) !== 0,
     ambiguous: (flags & FLAGS.ambiguous) !== 0,
+    switched: (flags & FLAGS.switched) !== 0,
     carrierHz: v.getUint32(o + 10, true) / 1000,
     carrierSnr: v.getInt16(o + 14, true) / 10,
     carrierHow: v.getUint8(o + 16),
     dipsTotal: v.getUint16(o + 18, true),
     caps: [0, 1, 2].map((i) => parseCap(v, o + 20 + i * CAP)),
     dips,
+    carrierN: v.getUint16(o + TIMING - 2, true),
+    timing: parseTiming(v, o + TIMING),
   };
+}
+
+// The timing capture (1.79 s, LF_MOD off, 1 ms means): the field's stretches, alternately on and off.
+function parseTiming(v, o) {
+  const n = Math.min(v.getUint8(o + 5), RUNS);
+  const firstOn = v.getUint8(o + 4) === 1;
+  const runs = [];
+  for (let i = 0; i < n; i++) runs.push({ on: (i % 2 === 0) === firstOn, ms: v.getUint16(o + 8 + 2 * i, true) });
+  return { low: v.getInt16(o, true), high: v.getInt16(o + 2, true), total: v.getUint16(o + 6, true), runs };
+}
+
+// What the timing capture says: a steady field, or a pulsing one with its on and off times. The first and last
+// stretches are cut by the capture's ends, so only the ones between count.
+export function describeTiming(t) {
+  if (!t || !t.total) return null;
+  if (t.total === 1) return t.runs[0]?.on ? { steady: true } : null;
+  const inner = t.runs.slice(1, t.total === t.runs.length ? -1 : undefined);
+  const on = inner.filter((r) => r.on).map((r) => r.ms);
+  const off = inner.filter((r) => !r.on).map((r) => r.ms);
+  return { steady: false, on, off, onMs: median(on), offMs: median(off), cut: t.total > t.runs.length };
 }
 
 // The oldest first of the last min(count, max) entries of a ring.
@@ -186,7 +213,12 @@ export function parseLog(bytes) {
     rounds: ring(lfRecs, LF_RECS, (i) => parseRec(v, lfBase + i * REC)),
     lfFields: ring(lfFields, LF_FIELDS, (i) => {
       const o = fieldBase + i * LF_FIELD;
-      return { wake: v.getUint16(o, true), tMs: v.getUint32(o + 2, true), durMs: dur(v.getUint32(o + 6, true)) };
+      return {
+        wake: v.getUint16(o, true),
+        tMs: v.getUint32(o + 2, true),
+        durMs: dur(v.getUint32(o + 6, true)),
+        drops: v.getUint16(o + 10, true),
+      };
     }),
     hfFields: ring(hfFields, HF_FIELDS, (i) => {
       const o = hfBase + i * HF_FIELD;
@@ -216,6 +248,7 @@ export function carrierClass(hz) {
   return `${(hz / 1000).toFixed(1)} kHz: not a usual LF carrier`;
 }
 
+const range = (a) => (a.length ? [Math.min(...a), Math.max(...a)] : null);
 const median = (a) => {
   if (!a.length) return null;
   const s = [...a].sort((x, y) => x - y);
@@ -243,7 +276,9 @@ export function analyseDips(rec) {
   const usPer = env.rateKhz ? 1000 / env.rateKhz : 10;
   const ds = rec.dips.map((d) => ({ ...d, startUs: d.start * usPer, widthUs: d.width * usPer }));
   const fieldOff = ds.filter((d) => d.widthUs >= 2000);
-  const short = ds.filter((d) => d.widthUs < 2000);
+  // A command's gap takes the envelope most of the way down. The firmware also keeps dips of an eighth of the level,
+  // and on HS's door readers those were ripple 13 % deep that read as a burst of commands.
+  const short = ds.filter((d) => d.widthUs < 2000 && d.depth >= 0.3 * env.p90);
   const bursts = [];
   for (const d of short) {
     const b = bursts.at(-1);
@@ -306,13 +341,16 @@ export function describeRound(rec) {
           how: CARRIER_HOW[rec.carrierHow] ?? "?",
           class: carrierClass(rec.carrierHz),
           ambiguous: rec.ambiguous,
-          // Only the envelope's line has matched a known carrier on the bench. The load tone's fallback, used when
-          // the field switched during the envelope capture, gave a carrier 4860 ppm off on a Proxmark3.
-          sure: rec.carrierHow === 2,
+          // Only the envelope's line has matched a known carrier on the bench. The load tone's fallback gave a
+          // carrier 4860 ppm off on a Proxmark3's switching field; firmware from log version 3 uses it only for a
+          // steady field.
+          sure: SURE.includes(rec.carrierHow),
+          gatedMs: rec.carrierHow === 4 ? rec.carrierN / 100 : null,
         }
       : null,
     dips,
     dipsTotal: rec.dipsTotal,
+    timing: describeTiming(rec.timing),
   };
 }
 
@@ -325,6 +363,14 @@ export function lfVerdict(rounds) {
   const bursts = seen.flatMap((d) => d.dips.bursts);
   const commands = bursts.filter((b) => b.gaps >= 3);
   const offs = seen.flatMap((d) => d.dips.fieldOff);
+  const timings = rounds.map((r) => describeTiming(r.timing)).filter(Boolean);
+  const pulsing = timings.filter((t) => !t.steady);
+  let pulse = null;
+  if (pulsing.length) {
+    const on = pulsing.flatMap((t) => t.on),
+      off = pulsing.flatMap((t) => t.off);
+    pulse = { onMs: median(on), offMs: median(off), onRange: range(on), offRange: range(off), count: on.length };
+  }
   let talk;
   if (commands.length) {
     const fam = commands.map((b) => b.family).find(Boolean);
@@ -333,13 +379,13 @@ export function lfVerdict(rounds) {
       "The reader sends commands (short gaps in its field), so it talks first: a tag has to be asked before it answers." +
       (fam ? ` The timing fits ${fam}.` : "") +
       (cmd ? ` One burst matches the ${cmd}.` : "");
-  } else if (offs.length) {
+  } else if (offs.length || pulsing.length) {
     talk = "The field switches off for milliseconds at a time, with no command-like gaps: a reader that pulses its field.";
   } else {
     talk =
       "The field is a steady carrier with no gaps: the reader waits for a tag to talk first (EM4100, HID Prox, Indala, Paradox and most 125 kHz access cards).";
   }
-  return { field: true, best, talk, commands: commands.length, offs: offs.length };
+  return { field: true, best, talk, commands: commands.length, offs: offs.length, pulse, steady: timings.length - pulsing.length };
 }
 
 // The HF side: the fields the CU saw and the 14443-A frames in them.
@@ -399,9 +445,15 @@ export function safeMarkdown(r) {
       );
     else
       L.push(
-        "- Carrier: not measured, because the field switched during every measurement.",
+        "- Carrier: not measured: the field never stayed on for 20 ms in a measurement, or its line was too weak.",
       );
     L.push(`- ${lf.talk}`);
+    if (lf.pulse) {
+      const rg = (x) => (x && x[0] !== x[1] ? ` (${x[0]}–${x[1]})` : "");
+      const on = lf.pulse.onMs != null ? `on about ${lf.pulse.onMs} ms${rg(lf.pulse.onRange)}` : "on for less than the capture";
+      const off = lf.pulse.offMs != null ? `off about ${lf.pulse.offMs} ms${rg(lf.pulse.offRange)}` : null;
+      L.push(`- Field timing: ${[on, off].filter(Boolean).join(", ")}, from ${lf.pulse.count} whole pulse(s) in 1.8 s captures.`);
+    } else if (lf.steady) L.push("- Field timing: on for the whole 1.8 s capture.");
   }
   for (const rec of r.log.rounds) {
     const d = describeRound(rec);
@@ -411,12 +463,15 @@ export function safeMarkdown(r) {
       d.field ? `level ${d.level}${d.railed ? " (railed)" : ""}` : "no field",
     ];
     if (d.carrier)
-      parts.push(`carrier ${kHz(d.carrier.hz)} ${d.carrier.snr.toFixed(0)} dB${d.carrier.sure ? "" : " (uncertain: the field switched)"}`);
-    parts.push(`${rec.dipsTotal} dip(s)`);
+      parts.push(
+        `carrier ${kHz(d.carrier.hz)} ${d.carrier.snr.toFixed(0)} dB${d.carrier.gatedMs ? ` (from ${d.carrier.gatedMs.toFixed(0)} ms with the field on)` : ""}${d.carrier.sure ? "" : " (uncertain: the field switched)"}`,
+      );
+    if (d.field) parts.push(`${rec.dipsTotal} dip(s)`);
     // A reader that repeats a command gives the same burst several times: one entry each, with a count.
     // The gap width varies by a sample or so between repeats, so it stays out of the comparison.
     const seen = new Map();
-    for (const b of d.dips.bursts.filter((b) => b.gaps >= 2)) {
+    // With no field, the dips are noise.
+    for (const b of d.field ? d.dips.bursts.filter((b) => b.gaps >= 2) : []) {
       const key = `${b.gaps}|${b.shortUs}|${b.longUs}|${b.family}|${b.command}`;
       const e = seen.get(key) ?? { b, count: 0 };
       e.count++;
@@ -426,13 +481,20 @@ export function safeMarkdown(r) {
       const text = `burst of ${b.gaps} gaps ~${b.gapUs?.toFixed(0)} µs, intervals ${b.shortUs?.toFixed(0) ?? "-"}/${b.longUs?.toFixed(0) ?? "-"} µs${b.family ? ` (${b.family})` : ""}${b.command ? `: ${b.command}` : ""}`;
       parts.push(count > 1 ? `${count} × ${text}` : text);
     }
-    if (d.dips.fieldOff.length) parts.push(`${d.dips.fieldOff.length} field-off stretch(es) ≥ 2 ms`);
+    if (d.field && d.dips.fieldOff.length) parts.push(`${d.dips.fieldOff.length} field-off stretch(es) ≥ 2 ms`);
     if (rec.ended) parts.push("field gone by the end");
+    if (d.timing?.steady) parts.push("timing: steady");
+    else if (d.timing) {
+      const seq = rec.timing.runs.map((x) => `${x.on ? "on" : "off"} ${x.ms}`).join(", ");
+      parts.push(`timing (ms): ${seq}${d.timing.cut ? ", …" : ""}`);
+    }
     L.push(`  - ${parts.join("; ")}`);
   }
   if (r.log.lfFields.length) {
     const durs = r.log.lfFields.map((f) => (f.durMs == null ? "ongoing" : `${f.durMs} ms`));
-    L.push(`- LF field durations: ${durs.join(", ")}`);
+    L.push(`- LF field durations (a measurement holds a field open for about 2.5 s): ${durs.join(", ")}`);
+    if (r.log.lfFields.some((f) => f.drops))
+      L.push(`- Drops seen while the field lasted (the last may be its end): ${r.log.lfFields.map((f) => f.drops).join(", ")}`);
   }
   L.push("", "**HF (13.56 MHz)**");
   const hf = hfVerdict(r.log.hfFields);
