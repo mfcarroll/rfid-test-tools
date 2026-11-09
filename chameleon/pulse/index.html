@@ -766,7 +766,10 @@
           radio.type = "radio";
           radio.name = "active";
           radio.checked = s.slot === r.active;
-          radio.title = `Make slot ${s.slot + 1} the active slot`;
+          radio.disabled = !s.lfType; // an empty slot (slot 8, after setup) can't be chosen
+          radio.title = s.lfType
+            ? `Make slot ${s.slot + 1} the active slot`
+            : `Slot ${s.slot + 1} is empty`;
           radio.onchange = () =>
             run("change the active slot", async () => {
               await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(s.slot));
