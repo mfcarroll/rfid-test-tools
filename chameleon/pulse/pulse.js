@@ -1,0 +1,374 @@
+// FSK pulse test: commands 3120 and 3130. No DOM, no Web Serial in here.
+//
+// The pulse test firmware fixes each slot's mode, so every tester's setup is the same (lf_exp_fsk.c). A preset is a
+// drive (0 stock load switching, 1 the U1 drive) plus flags: 0x04 exact bits (HID Prox and Paradox bits at exactly 50
+// carrier cycles on average, where stock makes each fc/8 bit 48), 0x08 pulse timing (a fresh frame 2.1 ms into each
+// field, for a reader that switches its field on and off), 0x10 a trim learned from the reader's pulses, 0x20 a fixed
+// trim. Command 3130 reports what each slot learned.
+
+export const CMD_EXP_FSK = 3120;
+export const EXACT_BITS = 0x04;
+export const PULSE = 0x08;
+export const TRIM_LEARN = 0x10;
+export const TRIM_FIXED = 0x20;
+export const CMD_PULSE = 3130;
+export function presetName(p) {
+  if (p === 0) return "stock";
+  const parts = [];
+  if (p & PULSE) parts.push("pulse timing");
+  if (p & EXACT_BITS) parts.push("exact bits");
+  if (p & TRIM_LEARN) parts.push("learned trim");
+  if (p & TRIM_FIXED) parts.push("fixed trim");
+  if ((p & 3) === 1) parts.push("drive");
+  if ((p & 3) === 2) parts.push("self-trim");
+  return parts.join(" + ");
+}
+// A slot nickname, e.g. "Paradox 5 pulse+x+learn" (the CU allows 32 bytes).
+export function presetNick(lfType, p, slot) {
+  const parts = p === 0 ? ["stock"] : [];
+  if (p & PULSE) parts.push("pulse");
+  if (p & EXACT_BITS) parts.push("x");
+  if (p & TRIM_LEARN) parts.push("learn");
+  if (p & TRIM_FIXED) parts.push("fixed");
+  if ((p & 3) === 1) parts.push("drive");
+  return `${lfName(lfType)} ${slot + 1} ${parts.join("+")}`;
+}
+// The firmware's slots 1-7 (lf_exp_fsk.c), the one plan.
+export const PLAN = [0x00, 0x08, 0x0c, 0x18, 0x1c, 0x2c, 0x2d];
+export const UNSET = 0xff;
+export const FSK_TYPES = new Set([200, 201, 203]); // HID Prox, ioProx, Paradox: the types the presets apply to
+
+const LF_TYPES = {
+  0: "none",
+  100: "EM410x",
+  101: "EM410x/16",
+  102: "EM410x/32",
+  103: "EM410x/64",
+  104: "EM410x Electra",
+  150: "PAC",
+  170: "Viking",
+  180: "Jablotron",
+  200: "HID Prox",
+  201: "ioProx",
+  202: "Pyramid",
+  203: "Paradox",
+  300: "Indala",
+  310: "IDTECK",
+};
+export const lfName = (t) => LF_TYPES[t] ?? `type ${t}`;
+
+export const reqQuery = () => new Uint8Array(0);
+export const reqSet = (slot, preset) => Uint8Array.of(slot, preset); // slot 0-7, preset 0-2 or UNSET
+export const reqClear = () => Uint8Array.of(0xc1);
+
+// The reader's line on the CU's alias (mHz) -> the reader's clock against the CU's crystal, ppm.
+export const readerPpm = (mhz) => (mhz / 1000 - 5000) / 0.125;
+
+export function parse(d) {
+  const v = new DataView(d.buffer, d.byteOffset, d.byteLength);
+  if (d[0] !== 1)
+    throw new Error(`3120 reply version ${d[0]}, this page knows version 1`);
+  const r = {
+    version: d[0],
+    active: d[1],
+    defaultPreset: d[2],
+    k: d[3],
+    drive: { requested: d[4], active: d[5] },
+    trim: { requested: v.getInt16(6), applied: v.getInt16(8) },
+    frameTicks: v.getUint32(10),
+  };
+  const alen = d[14],
+    a = 15;
+  r.auto = {
+    locked: !!d[a],
+    moves: v.getUint16(a + 1),
+    rejects: v.getUint16(a + 3),
+    widePpm: v.getInt16(a + 5) / 10,
+    wides: v.getUint16(a + 7),
+    restores: v.getUint16(a + 12),
+  };
+  let n = a + alen;
+  r.slots = [];
+  for (let s = 0; s < 8; s++, n += 18) {
+    const slot = {
+      slot: s,
+      stored: d[n],
+      preset: d[n + 1],
+      lfType: v.getUint16(n + 2),
+      fields: v.getUint16(n + 4),
+    };
+    if (d[n + 6]) {
+      const mhz = v.getUint32(n + 11);
+      slot.kept = {
+        lfType: v.getUint16(n + 7),
+        trim: v.getInt16(n + 9),
+        mhz,
+        readerPpm: readerPpm(mhz),
+        fields: v.getUint16(n + 15),
+      };
+    }
+    r.slots.push(slot);
+  }
+  if (n !== d.length)
+    throw new Error(`3120 reply is ${d.length} bytes, expected ${n}`);
+  return r;
+}
+
+// A crystal-controlled reader sits within about 100 ppm of the CU. Further off, its clock is something else (an LC or
+// ceramic oscillator): one real HID reader ran at -4187 ppm. Stock reads such a reader only close in.
+export const FAR_PPM = 300;
+export const farOff = (ppm) => Math.abs(ppm) > FAR_PPM;
+
+// Command 3130's reply: what each slot learned from the reader's pulses.
+export function parsePulse(d) {
+  const v = new DataView(d.buffer, d.byteOffset, d.byteLength);
+  if (d[0] !== 1)
+    throw new Error(`3130 reply version ${d[0]}, this page knows version 1`);
+  const p = { active: d[1], fixedPpm: v.getInt32(2) / 10, slots: [] };
+  for (let s = 0, n = 6; s < 8; s++, n += 19)
+    p.slots.push({
+      slot: s,
+      preset: d[n],
+      learned: !!d[n + 1],
+      haveLast: !!d[n + 2],
+      ppm: v.getInt32(n + 3) / 10,
+      lastPpm: v.getInt32(n + 7) / 10,
+      lastSnr: v.getInt16(n + 11) / 10,
+      measures: v.getUint16(n + 13),
+      fails: v.getUint16(n + 15),
+      shortFields: v.getUint16(n + 17),
+    });
+  if (d.length !== 6 + 8 * 19)
+    throw new Error(`3130 reply is ${d.length} bytes, expected ${6 + 8 * 19}`);
+  return p;
+}
+
+// What a slot's trim is: learned (or not yet), fixed, or none.
+export function trimText(p, s) {
+  const q = p?.slots[s.slot];
+  if (s.preset & TRIM_FIXED) return `fixed ${fmtPpm(p?.fixedPpm ?? 0)} ppm`;
+  if (!(s.preset & TRIM_LEARN)) return "none";
+  if (!q) return "?";
+  if (q.learned) return `learned ${fmtPpm(q.ppm)} ppm`;
+  return q.haveLast
+    ? `not confirmed (last ${fmtPpm(q.lastPpm)} ppm)`
+    : "not learned";
+}
+
+// Plain text for pasting into a chat: one line per slot that matters.
+export function report(r, firmware, p) {
+  const lines = [`CU firmware ${firmware}, active slot ${r.active + 1}`];
+  for (const s of r.slots) {
+    if (!FSK_TYPES.has(s.lfType) && !s.fields) continue;
+    let l = `slot ${s.slot + 1}: ${lfName(s.lfType)}, ${presetName(s.preset)}, fields seen ${s.fields}`;
+    const q = p?.slots[s.slot];
+    if (q && (s.preset & PULSE)) l += `, short fields ${q.shortFields}`;
+    if (s.preset & (TRIM_LEARN | TRIM_FIXED)) l += `, trim ${trimText(p, s)}`;
+    if (q && (s.preset & TRIM_LEARN))
+      l += ` (${q.measures} measurement(s), ${q.fails} without a line${q.haveLast ? `, last ${q.lastSnr.toFixed(0)} dB` : ""})`;
+    lines.push(l);
+  }
+  return lines.join("\n");
+}
+
+export const fmtPpm = (p) => (p >= 0 ? "+" : "") + p.toFixed(1);
+
+// ---------------------------------------------------------------- copying a card between slots
+// Standard slot commands (chameleon_cmd.py). Slots are 0-7 here. Card data is passed through, never decoded.
+
+export const CMD = {
+  SET_ACTIVE_SLOT: 1003,
+  SET_SLOT_TAG_TYPE: 1004,
+  SET_SLOT_DATA_DEFAULT: 1005,
+  SET_SLOT_ENABLE: 1006,
+  SET_SLOT_TAG_NICK: 1007,
+  GET_SLOT_TAG_NICK: 1008,
+  SLOT_DATA_CONFIG_SAVE: 1009,
+  GET_ACTIVE_SLOT: 1018,
+  DELETE_SLOT_TAG_NICK: 1021,
+  GET_ENABLED_SLOTS: 1023,
+  DELETE_SLOT_SENSE_TYPE: 1024,
+};
+// Every LF type whose card this firmware can read back and write: [get, set, bytes the get reply carries before
+// the card]. EM410x replies with a 2-byte prefix ahead of the ID.
+export const LF_CARD = {
+  100: [5001, 5000, 2],
+  101: [5001, 5000, 2],
+  102: [5001, 5000, 2],
+  103: [5001, 5000, 2],
+  104: [5001, 5000, 2],
+  150: [5007, 5006, 0],
+  170: [5005, 5004, 0],
+  180: [5011, 5010, 0],
+  200: [5003, 5002, 0],
+  201: [5009, 5008, 0],
+  203: [5015, 5014, 0],
+  310: [5013, 5012, 0],
+};
+const SENSE_LF = 1;
+// Get/set the active slot's card, per FSK type: [get, set, data length].
+export const EMU_ID = {
+  200: [5003, 5002, 13],
+  201: [5009, 5008, 16],
+  203: [5015, 5014, 6],
+};
+
+// Reading a card on the CU's own antenna. The scan commands only run in reader mode, and each one listens for 500 ms.
+export const CHANGE_DEVICE_MODE = 1001; // 1 reader, 0 tag
+export const STATUS_LF_TAG_OK = 0x40;
+export const STATUS_LF_TAG_NO_FOUND = 0x41;
+// [type, scan command, request, bytes of the reply the slot takes]. HID Prox and ioProx take a format hint, 0 for any.
+export const SCANS = [
+  [203, 3022, [], 6],
+  [200, 3002, [0], 13],
+  [201, 3010, [0], 16],
+];
+
+export const reqSlot = (slot) => Uint8Array.of(slot);
+export const reqSlotType = (slot, type) =>
+  Uint8Array.of(slot, type >> 8, type & 0xff);
+export const reqEnableLf = (slot, on = true) =>
+  Uint8Array.of(slot, SENSE_LF, on ? 1 : 0);
+export const reqSlotLf = (slot) => Uint8Array.of(slot, SENSE_LF);
+export const hex = (b) =>
+  [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+export const unhex = (h) =>
+  Uint8Array.from(h.match(/../g) ?? [], (x) => parseInt(x, 16));
+
+// A backup file holds only each slot's LF side (type, card, enabled, nickname, mode). Nothing here touches HF.
+export const BACKUP_KIND = "rfid-test-tools/chameleon/selftrim LF slot backup";
+const OLD_KINDS = ["chameleon-test-tools/selftrim LF slot backup"];
+export function checkBackup(b) {
+  if (
+    !(b?.kind === BACKUP_KIND || OLD_KINDS.includes(b?.kind)) ||
+    b.version !== 1 ||
+    !Array.isArray(b.slots) ||
+    b.slots.length !== 8
+  )
+    throw new Error("this isn't a backup file from this page");
+  return b;
+}
+export function reqNickLf(slot, name) {
+  const b = new TextEncoder().encode(name).slice(0, 32);
+  const r = new Uint8Array(2 + b.length);
+  r[0] = slot;
+  r[1] = SENSE_LF;
+  r.set(b, 2);
+  return r;
+}
+
+// ---------------------------------------------------------------- self-trim event log (wide-search test builds)
+// Command 3100 at offset 0xFFFE: what self-trim did, the last 32 events, oldest first. From fsk-selftrim-wide 18a1c939,
+// the CU keeps the log while it sleeps, and each event carries its wake (presentation) and the time since that wake.
+// Older wide builds (0fcc91d9 and before) lose the log in sleep and send 16-byte events with no header. 0xFFFC clears
+// the log. Builds before the wide search have no log.
+
+export const CMD_EVENT_LOG = 3100;
+export const reqLog = () => Uint8Array.of(0xff, 0xfe, 0, 0);
+export const reqLogClear = () => Uint8Array.of(0xff, 0xfc, 0, 0);
+const EV_KIND = {
+  1: "wide search, capture A",
+  2: "wide search, capture B",
+  3: "restored learned reader",
+  4: "narrow check failed, unlocked",
+  5: "narrow check locked",
+  6: "trim moved",
+  7: "field",
+};
+const EV_WHY = {
+  0: "trim",
+  1: "near matched",
+  2: "weak",
+  3: "self line",
+  4: "too far",
+  5: "no peak",
+  6: "matched",
+};
+const EV_FAIL = { 1: "invalid", 2: "leak", 3: "outside guard" };
+
+export function parseLog(d) {
+  if (d.length < 2) return null; // no log in this firmware
+  const v = new DataView(d.buffer, d.byteOffset, d.byteLength);
+  const total = v.getUint16(0);
+  let size = 16,
+    at = 2,
+    wake = null;
+  if (d.length >= 5 && d[2] === 20 && (d.length - 5) % 20 === 0) {
+    size = 20;
+    wake = v.getUint16(3);
+    at = 5;
+  } else if ((d.length - 2) % 16 !== 0) {
+    throw new Error(
+      `event log reply of ${d.length} bytes: not a format this page knows`,
+    );
+  }
+  const events = [];
+  for (; at + size <= d.length; at += size) {
+    const k = d[at],
+      w = d[at + 1];
+    const e = {
+      kind: k,
+      what: EV_KIND[k] ?? `kind ${k}`,
+      field: v.getUint16(at + 2),
+      trim: v.getInt16(at + 4),
+      ownPpm: v.getInt32(at + 6) / 10,
+      ppm: v.getInt32(at + 10) / 10,
+      snr: v.getInt16(at + 14) / 10,
+    };
+    if (size === 20) {
+      e.wake = v.getUint16(at + 16);
+      e.ms = v.getUint16(at + 18);
+    }
+    if (k === 2) {
+      e.result = EV_WHY[w & 0x7f] ?? w & 0x7f;
+      e.valid = !!(w & 0x80);
+    } else if (k === 4) e.result = EV_FAIL[w] ?? w;
+    else if (k === 7) e.slot = w;
+    events.push(e);
+  }
+  return { total, wake, kept: size === 20, events };
+}
+
+// One line per event, as plain text.
+// The time since the wake is a u16 of milliseconds that stops at 65535: later events (a CU on USB never sleeps) all
+// carry 65535.
+const MS_MAX = 0xffff;
+export function logLine(e) {
+  const t =
+    e.wake != null
+      ? `wake ${e.wake} ${e.ms >= MS_MAX ? "> 65 s" : `${(e.ms / 1000).toFixed(2)} s`}  `
+      : "";
+  const f = `field ${e.field}  `;
+  switch (e.kind) {
+    case 7:
+      return (
+        `${t}${f}field on slot ${e.slot + 1}, plays trim ${e.trim} (${fmtPpm(e.ownPpm)} ppm)` +
+        (e.ppm ? `, learned reader ${fmtPpm(e.ppm)}` : ", no learned reader")
+      );
+    case 1:
+      return `${t}${f}wide search: capture A stored (our line ${fmtPpm(e.ownPpm)})`;
+    case 2:
+      return (
+        `${t}${f}wide search: ${e.valid ? "found" : "nothing usable"}, reader ${fmtPpm(e.ppm)} ppm, ` +
+        `${e.result === "trim" ? "" : e.result + ", "}SNR ${e.snr.toFixed(1)} dB`
+      );
+    case 3:
+      return `${t}${f}restored learned reader ${fmtPpm(e.ppm)} ppm (trim ${e.trim})`;
+    case 4:
+      return `${t}${f}narrow check ${e.result}: reader ${fmtPpm(e.ppm)}, our line ${fmtPpm(e.ownPpm)}, SNR ${e.snr.toFixed(1)} dB; unlocked`;
+    case 5:
+      return `${t}${f}narrow check locked: reader ${fmtPpm(e.ppm)}, SNR ${e.snr.toFixed(1)} dB`;
+    case 6:
+      return `${t}${f}trim moved to ${fmtPpm(e.ownPpm)} ppm, following the reader at ${fmtPpm(e.ppm)} (${e.snr} fields)`;
+    default:
+      return `${t}${f}${e.what}: own ${e.ownPpm}, ppm ${e.ppm}, SNR ${e.snr}`;
+  }
+}
+
+export function logReport(l, firmware) {
+  const head =
+    `CU firmware ${firmware}: self-trim event log, ${l.total} events since cleared` +
+    (l.total > l.events.length ? ` (last ${l.events.length} shown)` : "") +
+    (l.kept ? "" : "; this firmware loses the log when the CU sleeps");
+  return [head, ...l.events.map(logLine)].join("\n");
+}
