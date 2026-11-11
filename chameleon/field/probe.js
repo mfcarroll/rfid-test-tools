@@ -366,9 +366,10 @@ export function describeRound(rec) {
 
 // The Hitag 2 authentication-mode summary the firmware measured for one round (fp_hitag_scan), or null if it
 // classified nothing. bits is the frame's length as a class (32 or 64 bits), for the safe report; gaps is the raw
-// count, for the private details. ms is the command's span.
+// count, for the private details. ms is the command's span. A round with no field gives null: its envelope is noise,
+// and the firmware's scan anchors START_AUTH in it.
 export function authOf(rec) {
-  if (!rec.authMode) return null;
+  if (!rec.authMode || !describeRound(rec).field) return null;
   const env = rec.caps[1];
   const usPer = env.rateKhz ? 1000 / env.rateKhz : 10;
   return {
@@ -384,7 +385,8 @@ export function authOf(rec) {
 
 // The Hitag 2 auth mode across the rounds. A transaction is caught in at most one round; a decisive verdict
 // (password or crypto) is preferred over ambiguous, and an anchored one (START_AUTH seen) over not.
-export function authVerdict(rounds) {
+export function authVerdict(all) {
+  const rounds = all.filter((rec) => describeRound(rec).field);
   const got = rounds.map((rec) => authOf(rec)).filter(Boolean);
   if (!got.length) return { mode: null, sawStart: rounds.some((r) => r.authStartGaps > 0) };
   const rank = { 1: 2, 2: 2, 3: 1 };
@@ -425,7 +427,9 @@ export function lfVerdict(rounds) {
     talk =
       "The field is a steady carrier with no gaps: the reader waits for a tag to talk first (EM4100, HID Prox, Indala, Paradox and most 125 kHz access cards).";
   }
-  return { field: true, best, talk, commands: commands.length, offs: offs.length, pulse, steady: timings.length - pulsing.length };
+  // An edge (the field came or went once) is neither steady nor pulsing.
+  const steady = timings.filter((t) => t.steady).length;
+  return { field: true, best, talk, commands: commands.length, offs: offs.length, pulse, steady };
 }
 
 // The HF side: the fields the CU saw and the 14443-A frames in them.

@@ -131,6 +131,12 @@ check(a3?.mode === "crypto" && a3?.gaps === 65 && a3?.bits === 64, `round 3 cryp
 const av = P.authVerdict(log.rounds);
 check(av.counts?.password === 1 && av.counts?.crypto === 1, `authVerdict counts password ${av.counts?.password} crypto ${av.counts?.crypto}`);
 check(log.lfFields[0].drops === 4, "the field's drops parse");
+// A round taken after the field has gone: the firmware's scan anchors START_AUTH in the noise envelope.
+const quiet = { ...log.rounds[0], authMode: 0, authStartGaps: 6, caps: log.rounds[0].caps.map((c) => ({ ...c, p50: 64, p90: 80 })) };
+check(P.authVerdict([quiet]).sawStart === false, "a round with no field doesn't count as a START_AUTH");
+check(P.authOf({ ...log.rounds[2], caps: quiet.caps }) === null, "a round with no field gives no auth verdict");
+const short = { ...log.rounds[0], timing: { low: 40, high: 16290, total: 2, runs: [{ on: true, ms: 258 }, { on: false, ms: 1534 }] } };
+check(P.lfVerdict([short]).steady === 0, "a field that ends during the capture isn't steady");
 check(P.describeTiming({ total: 2, runs: [{ on: true, ms: 1057 }, { on: false, ms: 735 }] }).edge, "a field that ends during the capture is an edge, not a pulse");
 const hf = P.hfVerdict(log.hfFields);
 check(/14443-A/.test(hf.text) && /low-power/.test(hf.text), "HF verdict: 14443-A polling in short bursts");
