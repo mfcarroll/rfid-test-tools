@@ -75,5 +75,5 @@ reader in low-power card detection does.
 The log's layout is `fp_store_t` in `field_probe.h`, packed and little-endian. Version 2 adds the crash record, this
 boot's reset reason and a count of USB replies the CU dropped; version 3 adds the gated carrier, the field timing and
 the drop count; version 4 adds the Hitag 2 authentication-mode summary (the reader's post-UID command length). The
-page reads the 36-byte header first, then the rest in 512-byte pieces, and asks for each piece twice before it gives
-up. `node selftest.mjs` checks the page's parser and report against a synthetic log in that layout.
+page still reads a version 3 log, from a CU on `132414dc`, without the summary. It reads the 36-byte header first,
+then the rest in 512-byte pieces, and asks for each piece twice before it gives up. `node selftest.mjs` checks the page's parser and report against a synthetic log in that layout.

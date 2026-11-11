@@ -309,8 +309,8 @@
       import * as P from "./probe.js";
 
       const PROBE_FW = {
-        zip: "firmware/field-probe-132414dc-ultra-dfu-app.zip",
-        name: "experimental 132414dc",
+        zip: "firmware/field-probe-a5c8e8c5-ultra-dfu-app.zip",
+        name: "experimental a5c8e8c5",
       };
       const STOCK = {
         zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
@@ -488,11 +488,12 @@
         log(h.error ? `log header: ${h.error}` : `log: ${P.headerLine(h)}`);
         return h;
       }
-      async function readLog() {
-        const bytes = new Uint8Array(P.LOG_SIZE);
+      // size: the header's log size, since a version 3 log is shorter than a version 4 one.
+      async function readLog(size = P.LOG_SIZE) {
+        const bytes = new Uint8Array(size);
         let got = 0;
-        while (got < P.LOG_SIZE) {
-          const d = await logPiece(got, Math.min(512, P.LOG_SIZE - got));
+        while (got < size) {
+          const d = await logPiece(got, Math.min(512, size - got));
           if (!d.length) break;
           bytes.set(d, got);
           got += d.length;
@@ -507,8 +508,8 @@
         $("resultbox").hidden = false;
       }
       async function loadReport() {
-        await readHeader();
-        const bytes = await readLog();
+        const h = await readHeader();
+        const bytes = await readLog(h.logSize);
         const parsed = P.parseLog(bytes);
         if (parsed.error) throw new Error(parsed.error);
         rawLog = bytes;

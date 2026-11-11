@@ -72,7 +72,11 @@ const CAP = 22,
   REC = AUTH + 5,
   LF_FIELD = 12,
   HF_FIELD = 26;
-export const LOG_SIZE = HEADER + LF_RECS * REC + LF_FIELDS * LF_FIELD + HF_FIELDS * HF_FIELD;
+// Log version 3 (firmware 132414dc) is the same layout without the auth summary, so the page still reads a CU that
+// a tester flashed before version 4 came out.
+const REC_OF = { 3: AUTH, 4: REC };
+export const logSize = (version) => HEADER + LF_RECS * REC_OF[version] + LF_FIELDS * LF_FIELD + HF_FIELDS * HF_FIELD;
+export const LOG_SIZE = logSize(LOG_VERSION);
 export const REC_SIZE = REC;
 const MAGIC = 0x31425046;
 
@@ -103,7 +107,7 @@ function parseCap(v, o) {
 }
 
 // One LF measurement round (fp_lf_rec_t), at byte o of v.
-export function parseRec(v, o = 0) {
+export function parseRec(v, o = 0, version = LOG_VERSION) {
   const flags = v.getUint8(o + 9);
   const nDips = v.getUint8(o + 17);
   const dips = [];
@@ -135,10 +139,14 @@ export function parseRec(v, o = 0) {
     dips,
     carrierN: v.getUint16(o + TIMING - 2, true),
     timing: parseTiming(v, o + TIMING),
-    authMode: v.getUint8(o + AUTH),
-    authStartGaps: v.getUint8(o + AUTH + 1),
-    authGaps: v.getUint8(o + AUTH + 2),
-    authSpan: v.getUint16(o + AUTH + 3, true),
+    ...(version >= 4
+      ? {
+          authMode: v.getUint8(o + AUTH),
+          authStartGaps: v.getUint8(o + AUTH + 1),
+          authGaps: v.getUint8(o + AUTH + 2),
+          authSpan: v.getUint16(o + AUTH + 3, true),
+        }
+      : { authMode: 0, authStartGaps: 0, authGaps: 0, authSpan: 0 }),
   };
 }
 
@@ -180,9 +188,12 @@ export function parseHeader(bytes) {
   if (v.getUint32(0, true) !== MAGIC) return { error: "the log is empty or unreadable (no valid header)" };
   const version = v.getUint8(4);
   const recSize = v.getUint16(8, true);
-  if (version !== LOG_VERSION || recSize !== REC)
-    return { error: `log version ${version}, record ${recSize} bytes: this page reads version ${LOG_VERSION}` };
+  if (REC_OF[version] === undefined || recSize !== REC_OF[version])
+    return { error: `log version ${version}, record ${recSize} bytes: this page reads versions 3 and ${LOG_VERSION}` };
   return {
+    version,
+    recSize,
+    logSize: logSize(version),
     on: v.getUint8(5) === 1,
     envMode: v.getUint8(6),
     wake: v.getUint16(10, true),
@@ -209,18 +220,18 @@ export function headerLine(h) {
 }
 
 export function parseLog(bytes) {
-  if (bytes.length < LOG_SIZE) return { error: `the log is ${bytes.length} bytes, expected ${LOG_SIZE}` };
   const h = parseHeader(bytes);
   if (h.error) return h;
+  if (bytes.length < h.logSize) return { error: `the log is ${bytes.length} bytes, expected ${h.logSize}` };
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const { lfRecs, lfFields, hfFields } = h.counts;
   const lfBase = HEADER,
-    fieldBase = lfBase + LF_RECS * REC,
+    fieldBase = lfBase + LF_RECS * h.recSize,
     hfBase = fieldBase + LF_FIELDS * LF_FIELD;
   const dur = (x) => (x === 0xffffffff ? null : x);
   return {
     ...h,
-    rounds: ring(lfRecs, LF_RECS, (i) => parseRec(v, lfBase + i * REC)),
+    rounds: ring(lfRecs, LF_RECS, (i) => parseRec(v, lfBase + i * h.recSize, h.version)),
     lfFields: ring(lfFields, LF_FIELDS, (i) => {
       const o = fieldBase + i * LF_FIELD;
       return {

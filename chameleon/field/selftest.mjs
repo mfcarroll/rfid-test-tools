@@ -9,6 +9,16 @@ const check = (ok, what) => {
 
 check(P.LOG_SIZE === 6496, `log size ${P.LOG_SIZE} matches sizeof(fp_store_t) on the CU (3161 ends at 6496)`);
 check(P.REC_SIZE === 437, `record size ${P.REC_SIZE} is 437`);
+{
+  // A version 3 log (firmware 132414dc, before the auth summary): the page still reads it.
+  const h3 = new Uint8Array(P.HEADER);
+  const v3 = new DataView(h3.buffer);
+  v3.setUint32(0, 0x31425046, true);
+  v3.setUint8(4, 3);
+  v3.setUint16(8, 432, true);
+  const p3 = P.parseHeader(h3);
+  check(!p3.error && p3.logSize === 6436, `a version 3 header reads, log ${p3.logSize ?? p3.error}`);
+}
 const REC = P.REC_SIZE;
 
 // ---------------------------------------------------------------- a synthetic log
