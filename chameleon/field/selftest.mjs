@@ -75,10 +75,14 @@ function rec(i, { carrier, dips, how = 1, flags = 0, carrierN = 0, timing = null
 // Round 0: a Hitag 2 start, 11000, with the timing measured from a Proxmark's `lf cmdread`: 6 gaps of 75 µs, 230 µs
 // for a 1 and 180 µs for a 0 (samples at 100 kHz = 10 µs). Round 1: nothing.
 const t = [0, 230, 460, 640, 820, 1000].map((us) => 1000 + us / 10);
-rec(0, { carrier: 124983.5, dips: t.map((s) => [s, 8, 4000]) });
+// The carrier every round reports: the PM3 as CU2 measured it on the 2026-11-06 bench, -132 ppm. A CU reads the
+// carrier against its own crystal, so another CU sees the same reader differently (CU1 reads this PM3 at -140 ppm).
+const CARRIER_HZ = 124983.5;
+const CARRIER_PPM = -132;
+rec(0, { carrier: CARRIER_HZ, dips: t.map((s) => [s, 8, 4000]) });
 // Round 1: a pulsing field like HS's door readers: the carrier from a 40 ms on-stretch, on ~60 ms every ~200 ms.
 rec(1, {
-  carrier: 124983.5,
+  carrier: CARRIER_HZ,
   dips: [],
   how: 4,
   flags: 0x10,
@@ -87,10 +91,10 @@ rec(1, {
 });
 // Round 2: a password-mode Hitag 2 install. START_AUTH (6 gaps), then after the UID reply the reader's PWD command
 // is 32 bits: the firmware measured 33 gaps over 650 envelope samples (6.5 ms). This is the 5 → 32 → 32 pattern.
-rec(2, { carrier: 124983.5, dips: t.map((s) => [s, 8, 4000]), auth: { mode: 1, startGaps: 6, gaps: 33, span: 650 } });
+rec(2, { carrier: CARRIER_HZ, dips: t.map((s) => [s, 8, 4000]), auth: { mode: 1, startGaps: 6, gaps: 33, span: 650 } });
 // Round 3: a crypto-mode install. The reader's AUTH command is 64 bits: 65 gaps over 1290 samples (12.9 ms), which
 // overflows the 40 stored dips, so the firmware's summary carries it. This is the 5 → 32 → 64 pattern.
-rec(3, { carrier: 124983.5, dips: t.map((s) => [s, 8, 4000]), auth: { mode: 2, startGaps: 6, gaps: 65, span: 1290 } });
+rec(3, { carrier: CARRIER_HZ, dips: t.map((s) => [s, 8, 4000]), auth: { mode: 2, startGaps: 6, gaps: 65, span: 1290 } });
 // LF field
 const fo = P.HEADER + 12 * REC;
 v.setUint16(fo, 3, true);
@@ -112,7 +116,7 @@ const log = P.parseLog(buf);
 check(!log.error, `parses (${log.error ?? "no error"})`);
 check(log.rounds.length === 4 && log.hfFields.length === 3 && log.lfFields.length === 1, "ring counts");
 const d0 = P.describeRound(log.rounds[0]);
-check(Math.abs(d0.carrier.ppm - -132) < 1, `carrier ppm ${d0.carrier.ppm.toFixed(1)} ≈ -132`);
+check(Math.abs(d0.carrier.ppm - CARRIER_PPM) < 1, `carrier ppm ${d0.carrier.ppm.toFixed(1)} ≈ ${CARRIER_PPM}`);
 const b = d0.dips.bursts[0];
 check(b && b.gaps === 6, `one burst of six gaps (${b?.gaps})`);
 check(b?.bits === "11000", `bits ${b?.bits} = 11000`);
