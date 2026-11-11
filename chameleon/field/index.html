@@ -85,10 +85,20 @@
               about 5 seconds, then take it away. The field LED and a cyan light
               show an LF field being measured; green shows an HF field. A red
               flash means the reader's field dropped out for a moment: some
-              readers switch their field on and off all the time. You can
-              visit more than one reader, but the log keeps only the last 12 LF
+              readers switch their field on and off all the time. You can visit
+              more than one reader, but the log keeps only the last 12 LF
               measurements, and each reader's field is easier to read on its
               own.
+            </p>
+            <p class="note">
+              <b>Hitag 2 readers: password or crypto.</b> Clear the log in the
+              browser before you go. At the reader, hold the CU against it, then
+              bring your fob up next to it and keep both there for about 5
+              seconds. Take them both away, wait until the CU's lights go off,
+              and do it again, three times in all. Then read the log as usual.
+              The CU doesn't record the fob's data or the reader's password: it
+              measures only how long the reader's reply to the fob is. If the
+              reader opens the door or beeps, that's the fob working as normal.
             </p>
             <p class="note">
               With the CU still plugged in, you can hold it against a reader and
@@ -104,8 +114,8 @@
           <div class="gap-top">
             <div class="title">3. Read the results</div>
             <p class="note">
-              Plug the CU back in, connect, and read the log. Read it before
-              you flash anything, because a flash clears it. Clear it before
+              Plug the CU back in, connect, and read the log. Read it before you
+              flash anything, because a flash clears it. Clear it before
               measuring a different reader.
             </p>
             <div class="row">
@@ -240,13 +250,15 @@
             the field's envelope at 100 kHz, while a reader that sends one
             command may still be sending, and finds every dip in it. The
             carrier's ripple in that envelope gives the reader's carrier
-            frequency. Then it records the field's level with the CU's load
-            off.
+            frequency. Then it records the field's level with the CU's load off.
+            For a Hitag 2 reader, the envelope also gives the length of the
+            reader's command after the fob's UID: 32 bits is password mode, 64
+            bits is crypto mode.
           </li>
           <li>
-            When an <b>HF field</b> appears, the CU listens with its ISO
-            14443-A receiver and counts what the reader sends: polls (REQA and
-            WUPA), other frames and frames received with errors.
+            When an <b>HF field</b> appears, the CU listens with its ISO 14443-A
+            receiver and counts what the reader sends: polls (REQA and WUPA),
+            other frames and frames received with errors.
           </li>
           <li>
             <b>Read the log</b> reads the CU's log and works out, in this
@@ -263,8 +275,8 @@
           shows as a field with no frames.
         </p>
         <p class="note">
-          It has been checked against a Proxmark3, not yet against door
-          readers. The numbers are a guide, not a verdict.
+          It has been checked against a Proxmark3, not yet against door readers.
+          The numbers are a guide, not a verdict.
         </p>
       </details>
       <details class="fold" id="logbox">
@@ -364,9 +376,12 @@
         const m = has ? P.parseMode(r.data) : null;
         if (m && (m.version !== P.LOG_VERSION || m.recSize !== P.REC_SIZE)) {
           has = false;
-          log(`the probe's log is version ${m.version}; this page reads version ${P.LOG_VERSION}`);
+          log(
+            `the probe's log is version ${m.version}; this page reads version ${P.LOG_VERSION}`,
+          );
         }
-        $("fwinfo").textContent = `CU on ${fw}: ` + (has ? "has the field probe" : "no field probe");
+        $("fwinfo").textContent =
+          `CU on ${fw}: ` + (has ? "has the field probe" : "no field probe");
         $("fwneed").hidden = has;
         if (m && has) showMode(m);
         log(`connected: ${fw}, field probe ${has ? "yes" : "no"}`);
@@ -403,7 +418,8 @@
         cu.close();
         cu = null;
         setState("connect");
-        $("connectinfo").textContent = "The CU disconnected. Plug it in and connect again.";
+        $("connectinfo").textContent =
+          "The CU disconnected. Plug it in and connect again.";
         log("the CU disconnected");
       });
       bindFlashButtons({
@@ -420,23 +436,29 @@
       // The probe works in tag mode only.
       async function tagMode() {
         const m = await cu.cmd(P.CMD.GET_DEVICE_MODE, undefined, 8);
-        if (m.data[0] !== 0) await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, P.reqMode(false));
+        if (m.data[0] !== 0)
+          await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, P.reqMode(false));
       }
       async function setProbe(on, envMode) {
         need();
         await tagMode();
         const r = await cu.cmd(P.CMD.PROBE_MODE, P.reqMode(on, envMode), 8);
-        if (r.status !== P.STATUS.SUCCESS) throw new Error(`status 0x${r.status.toString(16)}`);
+        if (r.status !== P.STATUS.SUCCESS)
+          throw new Error(`status 0x${r.status.toString(16)}`);
         const m = P.parseMode(r.data);
         showMode(m);
-        log(`probe ${m.on ? "on" : "off"}, envelope load ${P.MOD_NAMES[m.envMode]}`);
+        log(
+          `probe ${m.on ? "on" : "off"}, envelope load ${P.MOD_NAMES[m.envMode]}`,
+        );
         return m;
       }
       $("probeOn").onclick = () => run("probe on", () => setProbe(true));
       $("probeOff").onclick = () => run("probe off", () => setProbe(false));
       $("setenv").onclick = () =>
         run("envelope mode", async () => {
-          const r = P.parseMode((await cu.cmd(P.CMD.PROBE_MODE, undefined, 8)).data);
+          const r = P.parseMode(
+            (await cu.cmd(P.CMD.PROBE_MODE, undefined, 8)).data,
+          );
           await setProbe(r.on, Number($("envmode").value));
         });
 
@@ -446,11 +468,17 @@
         for (let tries = 1; ; tries++) {
           try {
             const r = await cu.cmd(P.CMD.PROBE_LOG, P.reqLog(offset, max), 8);
-            if (r.status !== P.STATUS.SUCCESS) throw new Error(`status 0x${r.status.toString(16)}`);
+            if (r.status !== P.STATUS.SUCCESS)
+              throw new Error(`status 0x${r.status.toString(16)}`);
             return r.data;
           } catch (e) {
-            log(`reading the log at byte ${offset}: ${e.message}${tries < 2 ? ", trying again" : ""}`);
-            if (tries >= 2) throw new Error(`the log stopped at byte ${offset} of ${P.LOG_SIZE}`);
+            log(
+              `reading the log at byte ${offset}: ${e.message}${tries < 2 ? ", trying again" : ""}`,
+            );
+            if (tries >= 2)
+              throw new Error(
+                `the log stopped at byte ${offset} of ${P.LOG_SIZE}`,
+              );
           }
         }
       }
@@ -473,7 +501,9 @@
       }
       function showReport() {
         $("safe").textContent = P.safeMarkdown(report);
-        $("private").textContent = P.privateMarkdown(report).split("**Private details**")[1].trim();
+        $("private").textContent = P.privateMarkdown(report)
+          .split("**Private details**")[1]
+          .trim();
         $("resultbox").hidden = false;
       }
       async function loadReport() {
@@ -485,10 +515,12 @@
         report = { firmware, log: parsed };
         showReport();
         const c = parsed.counts;
-        $("loginfo").textContent = `${c.lfFields} LF field(s), ${c.lfRecs} LF measurement(s), ${c.hfFields} HF field(s)`;
+        $("loginfo").textContent =
+          `${c.lfFields} LF field(s), ${c.lfRecs} LF measurement(s), ${c.hfFields} HF field(s)`;
         log(`log read: ${$("loginfo").textContent}`);
       }
-      $("readlog").onclick = () => run("reading the log", async () => (need(), await loadReport()));
+      $("readlog").onclick = () =>
+        run("reading the log", async () => (need(), await loadReport()));
       $("clearlog").onclick = () =>
         run("clearing the log", async () => {
           need();
@@ -502,12 +534,17 @@
         run("measuring", async () => {
           need();
           await tagMode();
-          const m = P.parseMode((await cu.cmd(P.CMD.PROBE_MODE, undefined, 8)).data);
+          const m = P.parseMode(
+            (await cu.cmd(P.CMD.PROBE_MODE, undefined, 8)).data,
+          );
           if (!m.on) await setProbe(true);
           $("measureinfo").textContent = "measuring…";
           const r = await cu.cmd(P.CMD.PROBE_MEASURE, undefined, 10);
-          if (r.status !== P.STATUS.SUCCESS) throw new Error(`status 0x${r.status.toString(16)}`);
-          const rec = P.parseRec(new DataView(r.data.buffer, r.data.byteOffset, r.data.byteLength));
+          if (r.status !== P.STATUS.SUCCESS)
+            throw new Error(`status 0x${r.status.toString(16)}`);
+          const rec = P.parseRec(
+            new DataView(r.data.buffer, r.data.byteOffset, r.data.byteLength),
+          );
           const d = P.describeRound(rec);
           $("measureinfo").textContent = d.field
             ? `field, ${d.carrier ? (d.carrier.hz / 1000).toFixed(3) + " kHz" : "no carrier line"}, ${rec.dipsTotal} dip(s)`
@@ -525,17 +562,24 @@
         g.clearRect(0, 0, w, h);
         let mn = Infinity,
           mx = -Infinity;
-        for (const s of samples) (mn = Math.min(mn, s)), (mx = Math.max(mx, s));
+        for (const s of samples)
+          ((mn = Math.min(mn, s)), (mx = Math.max(mx, s)));
         const span = mx - mn || 1;
-        g.strokeStyle = getComputedStyle(document.body).getPropertyValue("--accent");
+        g.strokeStyle = getComputedStyle(document.body).getPropertyValue(
+          "--accent",
+        );
         g.beginPath();
         // one column per pixel: its minimum to its maximum, so a gap a sample wide still shows
         const per = samples.length / w;
         for (let x = 0; x < w; x++) {
           let lo = Infinity,
             hi = -Infinity;
-          for (let i = Math.floor(x * per); i < Math.floor((x + 1) * per) && i < samples.length; i++)
-            (lo = Math.min(lo, samples[i])), (hi = Math.max(hi, samples[i]));
+          for (
+            let i = Math.floor(x * per);
+            i < Math.floor((x + 1) * per) && i < samples.length;
+            i++
+          )
+            ((lo = Math.min(lo, samples[i])), (hi = Math.max(hi, samples[i])));
           if (lo === Infinity) continue;
           g.moveTo(x, h - ((lo - mn) / span) * h);
           g.lineTo(x, h - ((hi - mn) / span) * h + 1);
@@ -546,7 +590,9 @@
         run("capture", async () => {
           need();
           await tagMode();
-          const m = P.parseMode((await cu.cmd(P.CMD.PROBE_MODE, undefined, 8)).data);
+          const m = P.parseMode(
+            (await cu.cmd(P.CMD.PROBE_MODE, undefined, 8)).data,
+          );
           if (!m.on) await setProbe(true);
           const req = {
             mod: Number($("capmod").value),
@@ -554,10 +600,15 @@
             n: Number($("capn").value),
           };
           const r = await cu.cmd(P.CMD.PROBE_CAPTURE, P.reqCapture(req), 10);
-          if (r.status !== P.STATUS.SUCCESS) throw new Error(`status 0x${r.status.toString(16)}`);
+          if (r.status !== P.STATUS.SUCCESS)
+            throw new Error(`status 0x${r.status.toString(16)}`);
           const parts = [];
           for (let c = 0; c < 0xff; c++) {
-            const d = await cu.cmd(P.CMD.PROBE_CAPTURE_READ, P.reqCaptureRead(c), 8);
+            const d = await cu.cmd(
+              P.CMD.PROBE_CAPTURE_READ,
+              P.reqCaptureRead(c),
+              8,
+            );
             if (!d.data.length) break;
             parts.push(d.data);
           }
@@ -568,19 +619,36 @@
           lastCapture = { ...req, samples: Array.from(samples) };
           plot(samples);
           $("capdownload").disabled = false;
-          $("capinfo").textContent = `${samples.length} samples at ${req.rateKhz} kHz, load ${P.MOD_NAMES[req.mod]}`;
+          $("capinfo").textContent =
+            `${samples.length} samples at ${req.rateKhz} kHz, load ${P.MOD_NAMES[req.mod]}`;
           log(`capture: ${$("capinfo").textContent}`);
         });
       $("capdownload").onclick = () => {
-        if (!confirm("A raw capture can include a reader's commands. Download it anyway?")) return;
-        saveJson(`cu-field-capture-${Date.now()}.json`, { firmware, ...lastCapture });
+        if (
+          !confirm(
+            "A raw capture can include a reader's commands. Download it anyway?",
+          )
+        )
+          return;
+        saveJson(`cu-field-capture-${Date.now()}.json`, {
+          firmware,
+          ...lastCapture,
+        });
       };
 
       $("download").onclick = () => {
-        if (!confirm("The log can include a reader's commands. Download it anyway?")) return;
+        if (
+          !confirm(
+            "The log can include a reader's commands. Download it anyway?",
+          )
+        )
+          return;
         let s = "";
         for (const b of rawLog) s += String.fromCharCode(b);
-        saveJson(`cu-field-log-${Date.now()}.json`, { report, logBytes: btoa(s) });
+        saveJson(`cu-field-log-${Date.now()}.json`, {
+          report,
+          logBytes: btoa(s),
+        });
       };
       bindCopyButtons();
       setState("connect");
