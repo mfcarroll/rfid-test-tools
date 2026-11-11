@@ -20,13 +20,20 @@ it's next connected.
   field: on a switching one it reported its own line, or the switching itself (124.4 and 120.1 kHz at a door reader).
 - the field's timing: 1.8 s with the load off, in 1 ms steps, as on and off stretches. On a Proxmark3 pulsing 50 ms
   on and 100 ms off, it read 55 and 95 ms: the CU's detector takes about 5 ms to fall.
+- for a Hitag 2 reader, the authentication mode: when a fob completes an authentication within the 102 ms envelope,
+  the firmware measures the length of the reader's command after the fob's UID — 32 bits is password mode, 64 bits is
+  crypto mode — and logs a short summary (the gap count, the span, and the verdict). It reads the command's length
+  only: it classifies the install and recovers no secret. A real fob has to answer, or the reader loops on
+  START_AUTH and never sends the 32- or 64-bit command.
 
 While a field lasts, the LEDs are cyan and the field LED follows the field. Each time the field drops out, the slots flash red for 150 ms,
 and the CU counts the drops. It can't watch while its own load is on (about 0.4 s of each measurement).
 
 The page groups the dips into bursts and reads the intervals between gaps as bits. A steady carrier means the
 reader waits for a tag to talk. Command-like gaps mean the reader talks first (Hitag, password-protected T55xx or
-EM4x05). The page names a Hitag start command when a burst has Hitag timing and a start command's bits.
+EM4x05). The page names a Hitag start command when a burst has Hitag timing and a start command's bits. When a
+Hitag 2 fob answers in the capture, the safe report also gives the install's authentication mode (password or
+crypto) and the measured command length; the raw gap count is in the private details.
 
 **HF.** When a field appears, the CU's ISO 14443-A receiver counts the frames the reader sends: REQA and WUPA polls,
 other frames, and frames with receive errors. The page also notes fields that come and go in short bursts, as a
@@ -66,6 +73,7 @@ reader in low-power card detection does.
 | 3165 capture read | chunk | 4000 bytes of the capture, 16-bit little-endian |
 
 The log's layout is `fp_store_t` in `field_probe.h`, packed and little-endian. Version 2 adds the crash record, this
-boot's reset reason and a count of USB replies the CU dropped. The page reads the 36-byte header first, then the rest
-in 512-byte pieces, and asks for each piece twice before it gives up. `node selftest.mjs` checks the
-page's parser and report against a synthetic log in that layout.
+boot's reset reason and a count of USB replies the CU dropped; version 3 adds the gated carrier, the field timing and
+the drop count; version 4 adds the Hitag 2 authentication-mode summary (the reader's post-UID command length). The
+page reads the 36-byte header first, then the rest in 512-byte pieces, and asks for each piece twice before it gives
+up. `node selftest.mjs` checks the page's parser and report against a synthetic log in that layout.

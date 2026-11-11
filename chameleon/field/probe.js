@@ -25,7 +25,10 @@ export const STATUS = {
 };
 export const MOD = { LOW: 0, HIGH: 1, TONE: 2 };
 export const MOD_NAMES = ["off", "on (constant load)", "tone (fc/8)"];
-export const LOG_VERSION = 3;
+// The Hitag 2 reader-side authentication mode (fp_lf_rec_t.auth_mode / FP_AUTH_*): the length of the reader's command
+// after the tag's UID reply. The firmware reads the frame's length only; it classifies the install, not any secret.
+export const AUTH_MODE = ["none", "password", "crypto", "ambiguous"];
+export const LOG_VERSION = 4;
 
 const NOMINAL_HZ = 125000;
 const FIELD_LEVEL = 200; // ADC counts: below this at p90, LF_RSSI saw no field
@@ -65,7 +68,8 @@ const LF_RECS = 12,
 export const HEADER = 36;
 const CAP = 22,
   TIMING = 20 + 3 * CAP + DIPS * 6 + 2, // after carrier_n
-  REC = TIMING + 8 + RUNS * 2,
+  AUTH = TIMING + 8 + RUNS * 2, // after runs[]: the Hitag auth-mode summary (log v4)
+  REC = AUTH + 5,
   LF_FIELD = 12,
   HF_FIELD = 26;
 export const LOG_SIZE = HEADER + LF_RECS * REC + LF_FIELDS * LF_FIELD + HF_FIELDS * HF_FIELD;
@@ -131,6 +135,10 @@ export function parseRec(v, o = 0) {
     dips,
     carrierN: v.getUint16(o + TIMING - 2, true),
     timing: parseTiming(v, o + TIMING),
+    authMode: v.getUint8(o + AUTH),
+    authStartGaps: v.getUint8(o + AUTH + 1),
+    authGaps: v.getUint8(o + AUTH + 2),
+    authSpan: v.getUint16(o + AUTH + 3, true),
   };
 }
 
@@ -356,6 +364,36 @@ export function describeRound(rec) {
   };
 }
 
+// The Hitag 2 authentication-mode summary the firmware measured for one round (fp_hitag_scan), or null if it
+// classified nothing. bits is the frame's length as a class (32 or 64 bits), for the safe report; gaps is the raw
+// count, for the private details. ms is the command's span.
+export function authOf(rec) {
+  if (!rec.authMode) return null;
+  const env = rec.caps[1];
+  const usPer = env.rateKhz ? 1000 / env.rateKhz : 10;
+  return {
+    modeId: rec.authMode,
+    mode: AUTH_MODE[rec.authMode] ?? `mode ${rec.authMode}`,
+    gaps: rec.authGaps,
+    startGaps: rec.authStartGaps,
+    span: rec.authSpan,
+    ms: (rec.authSpan * usPer) / 1000,
+    bits: rec.authMode === 1 ? 32 : rec.authMode === 2 ? 64 : rec.authGaps,
+  };
+}
+
+// The Hitag 2 auth mode across the rounds. A transaction is caught in at most one round; a decisive verdict
+// (password or crypto) is preferred over ambiguous, and an anchored one (START_AUTH seen) over not.
+export function authVerdict(rounds) {
+  const got = rounds.map((rec) => authOf(rec)).filter(Boolean);
+  if (!got.length) return { mode: null, sawStart: rounds.some((r) => r.authStartGaps > 0) };
+  const rank = { 1: 2, 2: 2, 3: 1 };
+  const best = [...got].sort((a, b) => rank[b.modeId] - rank[a.modeId] || b.startGaps - a.startGaps)[0];
+  const counts = { password: 0, crypto: 0, ambiguous: 0 };
+  for (const a of got) counts[a.mode] = (counts[a.mode] ?? 0) + 1;
+  return { ...best, counts, n: got.length, sawStart: true };
+}
+
 // The overall verdict for the LF side, from every round that saw a field.
 export function lfVerdict(rounds) {
   const seen = rounds.map(describeRound).filter((d) => d.field);
@@ -426,6 +464,20 @@ export function hfVerdict(fields) {
 const kHz = (hz) => `${(hz / 1000).toFixed(3)} kHz`;
 const sgn = (x, d = 0) => (x >= 0 ? "+" : "") + x.toFixed(d);
 
+// The Hitag 2 auth-mode line for the safe report: the verdict and the command's length (no raw gap count).
+const AUTH_WHY = {
+  password: "32 bits (PWD), a static password sent in the clear",
+  crypto: "64 bits (AUTH), the Hitag 2 cipher and its 48-bit key",
+  ambiguous: "a length between the 32-bit (password) and 64-bit (crypto) commands",
+};
+function authLineSafe(av) {
+  const len = `about ${av.bits} bits (~${av.ms.toFixed(0)} ms)`;
+  return (
+    `Hitag 2 authentication mode: **${av.mode}** — after the fob's UID the reader's command is ${len}: ${AUTH_WHY[av.mode]}. ` +
+    "This reads the command's length only and recovers no secret."
+  );
+}
+
 export function safeMarkdown(r) {
   const L = [];
   L.push("**Chameleon Ultra field probe report** (safe to share)", "");
@@ -456,6 +508,12 @@ export function safeMarkdown(r) {
       const off = lf.pulse.offMs != null ? `off about ${lf.pulse.offMs} ms${rg(lf.pulse.offRange)}` : null;
       L.push(`- Field timing: ${[on, off].filter(Boolean).join(", ")}, from ${lf.pulse.count} whole pulse(s) in 1.8 s captures.`);
     } else if (lf.steady) L.push("- Field timing: on for the whole 1.8 s capture.");
+    const av = authVerdict(r.log.rounds);
+    if (av.mode) L.push(`- ${authLineSafe(av)}`);
+    else if (av.sawStart)
+      L.push(
+        "- A Hitag 2 START_AUTH was seen, but the fob's authentication command wasn't captured (the transaction may not have fallen in a measurement window), so the mode is unknown.",
+      );
   }
   for (const rec of r.log.rounds) {
     const d = describeRound(rec);
@@ -513,6 +571,14 @@ export function privateMarkdown(r) {
     if (!d.field) continue; // with no field, the dips are noise
     const bits = d.dips.bursts.filter((b) => b.bits).map((b) => b.bits);
     if (bits.length) L.push(`- wake ${rec.wake} +${(rec.tMs / 1000).toFixed(1)} s: command bits, from the intervals between gaps: ${bits.join(" ")}`);
+  }
+  for (const rec of r.log.rounds) {
+    const a = authOf(rec);
+    if (!a) continue;
+    L.push(
+      `- wake ${rec.wake} +${(rec.tMs / 1000).toFixed(1)} s: Hitag 2 auth frame (${a.mode}), ${a.gaps} gaps over ${a.span} envelope samples (~${a.ms.toFixed(1)} ms)` +
+        (a.startGaps ? `, after a START_AUTH of ${a.startGaps} gaps` : " (no START_AUTH anchor in the capture)"),
+    );
   }
   for (const f of r.log.hfFields)
     if (f.other)

@@ -7,20 +7,20 @@ const check = (ok, what) => {
   if (!ok) failed++;
 };
 
-check(P.LOG_SIZE === 6436, `log size ${P.LOG_SIZE} matches sizeof(fp_store_t) on the CU (3161 ends at 6436)`);
-check(P.REC_SIZE === 432, `record size ${P.REC_SIZE} is 432`);
+check(P.LOG_SIZE === 6496, `log size ${P.LOG_SIZE} matches sizeof(fp_store_t) on the CU (3161 ends at 6496)`);
+check(P.REC_SIZE === 437, `record size ${P.REC_SIZE} is 437`);
 const REC = P.REC_SIZE;
 
 // ---------------------------------------------------------------- a synthetic log
 const buf = new Uint8Array(P.LOG_SIZE);
 const v = new DataView(buf.buffer);
 v.setUint32(0, 0x31425046, true);
-v.setUint8(4, 3);
+v.setUint8(4, 4);
 v.setUint8(5, 1);
 v.setUint8(6, P.MOD.HIGH);
 v.setUint16(8, REC, true);
 v.setUint16(10, 3, true); // wake
-v.setUint16(12, 2, true); // two rounds
+v.setUint16(12, 4, true); // four rounds
 v.setUint16(14, 1, true); // one LF field
 v.setUint16(16, 3, true); // three HF fields
 
@@ -33,7 +33,7 @@ function cap(o, { mode, rate, p50, p90, line = 0, snr = 0 }) {
   v.setUint32(o + 16, Math.round(line * 1000), true);
   v.setInt16(o + 20, Math.round(snr * 10), true);
 }
-function rec(i, { carrier, dips, how = 1, flags = 0, carrierN = 0, timing = null }) {
+function rec(i, { carrier, dips, how = 1, flags = 0, carrierN = 0, timing = null, auth = null }) {
   const o = P.HEADER + i * REC;
   v.setUint16(o, 3, true);
   v.setUint16(o + 2, 1, true);
@@ -64,6 +64,13 @@ function rec(i, { carrier, dips, how = 1, flags = 0, carrierN = 0, timing = null
     v.setUint16(t + 8, timing.runs.length, true);
     timing.runs.forEach((ms, k) => v.setUint16(t + 10 + 2 * k, ms, true));
   }
+  if (auth) {
+    const ao = o + REC - 5; // the auth-mode summary is the last 5 bytes of the record
+    v.setUint8(ao, auth.mode);
+    v.setUint8(ao + 1, auth.startGaps ?? 0);
+    v.setUint8(ao + 2, auth.gaps ?? 0);
+    v.setUint16(ao + 3, auth.span ?? 0, true);
+  }
 }
 // Round 0: a Hitag 2 start, 11000, with the timing measured from a Proxmark's `lf cmdread`: 6 gaps of 75 µs, 230 µs
 // for a 1 and 180 µs for a 0 (samples at 100 kHz = 10 µs). Round 1: nothing.
@@ -78,6 +85,12 @@ rec(1, {
   carrierN: 4000,
   timing: { firstOn: false, runs: [90, 60, 140, 61, 139, 59, 141, 60, 30] },
 });
+// Round 2: a password-mode Hitag 2 install. START_AUTH (6 gaps), then after the UID reply the reader's PWD command
+// is 32 bits: the firmware measured 33 gaps over 650 envelope samples (6.5 ms). This is the 5 → 32 → 32 pattern.
+rec(2, { carrier: 124983.5, dips: t.map((s) => [s, 8, 4000]), auth: { mode: 1, startGaps: 6, gaps: 33, span: 650 } });
+// Round 3: a crypto-mode install. The reader's AUTH command is 64 bits: 65 gaps over 1290 samples (12.9 ms), which
+// overflows the 40 stored dips, so the firmware's summary carries it. This is the 5 → 32 → 64 pattern.
+rec(3, { carrier: 124983.5, dips: t.map((s) => [s, 8, 4000]), auth: { mode: 2, startGaps: 6, gaps: 65, span: 1290 } });
 // LF field
 const fo = P.HEADER + 12 * REC;
 v.setUint16(fo, 3, true);
@@ -97,7 +110,7 @@ for (let i = 0; i < 3; i++) {
 
 const log = P.parseLog(buf);
 check(!log.error, `parses (${log.error ?? "no error"})`);
-check(log.rounds.length === 2 && log.hfFields.length === 3 && log.lfFields.length === 1, "ring counts");
+check(log.rounds.length === 4 && log.hfFields.length === 3 && log.lfFields.length === 1, "ring counts");
 const d0 = P.describeRound(log.rounds[0]);
 check(Math.abs(d0.carrier.ppm - -132) < 1, `carrier ppm ${d0.carrier.ppm.toFixed(1)} ≈ -132`);
 const b = d0.dips.bursts[0];
@@ -110,6 +123,13 @@ check(/talks first/.test(lf.talk), "LF verdict: reader talks first");
 const d1 = P.describeRound(log.rounds[1]);
 check(d1.carrier?.sure && d1.carrier.gatedMs === 40, `a gated carrier is sure, from 40 ms (${d1.carrier?.gatedMs})`);
 check(lf.pulse?.onMs === 60 && lf.pulse?.offMs === 140 && lf.pulse?.count === 4, `pulse on ${lf.pulse?.onMs} off ${lf.pulse?.offMs} ×${lf.pulse?.count}`);
+// Hitag 2 authentication mode (log v4): the firmware classifies the reader's command after the UID reply.
+const a2 = P.authOf(log.rounds[2]);
+check(a2?.mode === "password" && a2?.gaps === 33 && a2?.bits === 32, `round 2 password, 33 gaps, 32-bit (${a2?.mode}/${a2?.gaps})`);
+const a3 = P.authOf(log.rounds[3]);
+check(a3?.mode === "crypto" && a3?.gaps === 65 && a3?.bits === 64, `round 3 crypto, 65 gaps, 64-bit (${a3?.mode}/${a3?.gaps})`);
+const av = P.authVerdict(log.rounds);
+check(av.counts?.password === 1 && av.counts?.crypto === 1, `authVerdict counts password ${av.counts?.password} crypto ${av.counts?.crypto}`);
 check(log.lfFields[0].drops === 4, "the field's drops parse");
 check(P.describeTiming({ total: 2, runs: [{ on: true, ms: 1057 }, { on: false, ms: 735 }] }).edge, "a field that ends during the capture is an edge, not a pulse");
 const hf = P.hfVerdict(log.hfFields);
@@ -120,6 +140,9 @@ check(/Field timing: on about 60 ms \(59–61\), off about 140 ms \(139–141\),
 check(/Drops seen while the field lasted.*: 4/.test(safe), "the safe report gives the drops");
 check(!/11000/.test(safe), "the safe report leaves the bits out");
 check(/11000/.test(P.privateMarkdown(r)), "the private details hold the bits");
+check(/authentication mode: \*\*password\*\* — after the fob's UID the reader's command is about 32 bits/.test(safe), "the safe report names the Hitag auth mode and frame length");
+check(!/33 gaps|65 gaps/.test(safe), "the safe report leaves the raw gap count out");
+check(/65 gaps over 1290 envelope samples.*after a START_AUTH of 6 gaps/.test(P.privateMarkdown(r)), "the private details hold the raw gap count");
 check(P.parseLog(new Uint8Array(P.LOG_SIZE)).error != null, "an unreadable log is an error, not a report");
 check(!/reset/.test(safe), "no crash line without a crash");
 // A crash by a firmware error, and a dropped reply
