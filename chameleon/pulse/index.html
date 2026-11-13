@@ -11,7 +11,7 @@
       <a class="back" href="../../">← RFID test tools</a>
       <h1>Chameleon Ultra pulse test (experimental)</h1>
       <p class="sub">
-        Some readers switch their field on for about 50 ms at a time, over and
+        Some readers switch their field on for 50 to 80 ms at a time, over and
         over, and a frame from the CU has to fit inside one of those pulses.
         This test firmware puts the same HID Prox, Paradox or ioProx card in
         slots 1–7, each with a different way of answering such a reader. Try
@@ -166,7 +166,7 @@
             <p class="note">
               <b>Fields seen</b>: how many times the slot detected a reader's
               field arriving. <b>Short fields</b>: fields that were gone again
-              within about 150 ms, as a pulsing reader's are. <b>Trim</b>: the
+              within about 300 ms, as a pulsing reader's are. <b>Trim</b>: the
               reader's clock the slot matches, against the CU's. Slots 4 and 5
               learn it from the reader; slots 6 and 7 use a fixed value.
             </p>
@@ -223,8 +223,9 @@
             <b>pulse timing</b>: a card loses power between a reader's pulses
             and starts its frame again at each one. In this mode the CU does
             the same. It starts a fresh frame 2.1 ms into each field, as a T5577
-            does, and checks the field after each of the first 3 frames. A field
-            that stays on gets the usual 10-frame bursts after that.
+            does, sends a second frame straight after it, then checks the field.
+            It does that for a field's first 3 pairs of frames. A field that
+            stays on gets the usual 10-frame bursts after that.
           </li>
           <li>
             <b>+ exact bits</b>: stock firmware sends some HID Prox and Paradox
@@ -327,9 +328,9 @@
 
       const FIRMWARE = {
         test: {
-          zip: "firmware/fsk-pulse-9e043062-ultra-dfu-app.zip",
-          name: "pulse test firmware (9e043062)",
-          version: "v2.3.0-27-g9e04306",
+          zip: "firmware/fsk-pulse-2ca24315-ultra-dfu-app.zip",
+          name: "pulse test firmware (2ca24315)",
+          version: "v2.3.0-28-g2ca2431",
         },
         stock: {
           zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
