@@ -28,10 +28,12 @@ export const MOD_NAMES = ["off", "on (constant load)", "tone (fc/8)"];
 // The Hitag 2 reader-side authentication mode (fp_lf_rec_t.auth_mode / FP_AUTH_*): the length of the reader's command
 // after the tag's UID reply. The firmware reads the frame's length only; it classifies the install, not any secret.
 export const AUTH_MODE = ["none", "password", "crypto", "ambiguous"];
-export const LOG_VERSION = 4;
+export const LOG_VERSION = 5;
 
 const NOMINAL_HZ = 125000;
-const FIELD_LEVEL = 200; // ADC counts: below this at p90, LF_RSSI saw no field
+// ADC counts: below this at p90, LF_RSSI saw no field (FP_FIELD_MIN). With no field, the 1 ms means of two CUs read 40
+// to 115. Log version 5's off level is the larger of this and a tenth of the field's full level.
+const FIELD_LEVEL = 200;
 
 // ---------------------------------------------------------------- requests
 
@@ -63,18 +65,22 @@ export function parseMode(d) {
 const LF_RECS = 12,
   DIPS = 40,
   RUNS = 48,
+  LEVEL_DIPS = 32,
   LF_FIELDS = 32,
   HF_FIELDS = 32;
 export const HEADER = 36;
 const CAP = 22,
   TIMING = 20 + 3 * CAP + DIPS * 6 + 2, // after carrier_n
   AUTH = TIMING + 8 + RUNS * 2, // after runs[]: the Hitag auth-mode summary (log v4)
-  REC = AUTH + 5,
+  LEVEL = AUTH + 5, // after the auth summary: the timing capture's full level and dips (log v5)
+  REC = LEVEL + 7 + LEVEL_DIPS * 6,
   LF_FIELD = 12,
   HF_FIELD = 26;
-// Log version 3 (firmware 132414dc) is the same layout without the auth summary, so the page still reads a CU that
-// a tester flashed before version 4 came out.
-const REC_OF = { 3: AUTH, 4: REC };
+// Log versions 3 (firmware 132414dc) and 4 (a5c8e8c5) are the same layout without the newer fields at the end of a
+// record, so the page still reads a CU that a tester flashed before version 5 came out. Their timing runs split the
+// field at fractions of its swing, not at an absolute level. levelOf re-reads them.
+const REC_OF = { 3: AUTH, 4: LEVEL, 5: REC };
+export const recSizeOf = (version) => REC_OF[version];
 export const logSize = (version) => HEADER + LF_RECS * REC_OF[version] + LF_FIELDS * LF_FIELD + HF_FIELDS * HF_FIELD;
 export const LOG_SIZE = logSize(LOG_VERSION);
 export const REC_SIZE = REC;
@@ -147,7 +153,22 @@ export function parseRec(v, o = 0, version = LOG_VERSION) {
           authSpan: v.getUint16(o + AUTH + 3, true),
         }
       : { authMode: 0, authStartGaps: 0, authGaps: 0, authSpan: 0 }),
+    version,
+    ...(version >= 5 ? parseLevel(v, o + LEVEL) : {}),
   };
+}
+
+// Log version 5: the timing capture's full level, its off level, and its dips (start and width in ms, depth in counts
+// below the full level).
+function parseLevel(v, o) {
+  const n = Math.min(v.getUint8(o + 4), LEVEL_DIPS);
+  const dips = [];
+  for (let i = 0; i < n; i++) {
+    const p = o + 7 + 6 * i;
+    const depth = v.getUint16(p + 4, true);
+    dips.push({ start: v.getUint16(p, true), ms: v.getUint16(p + 2, true), depth: depth & 0x7fff, open: (depth & 0x8000) !== 0 });
+  }
+  return { timingFull: v.getInt16(o, true), timingOffAt: v.getInt16(o + 2, true), levelDipsTotal: v.getUint16(o + 5, true), levelDips: dips };
 }
 
 // The timing capture (1.79 s, LF_MOD off, 1 ms means): the field's stretches, alternately on and off.
@@ -172,6 +193,110 @@ export function describeTiming(t) {
   return { steady: false, on, off, onMs: median(on), offMs: median(off), cut: t.total > t.runs.length };
 }
 
+// A short off looks like a dip in the timing capture. With the load off, the CU's level falls with a time constant
+// of about 4.5 ms when the field goes off, and comes back within a ms when it returns. On a bench CU under a PM3,
+// offs of 2, 4 and 8 ms read as dips 2, 4 and 8 ms wide, down to 72, 43 and 14 % of the full level. With the field at
+// the ADC's rail, the fall shows later: 4 and 8 ms went to 63 and 25 %. So an off of t ms leaves at most e^(-t/10) of
+// the full level. A drop that stays well above that for its length is a dip.
+export const offLikeAt = (ms) => Math.exp(-ms / 10) + 0.05;
+const offLike = (frac, ms) => (frac == null || ms == null ? null : frac <= offLikeAt(ms));
+
+// The loaded envelope (the load on, 10 µs samples) times a gap to within 0.1 ms. A bench CU timed PM3 offs of 2 to
+// 32 ms. Its depth can't separate a dip from an off. A door reader's dips to 70 % took it to the no-field level.
+// Returns the median length in ms of the gaps at least 1 ms long that the capture holds whole, or null.
+function envelopeGapMs(rec) {
+  if (!envelopeReadable(rec)) return null;
+  const env = rec.caps[1];
+  const usPer = env.rateKhz ? 1000 / env.rateKhz : 10;
+  const w = rec.dips.filter((d) => !d.open && d.start > 0 && d.width * usPer >= 1000 && d.depth >= 0.5 * env.p90);
+  return w.length ? median(w.map((d) => (d.width * usPer) / 1000)) : null;
+}
+
+// What the timing capture says about the field's level: where it went off and where it only dipped. Each dip holds:
+//   frac      its lowest 1 ms mean, as a fraction of the full level
+//   ms        its length
+//   open      whether the capture's start or end cut it
+//   shortOff  whether it is as deep as an off of that length reads (null: not known)
+//
+// Log version 5 records the dips. Versions 3 and 4 split the field at 35 % of its swing, so a door reader's dips to
+// 70 % read as off. For those this re-reads the runs: if the lowest 1 ms mean stayed above the no-field level, every
+// off run was a drop that didn't go off, and only the deepest one's level is known. Its length comes from the
+// loaded envelope's gaps. The result is an estimate.
+export function levelOf(rec) {
+  const t = rec.timing;
+  if (!t || !t.total) return null;
+  if (rec.version >= 5) {
+    const full = rec.timingFull;
+    const dips = rec.levelDips.map((d) => {
+      const frac = full ? (full - d.depth) / full : null;
+      return { start: d.start, ms: d.ms, frac, open: d.open, shortOff: offLike(frac, d.ms) };
+    });
+    return { estimate: false, full, offAt: rec.timingOffAt, timing: describeTiming(t), dips, dipsTotal: rec.levelDipsTotal };
+  }
+  const old = { estimate: true, full: t.high, offAt: FIELD_LEVEL, version: rec.version ?? 4 };
+  if (t.low < FIELD_LEVEL) return { ...old, timing: describeTiming(t), dips: [], dipsTotal: 0, reachedOff: true };
+  const deepest = t.high ? t.low / t.high : null;
+  const gapMs = envelopeGapMs(rec);
+  const shortOff = offLike(deepest, gapMs);
+  const dips = [];
+  const whole = t.total === t.runs.length;
+  let at = 0;
+  t.runs.forEach((r, i) => {
+    if (!r.on) dips.push({ start: at, ms: r.ms, frac: null, open: i === 0 || (whole && i === t.runs.length - 1), shortOff });
+    at += r.ms;
+  });
+  // A drop as deep as an off of its length may be one: then the old runs stand.
+  if (shortOff) return { ...old, timing: describeTiming(t), dips: [], dipsTotal: 0, deepest, gapMs, shortOffRuns: true };
+  const offRuns = t.runs[0]?.on ? Math.floor(t.total / 2) : Math.ceil(t.total / 2);
+  return { ...old, timing: { steady: true }, dips, dipsTotal: offRuns, deepest, gapMs };
+}
+
+// levelOf for every round of a log. An old log's round whose loaded envelope held no whole gap can't be judged on
+// its own. When every round that could be judged reads as short offs, it does too.
+export function levelsOf(rounds) {
+  const ls = rounds.map(levelOf);
+  const open = (l) => l?.estimate && !l.reachedOff && l.gapMs == null;
+  const known = ls.filter((l) => l?.estimate && !l.reachedOff && l.gapMs != null);
+  if (!known.length || !known.every((l) => l.shortOffRuns)) return ls;
+  return ls.map((l, i) =>
+    open(l) ? { ...l, timing: describeTiming(rounds[i].timing), dips: [], dipsTotal: 0, shortOffRuns: true } : l,
+  );
+}
+
+// The dips across rounds: their depth, length and spacing. kind picks the dips that can't be offs ("dip", which takes
+// the ones not known either way too) or the ones as deep as an off of their length ("short-off"). Intervals are
+// between the starts of dips in one capture.
+export function dipSummary(levels, kind = "dip") {
+  const pick = (d) => (kind === "short-off" ? d.shortOff === true : d.shortOff !== true);
+  const with_ = levels.filter((l) => l && l.dips.some(pick));
+  if (!with_.length) return null;
+  const all = with_.flatMap((l) => l.dips.filter(pick));
+  const whole = all.filter((d) => !d.open);
+  const every = with_.flatMap((l) => {
+    const starts = l.dips.filter((d) => pick(d) && !(d.open && d.start === 0)).map((d) => d.start);
+    return starts.slice(1).map((x, i) => x - starts[i]);
+  });
+  const pct = whole.map((d) => d.frac).filter((x) => x != null).map((x) => Math.round(x * 100));
+  const deepest = with_.map((l) => l.deepest).filter((x) => x != null);
+  const gap = with_.map((l) => l.gapMs).filter((x) => x != null);
+  const ms = whole.map((d) => d.ms);
+  if (!whole.length && !with_.some((l) => l.estimate)) return null; // only drops cut by the capture's ends
+  return {
+    kind,
+    count: with_.reduce((n, l) => n + (l.estimate ? l.dipsTotal : l.dips.filter((d) => pick(d) && !d.open).length), 0),
+    pct: median(pct),
+    pctRange: range(pct),
+    deepestPct: deepest.length ? Math.round(Math.min(...deepest) * 100) : null,
+    gapMs: gap.length ? median(gap) : null,
+    ms: median(ms),
+    msRange: range(ms),
+    everyMs: median(every),
+    everyRange: range(every),
+    estimate: with_.some((l) => l.estimate),
+    versions: [...new Set(with_.filter((l) => l.estimate).map((l) => l.version))],
+  };
+}
+
 // The oldest first of the last min(count, max) entries of a ring.
 function ring(count, max, read) {
   const out = [];
@@ -189,7 +314,7 @@ export function parseHeader(bytes) {
   const version = v.getUint8(4);
   const recSize = v.getUint16(8, true);
   if (REC_OF[version] === undefined || recSize !== REC_OF[version])
-    return { error: `log version ${version}, record ${recSize} bytes: this page reads versions 3 and ${LOG_VERSION}` };
+    return { error: `log version ${version}, record ${recSize} bytes: this page reads versions 3 to ${LOG_VERSION}` };
   return {
     version,
     recSize,
@@ -292,11 +417,19 @@ const HITAG_COMMANDS = [
 ];
 
 // The dips of one envelope capture, grouped into bursts of commands and long field-off stretches.
+// Whether the envelope capture can show a reader's gaps: only with the load on (the default), and only if the
+// envelope stands above the no-field level. With the load off the detector holds through short gaps. With the tone,
+// or at the no-field level, noise passes the depth test below and read as commands on the bench.
+export const envelopeReadable = (rec) => rec.caps[1].mode === MOD.HIGH && rec.caps[1].p90 >= FIELD_LEVEL;
+
 export function analyseDips(rec) {
   const env = rec.caps[1];
   const usPer = env.rateKhz ? 1000 / env.rateKhz : 10;
+  if (!envelopeReadable(rec)) return { usPer, long: [], bursts: [], open: false, readable: false };
   const ds = rec.dips.map((d) => ({ ...d, startUs: d.start * usPer, widthUs: d.width * usPer }));
-  const fieldOff = ds.filter((d) => d.widthUs >= 2000);
+  // A long gap with the load on can be a dip or an off. On a door reader, dips to 70 % (with the load off) took the
+  // loaded envelope down to the no-field level. levelOf tells them apart.
+  const long = ds.filter((d) => d.widthUs >= 2000);
   // A command's gap takes the envelope most of the way down. The firmware also keeps dips of an eighth of the level,
   // and on HS's door readers those were ripple 13 % deep that read as a burst of commands.
   const short = ds.filter((d) => d.widthUs < 2000 && d.depth >= 0.3 * env.p90);
@@ -341,7 +474,7 @@ export function analyseDips(rec) {
         : null;
     return { gaps: b.length, gapUs: gap, shortUs: lo, longUs: hi, bits, family: family?.name ?? null, command: command?.name ?? null };
   });
-  return { usPer, fieldOff, bursts: out, open: ds.some((d) => d.open) };
+  return { usPer, long, bursts: out, open: ds.some((d) => d.open), readable: true };
 }
 
 export function describeRound(rec) {
@@ -349,12 +482,19 @@ export function describeRound(rec) {
   const env = rec.caps[1];
   const field = level.p90 >= FIELD_LEVEL || env.p90 >= FIELD_LEVEL;
   const dips = analyseDips(rec);
+  const levels = levelOf(rec);
+  // The envelope's line is the carrier's ripple only with the load on. Older firmware took it in any mode: the tone's
+  // own line read as a 115.6 kHz carrier, and the load off gave about 102 kHz.
+  const envLine = rec.carrierHow === 2 || rec.carrierHow === 4;
+  const carrierOk = rec.carrierHz && !(envLine && env.mode !== MOD.HIGH);
   return {
     field,
     level: level.p50,
     // The level capture's p90 can be at the rail while its p50 is near zero: the field was on for part of it.
     railed: rec.railed && level.p50 >= 16000,
-    carrier: rec.carrierHz
+    carrierDropped: Boolean(rec.carrierHz) && !carrierOk,
+    envMode: env.mode,
+    carrier: carrierOk
       ? {
           hz: rec.carrierHz,
           ppm: ((rec.carrierHz - NOMINAL_HZ) / NOMINAL_HZ) * 1e6,
@@ -366,12 +506,17 @@ export function describeRound(rec) {
           // carrier 4860 ppm off on a Proxmark3's switching field; firmware from log version 3 uses it only for a
           // steady field.
           sure: SURE.includes(rec.carrierHow),
+          // The load tone at two rates, on a field that stayed on: since log version 3 the firmware uses it only
+          // for a steady field. With the envelope's load off or the tone, it is the only carrier (124.982 kHz on a
+          // bench CU under a PM3, the same as the envelope's line with the load on).
+          tone: rec.carrierHow === 1 && !rec.switched && !rec.ambiguous,
           gatedMs: rec.carrierHow === 4 ? rec.carrierN / 100 : null,
         }
       : null,
     dips,
     dipsTotal: rec.dipsTotal,
-    timing: describeTiming(rec.timing),
+    levels,
+    timing: levels?.timing ?? null,
   };
 }
 
@@ -380,7 +525,7 @@ export function describeRound(rec) {
 // count, for the private details. ms is the command's span. A round with no field gives null: its envelope is noise,
 // and the firmware's scan anchors START_AUTH in it.
 export function authOf(rec) {
-  if (!rec.authMode || !describeRound(rec).field) return null;
+  if (!rec.authMode || !describeRound(rec).field || !envelopeReadable(rec)) return null;
   const env = rec.caps[1];
   const usPer = env.rateKhz ? 1000 / env.rateKhz : 10;
   return {
@@ -397,7 +542,7 @@ export function authOf(rec) {
 // The Hitag 2 auth mode across the rounds. A transaction is caught in at most one round; a decisive verdict
 // (password or crypto) is preferred over ambiguous, and an anchored one (START_AUTH seen) over not.
 export function authVerdict(all) {
-  const rounds = all.filter((rec) => describeRound(rec).field);
+  const rounds = all.filter((rec) => describeRound(rec).field && envelopeReadable(rec));
   const got = rounds.map((rec) => authOf(rec)).filter(Boolean);
   if (!got.length) return { mode: null, sawStart: rounds.some((r) => r.authStartGaps > 0) };
   const rank = { 1: 2, 2: 2, 3: 1 };
@@ -412,18 +557,30 @@ export function lfVerdict(rounds) {
   const seen = rounds.map(describeRound).filter((d) => d.field);
   if (!seen.length) return { field: false, text: "No LF field measured." };
   const carriers = seen.map((d) => d.carrier).filter(Boolean);
-  const best = carriers.filter((c) => c.sure).sort((a, b) => b.snr - a.snr)[0] ?? null;
+  const bySnr = (a, b) => b.snr - a.snr;
+  const best = carriers.filter((c) => c.sure).sort(bySnr)[0] ?? carriers.filter((c) => c.tone).sort(bySnr)[0] ?? null;
   const bursts = seen.flatMap((d) => d.dips.bursts);
   const commands = bursts.filter((b) => b.gaps >= 3);
-  const offs = seen.flatMap((d) => d.dips.fieldOff);
-  const timings = rounds.map((r) => describeTiming(r.timing)).filter(Boolean);
+  const levels = levelsOf(rounds).filter(Boolean);
+  const timings = levels.map((l) => l.timing).filter(Boolean);
   const pulsing = timings.filter((t) => !t.steady && !t.edge);
+  const dips = dipSummary(levels, "dip");
+  const shortOffs = dipSummary(levels, "short-off");
   let pulse = null;
   if (pulsing.length) {
     const on = pulsing.flatMap((t) => t.on),
       off = pulsing.flatMap((t) => t.off);
-    pulse = { onMs: median(on), offMs: median(off), onRange: range(on), offRange: range(off), count: on.length };
+    pulse = {
+      onMs: median(on),
+      offMs: median(off),
+      onRange: range(on),
+      offRange: range(off),
+      count: on.length,
+      estimate: levels.some((l) => l.estimate && !l.timing.steady),
+    };
   }
+  // Old logs whose drops are as deep as offs of their length: the runs stand, as an estimate.
+  const shortOffRuns = levels.some((l) => l.shortOffRuns);
   let talk;
   if (commands.length) {
     const fam = commands.map((b) => b.family).find(Boolean);
@@ -432,15 +589,28 @@ export function lfVerdict(rounds) {
       "The reader sends commands (short gaps in its field), so it talks first: a tag has to be asked before it answers." +
       (fam ? ` The timing fits ${fam}.` : "") +
       (cmd ? ` One burst matches the ${cmd}.` : "");
-  } else if (offs.length || pulsing.length) {
+  } else if (!seen.some((d) => d.dips.readable)) {
+    // No round's envelope could show gaps, so the page can't say whether the reader sends commands.
+    const field =
+      pulsing.length || shortOffs
+        ? "The field switches off for milliseconds at a time."
+        : dips
+          ? "The field stays on, but its level dips regularly (below)."
+          : "The field stays on.";
+    talk = `${field} The CU couldn't look for a reader's command gaps: its envelope capture had the load off or the tone, or the field was too weak for it.`;
+  } else if (pulsing.length || shortOffs) {
     talk = "The field switches off for milliseconds at a time, with no command-like gaps: a reader that pulses its field.";
+  } else if (dips) {
+    talk = "The field stays on, with no command-like gaps, but its level dips regularly (below).";
   } else {
     talk =
       "The field is a steady carrier with no gaps: the reader waits for a tag to talk first (EM4100, HID Prox, Indala, Paradox and most 125 kHz access cards).";
   }
   // An edge (the field came or went once) is neither steady nor pulsing.
   const steady = timings.filter((t) => t.steady).length;
-  return { field: true, best, talk, commands: commands.length, offs: offs.length, pulse, steady };
+  // With the envelope's load off or the tone, only the load tone places a carrier, and only on a steady field.
+  const carrierDropped = !best && seen.some((d) => d.carrierDropped || d.envMode !== MOD.HIGH);
+  return { field: true, best, talk, commands: commands.length, pulse, dips, shortOffs, shortOffRuns, steady, carrierDropped };
 }
 
 // The HF side: the fields the CU saw and the 14443-A frames in them.
@@ -493,6 +663,31 @@ function authLineSafe(av) {
   );
 }
 
+// The safe report's line for the dips (kind "dip") or the short offs (kind "short-off"): "to N % for X ms every
+// Y ms", and why the page calls them what it does.
+function dipLine(ds) {
+  const rg = (x, u = "") => (x && x[0] !== x[1] ? ` (${x[0]}–${x[1]}${u})` : "");
+  const len = ds.ms != null ? ` for about ${ds.ms} ms${rg(ds.msRange)}` : "";
+  const every = ds.everyMs != null ? ` every ${ds.everyMs} ms${rg(ds.everyRange)}` : "";
+  const to = ds.pct != null ? ` to about ${ds.pct} % of full${rg(ds.pctRange, " %")}` : "";
+  if (ds.kind === "short-off")
+    return (
+      `Short offs${len}${every}, from ${ds.count} drop(s) in 1.8 s captures. ` +
+      `The level fell${to}, as far as it falls when the field is off that briefly, so the field most likely switched off. ` +
+      "A dip as deep and as short would read the same."
+    );
+  if (ds.estimate) {
+    const v = ds.versions.join(" and ");
+    const deep = ds.deepestPct != null ? `, the deepest to ${ds.deepestPct} % of full` : "";
+    const gap = ds.gapMs != null ? ` Each lasts about ${ds.gapMs.toFixed(1)} ms in the loaded envelope, and an off that long would take the level below ${Math.round(offLikeAt(ds.gapMs) * 100)} %.` : "";
+    return (
+      `Field dips (estimate)${every}${deep}, from ${ds.count} dip(s) in 1.8 s captures. The field stayed on throughout.${gap} ` +
+      `Log version ${v} called these stretches off. The page re-read them from the lowest and highest levels stored.`
+    );
+  }
+  return `Field dips${to}${len}${every}, from ${ds.count} dip(s) in 1.8 s captures. The field stays on through them. An off that long would take the level further down.`;
+}
+
 export function safeMarkdown(r) {
   const L = [];
   L.push("**Chameleon Ultra field probe report** (safe to share)", "");
@@ -512,6 +707,10 @@ export function safeMarkdown(r) {
       L.push(
         `- Carrier: ${kHz(lf.best.hz)} (${sgn(lf.best.ppm)} ppm from 125 kHz on the CU's clock, SNR ${lf.best.snr.toFixed(1)} dB, placed by ${lf.best.how}${lf.best.ambiguous ? ", ambiguous" : ""}): ${lf.best.class}`,
       );
+    else if (lf.carrierDropped)
+      L.push(
+        "- Carrier: not measured. The envelope was captured with the load off or the tone, and only the load on shows the carrier there. The load tone places it instead, but only on a field that stays on.",
+      );
     else
       L.push(
         "- Carrier: not measured: the field never stayed on for 20 ms in a measurement, or its line was too weak.",
@@ -521,8 +720,16 @@ export function safeMarkdown(r) {
       const rg = (x) => (x && x[0] !== x[1] ? ` (${x[0]}–${x[1]})` : "");
       const on = lf.pulse.onMs != null ? `on about ${lf.pulse.onMs} ms${rg(lf.pulse.onRange)}` : "on for less than the capture";
       const off = lf.pulse.offMs != null ? `off about ${lf.pulse.offMs} ms${rg(lf.pulse.offRange)}` : null;
-      L.push(`- Field timing: ${[on, off].filter(Boolean).join(", ")}, from ${lf.pulse.count} whole pulse(s) in 1.8 s captures.`);
-    } else if (lf.steady) L.push("- Field timing: on for the whole 1.8 s capture.");
+      // Log versions 3 and 4 timed the stretches at 35 % of the swing. The page checked that they were offs.
+      const est = !lf.pulse.estimate
+        ? ""
+        : lf.shortOffRuns
+          ? " Estimate: this CU's firmware timed these at 35 % of the swing. They are as deep as offs of their length in the loaded envelope, so the page keeps them as offs."
+          : " Estimate: this CU's firmware timed these at 35 % of the swing. The level reached the no-field level, so the field does go off.";
+      L.push(`- Field timing: ${[on, off].filter(Boolean).join(", ")}, from ${lf.pulse.count} whole pulse(s) in 1.8 s captures.${est}`);
+    } else if (lf.steady && !lf.shortOffs) L.push("- Field timing: on for the whole 1.8 s capture, never down to the no-field level.");
+    if (lf.shortOffs) L.push(`- ${dipLine(lf.shortOffs)}`);
+    if (lf.dips) L.push(`- ${dipLine(lf.dips)}`);
     const av = authVerdict(r.log.rounds);
     if (av.mode) L.push(`- ${authLineSafe(av)}`);
     else if (av.sawStart)
@@ -530,8 +737,10 @@ export function safeMarkdown(r) {
         "- A Hitag 2 START_AUTH was seen, but the fob's authentication command wasn't captured (the transaction may not have fallen in a measurement window), so the mode is unknown.",
       );
   }
-  for (const rec of r.log.rounds) {
-    const d = describeRound(rec);
+  const roundLevels = levelsOf(r.log.rounds);
+  for (const [ri, rec] of r.log.rounds.entries()) {
+    const d = { ...describeRound(rec), levels: roundLevels[ri] };
+    d.timing = d.levels?.timing ?? null;
     const where = rec.manual ? "measured by command" : `field ${rec.field} round ${rec.round}`;
     const parts = [
       `wake ${rec.wake} +${(rec.tMs / 1000).toFixed(1)} s, ${where}`,
@@ -539,9 +748,9 @@ export function safeMarkdown(r) {
     ];
     if (d.carrier)
       parts.push(
-        `carrier ${kHz(d.carrier.hz)} ${d.carrier.snr.toFixed(0)} dB${d.carrier.gatedMs ? ` (from ${d.carrier.gatedMs.toFixed(0)} ms with the field on)` : ""}${d.carrier.sure ? "" : " (uncertain: the field switched)"}`,
+        `carrier ${kHz(d.carrier.hz)} ${d.carrier.snr.toFixed(0)} dB${d.carrier.gatedMs ? ` (from ${d.carrier.gatedMs.toFixed(0)} ms with the field on)` : ""}${d.carrier.sure ? "" : d.carrier.tone ? " (from the load tone)" : " (uncertain: the field switched)"}`,
       );
-    if (d.field) parts.push(`${rec.dipsTotal} dip(s)`);
+    if (d.field) parts.push(d.dips.readable ? `${rec.dipsTotal} envelope dip(s)` : "envelope not read");
     // A reader that repeats a command gives the same burst several times: one entry each, with a count.
     // The gap width varies by a sample or so between repeats, so it stays out of the comparison.
     const seen = new Map();
@@ -556,12 +765,21 @@ export function safeMarkdown(r) {
       const text = `burst of ${b.gaps} gaps ~${b.gapUs?.toFixed(0)} µs, intervals ${b.shortUs?.toFixed(0) ?? "-"}/${b.longUs?.toFixed(0) ?? "-"} µs${b.family ? ` (${b.family})` : ""}${b.command ? `: ${b.command}` : ""}`;
       parts.push(count > 1 ? `${count} × ${text}` : text);
     }
-    if (d.field && d.dips.fieldOff.length) parts.push(`${d.dips.fieldOff.length} field-off stretch(es) ≥ 2 ms`);
+    if (d.field && d.dips.long.length) parts.push(`${d.dips.long.length} gap(s) ≥ 2 ms with the load on`);
     if (rec.ended) parts.push("field gone by the end");
-    if (d.timing?.steady) parts.push("timing: steady");
+    const lv = d.levels;
+    if (d.timing?.steady) parts.push(`timing: never off${lv?.estimate ? " (re-read)" : ""}`);
     else if (d.timing) {
       const seq = rec.timing.runs.map((x) => `${x.on ? "on" : "off"} ${x.ms}`).join(", ");
-      parts.push(`timing (ms): ${seq}${d.timing.cut ? ", …" : ""}`);
+      const how = lv?.estimate ? ", split at 35 % of the swing" : "";
+      parts.push(`timing (ms${how}): ${seq}${d.timing.cut ? ", …" : ""}`);
+    }
+    for (const kind of ["short-off", "dip"]) {
+      const one = lv && dipSummary([lv], kind);
+      if (!one) continue;
+      const to = one.pct != null ? ` to ${one.pct} %` : one.deepestPct != null ? `, the deepest to ${one.deepestPct} %` : "";
+      const what = kind === "dip" ? "level dip(s)" : "short off(s)";
+      parts.push(`${one.count} ${what}${to}${one.ms != null ? `, ${one.ms} ms` : ""}${one.everyMs != null ? ` every ${one.everyMs} ms` : ""}`);
     }
     L.push(`  - ${parts.join("; ")}`);
   }
@@ -569,7 +787,9 @@ export function safeMarkdown(r) {
     const durs = r.log.lfFields.map((f) => (f.durMs == null ? "ongoing" : `${f.durMs} ms`));
     L.push(`- LF field durations (a measurement holds a field open for about 2.5 s): ${durs.join(", ")}`);
     if (r.log.lfFields.some((f) => f.drops))
-      L.push(`- Drops seen while the field lasted (the last may be its end): ${r.log.lfFields.map((f) => f.drops).join(", ")}`);
+      L.push(
+        `- Drops below the CU's fixed comparator level while the field lasted: ${r.log.lfFields.map((f) => f.drops).join(", ")}. A drop is a dip or an off, and the timing above says which. The last may be the field's end.`,
+      );
   }
   L.push("", "**HF (13.56 MHz)**");
   const hf = hfVerdict(r.log.hfFields);

@@ -84,8 +84,9 @@
               Unplug the CU and hold its button side flat against the reader for
               about 5 seconds, then take it away. The field LED and a cyan light
               show an LF field being measured; green shows an HF field. A red
-              flash means the reader's field dropped out for a moment: some
-              readers switch their field on and off all the time. You can visit
+              flash means the reader's field dropped for a moment. Some readers
+              switch their field off all the time, and some only weaken it. The
+              report says which. You can visit
               more than one reader, but the log keeps only the last 12 LF
               measurements, and each reader's field is easier to read on its
               own.
@@ -131,7 +132,9 @@
               The envelope capture looks for the reader's gaps. With the load on
               (the default), the CU's detector follows the field quickly. With
               it off, the detector holds the field's level and short gaps don't
-              show.
+              show. With the load off or the tone, the report doesn't look for
+              the reader's commands, and only a field that stays on gets a
+              carrier frequency, from the load tone.
             </p>
             <div class="row">
               <label
@@ -309,8 +312,8 @@
       import * as P from "./probe.js";
 
       const PROBE_FW = {
-        zip: "firmware/field-probe-a5c8e8c5-ultra-dfu-app.zip",
-        name: "experimental a5c8e8c5",
+        zip: "firmware/field-probe-cbb0b5c6-ultra-dfu-app.zip",
+        name: "experimental cbb0b5c6",
       };
       const STOCK = {
         zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
@@ -321,6 +324,7 @@
       let cu = null,
         busy = false,
         has = false, // the firmware has the probe
+        probeVersion = null, // its log version, for a measurement's record
         firmware = "",
         report = null,
         rawLog = null,
@@ -374,12 +378,14 @@
         const r = await cu.cmd(P.CMD.PROBE_MODE);
         has = r.status === P.STATUS.SUCCESS;
         const m = has ? P.parseMode(r.data) : null;
-        if (m && (m.version !== P.LOG_VERSION || m.recSize !== P.REC_SIZE)) {
+        // A tester's CU on older probe firmware still reads: the page knows every log version from 3 on.
+        if (m && P.recSizeOf(m.version) !== m.recSize) {
           has = false;
           log(
-            `the probe's log is version ${m.version}; this page reads version ${P.LOG_VERSION}`,
+            `the probe's log is version ${m.version}, record ${m.recSize} bytes. This page reads versions 3 to ${P.LOG_VERSION}`,
           );
         }
+        if (has) probeVersion = m.version;
         $("fwinfo").textContent =
           `CU on ${fw}: ` + (has ? "has the field probe" : "no field probe");
         $("fwneed").hidden = has;
@@ -488,7 +494,7 @@
         log(h.error ? `log header: ${h.error}` : `log: ${P.headerLine(h)}`);
         return h;
       }
-      // size: the header's log size, since a version 3 log is shorter than a version 4 one.
+      // size: the header's log size, since the log's size depends on its version.
       async function readLog(size = P.LOG_SIZE) {
         const bytes = new Uint8Array(size);
         let got = 0;
@@ -545,6 +551,8 @@
             throw new Error(`status 0x${r.status.toString(16)}`);
           const rec = P.parseRec(
             new DataView(r.data.buffer, r.data.byteOffset, r.data.byteLength),
+            0,
+            probeVersion,
           );
           const d = P.describeRound(rec);
           $("measureinfo").textContent = d.field

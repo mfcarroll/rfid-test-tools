@@ -18,16 +18,20 @@ it's next connected.
   each land on their own frequency. If the field switches during the capture, the carrier comes from the longest
   stretch with the field on, if it lasts 20 ms. A 15.6 kHz load tone sampled at two rates stands in only for a steady
   field: on a switching one it reported its own line, or the switching itself (124.4 and 120.1 kHz at a door reader).
-- the field's timing: 1.8 s with the load off, in 1 ms steps, as on and off stretches. On a Proxmark3 pulsing 50 ms
-  on and 100 ms off, it read 55 and 95 ms: the CU's detector takes about 5 ms to fall.
+- the field's timing: 1.8 s with the load off, in 1 ms steps. A drop that reaches a tenth of the field's full level
+  (or the no-field level, for a weak field) is the field going off, and the report gives the on and off times. On a
+  Proxmark3 pulsing 50 ms on and 100 ms off, it read 52 and 98 ms. A drop that stays above that level is a dip. The
+  report gives how deep the dips go, how long they last and how often they come ("dips to about 70 % of full for
+  10 ms every 76 ms"). The field stays on through a dip.
 - for a Hitag 2 reader, the authentication mode: when a fob completes an authentication within the 102 ms envelope,
   the firmware measures the length of the reader's command after the fob's UID — 32 bits is password mode, 64 bits is
   crypto mode — and logs a short summary (the gap count, the span, and the verdict). It reads the command's length
   only: it classifies the install and recovers no secret. A real fob has to answer, or the reader loops on
   START_AUTH and never sends the 32- or 64-bit command.
 
-While a field lasts, the LEDs are cyan and the field LED follows the field. Each time the field drops out, the slots flash red for 150 ms,
-and the CU counts the drops. It can't watch while its own load is on (about 0.4 s of each measurement).
+While a field lasts, the LEDs are cyan and the field LED follows the field. Each time the field drops below a fixed level, the slots flash red for 150 ms,
+and the CU counts the drops. A drop can be a dip or the field going off, and the report's timing says which. The CU
+can't watch while its own load is on (about 0.4 s of each measurement).
 
 The page groups the dips into bursts and reads the intervals between gaps as bits. A steady carrier means the
 reader waits for a tag to talk. Command-like gaps mean the reader talks first (Hitag, password-protected T55xx or
@@ -47,7 +51,17 @@ reader in low-power card detection does.
   and iCLASS readers as fields with no frames.
 - The carrier frequency is on the CU's own crystal, which can be off by up to ±40 ppm.
 - The envelope needs the CU's load on. With it off, the CU's detector holds the field's level through gaps of a few
-  ms, so the timing capture only shows gaps of several ms or more.
+  ms. With the load off or the tone, the report doesn't look for the reader's commands, and only a field that stays
+  on gets a carrier frequency, from the load tone. A weak field (about 450 counts on the bench) left the loaded
+  envelope at its no-field level, and the report then says it couldn't look for commands. A field that weak also
+  doesn't wake the CU. Measure it with Measure now. With the load on, the envelope times a gap well but can't tell a dip from an off: a reader's dips to 70 % took
+  it down to the no-field level.
+- With the load off, the CU's level falls slowly when a field goes off. An off shorter than about 10 ms never reaches
+  the off level, and the timing records it as a dip. The report compares each dip's depth with how far an off that
+  long falls, and calls it a short off when the two match. A dip as deep and as short reads the same.
+- Firmware before log version 5 (`132414dc`, `a5c8e8c5`) timed the field at 35 % of its swing, so it logged a reader's
+  dips as offs. The page re-reads those logs from the lowest and highest levels they kept and from the gaps' lengths
+  in the envelope, and marks the result as an estimate.
 - The HF receiver only decodes ISO 14443-A, and reports nothing at all for other HF types.
 - The log keeps the last 12 LF measurements, 32 LF fields and 32 HF fields. Flashing the firmware clears it, and the
   probe starts on after a flash.
@@ -74,6 +88,7 @@ reader in low-power card detection does.
 
 The log's layout is `fp_store_t` in `field_probe.h`, packed and little-endian. Version 2 adds the crash record, this
 boot's reset reason and a count of USB replies the CU dropped; version 3 adds the gated carrier, the field timing and
-the drop count; version 4 adds the Hitag 2 authentication-mode summary (the reader's post-UID command length). The
-page still reads a version 3 log, from a CU on `132414dc`, without the summary. It reads the 36-byte header first,
+the drop count; version 4 adds the Hitag 2 authentication-mode summary (the reader's post-UID command length);
+version 5 times the field's offs against an absolute level and adds its full level, its off level and its dips. The
+page still reads version 3 and 4 logs, from CUs on `132414dc` and `a5c8e8c5`. It reads the 36-byte header first,
 then the rest in 512-byte pieces, and asks for each piece twice before it gives up. `node selftest.mjs` checks the page's parser and report against a synthetic log in that layout.
