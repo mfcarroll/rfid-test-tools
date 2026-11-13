@@ -132,7 +132,9 @@
             counter too: if your CU is on it, measure without flashing.
           </p>
           <div class="row gap-top">
-            <button id="flashTest">Flash test firmware</button>
+            <button id="flashTest">
+              Flash the test firmware (<span id="fwname"></span>)
+            </button>
             <button id="flashStock">Flash stock v2.3.0</button>
             <button id="flashFile">Flash a file…</button>
             <input id="fwfile" type="file" accept=".zip" hidden />
@@ -339,6 +341,7 @@ py hfxo_ntp.py COM5</pre>
         <summary><h2>Log</h2></summary>
         <pre id="log"></pre>
       </details>
+      <p class="note" id="siteversion"></p>
     </main>
     <script type="importmap">
       {
@@ -363,6 +366,7 @@ py hfxo_ntp.py COM5</pre>
         hasWebSerial,
         bindTabs,
         bindCopyButtons,
+        showSiteCommit,
       } from "../../common/page.js";
       import {
         newRun,
@@ -383,6 +387,8 @@ py hfxo_ntp.py COM5</pre>
           name: "stock v2.3.0",
         },
       };
+      // The test firmware's commit, on its flash button
+      $("fwname").textContent = FIRMWARE.test.name.match(/([0-9a-f]{7,8})\)$/)[1];
 
       let cu = null,
         counter = false, // the connected firmware has command 3125
@@ -540,6 +546,7 @@ py hfxo_ntp.py COM5</pre>
       bindCopyButtons();
       bindRunControls("cu-crystal");
       setState("connect");
+      showSiteCommit($("siteversion"));
     </script>
   </body>
 </html>

@@ -359,6 +359,7 @@ py pm3_crystal.py COM5</pre>
         <summary><h2>Log</h2></summary>
         <pre id="log"></pre>
       </details>
+      <p class="note" id="siteversion"></p>
     </main>
     <script type="importmap">
       {
@@ -379,6 +380,7 @@ py pm3_crystal.py COM5</pre>
         hasWebSerial,
         bindTabs,
         bindCopyButtons,
+        showSiteCommit,
       } from "../../common/page.js";
       import {
         newRun,
@@ -551,6 +553,7 @@ py pm3_crystal.py COM5</pre>
       bindCopyButtons();
       bindRunControls("pm3-crystal");
       setState("connect");
+      showSiteCommit($("siteversion"));
     </script>
   </body>
 </html>
