@@ -1,9 +1,9 @@
-# Chameleon Ultra field probe (experimental)
+# Chameleon Ultra field measurement (experimental)
 
 https://mfcarroll.github.io/rfid-test-tools/chameleon/field/
 
-Turns the CU into a probe for a reader's field, to answer "what kind of reader is this?" when a card or fob won't
-read. While the probe is on, the CU emulates nothing: it senses LF and HF fields whatever its slots hold, measures
+Uses the CU to measure a reader's field, to answer "what kind of reader is this?" when a card or fob won't
+read. While measuring, the CU emulates nothing: it senses LF and HF fields whatever its slots hold, measures
 them and logs the results. The log survives the CU's sleep, so the CU can go to a reader on battery and report when
 it's next connected.
 
@@ -63,9 +63,9 @@ reader in low-power card detection does.
   dips as offs. The page re-reads those logs from the lowest and highest levels they kept and from the gaps' lengths
   in the envelope, and marks the result as an estimate.
 - The HF receiver only decodes ISO 14443-A, and reports nothing at all for other HF types.
-- The log keeps the last 12 LF measurements, 32 LF fields and 32 HF fields. Flashing the firmware clears it, and the
-  probe starts on after a flash.
-- While the probe is on, the CU's buttons only wake it. A slot change or a reader-mode button function would spoil a
+- The log keeps the last 12 LF measurements, 32 LF fields and 32 HF fields. Flashing the firmware clears it, and
+  measurement starts on after a flash.
+- While measuring, the CU's buttons only wake it. A slot change or a reader-mode button function would spoil a
   measurement.
 - A reader's field has to last until the CU has woken and started its first measurement. A single PM3
   `lf hitag reader` on battery sometimes doesn't, and the log then shows a wake with no field.
@@ -74,8 +74,8 @@ reader in low-power card detection does.
 
 ## Firmware
 
-[`exp/field-probe`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/field-probe): the card search page's
-`lf-search` firmware with the field probe added. Commands 3160–3165:
+[`exp/field-measure`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/field-measure): the card search page's
+`lf-search` firmware with field measurement added. Commands 3160–3165:
 
 | command | request | reply |
 | --- | --- | --- |
@@ -86,7 +86,7 @@ reader in low-power card detection does.
 | 3164 capture | load, rate in kHz, samples (BE16), analog input, gain divisor | samples taken (BE32) |
 | 3165 capture read | chunk | 4000 bytes of the capture, 16-bit little-endian |
 
-The log's layout is `fp_store_t` in `field_probe.h`, packed and little-endian. Version 2 adds the crash record, this
+The log's layout is `fm_store_t` in `field_measure.h`, packed and little-endian. Version 2 adds the crash record, this
 boot's reset reason and a count of USB replies the CU dropped; version 3 adds the gated carrier, the field timing and
 the drop count; version 4 adds the Hitag 2 authentication-mode summary (the reader's post-UID command length);
 version 5 times the field's offs against an absolute level and adds its full level, its off level and its dips. The

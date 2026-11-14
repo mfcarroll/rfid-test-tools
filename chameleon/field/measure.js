@@ -1,21 +1,21 @@
-// Field probe page: the CU's probe commands, its log, and what the log says about a reader's field. No DOM in here.
+// Field measurement page: the CU's measurement commands, its log, and what the log says about a reader's field. No DOM in here.
 //
-// The firmware (exp/field-probe) stops emulating while the probe is on. When a reader's LF field appears it measures
+// The firmware (exp/field-measure) stops emulating while it's measuring. When a reader's LF field appears it measures
 // the field in up to three rounds, and when an HF field appears it counts the ISO 14443-A frames the reader sends.
 // The log survives the CU's sleep, so the CU can be taken to a reader on battery and read here afterwards.
 //
 // The safe part of a report says what kind of field it is. The private part holds the reader's commands decoded to
-// bits and the first bytes of unknown HF frames: a reader can send a password in a command.
+// bits and the first bytes of unknown HF frames.
 
 export const CMD = {
   CHANGE_DEVICE_MODE: 1001, // 1 reader, 0 tag
   GET_DEVICE_MODE: 1002,
-  PROBE_MODE: 3160,
-  PROBE_LOG: 3161,
-  PROBE_CLEAR: 3162,
-  PROBE_MEASURE: 3163,
-  PROBE_CAPTURE: 3164,
-  PROBE_CAPTURE_READ: 3165,
+  MEASURE_MODE: 3160,
+  MEASURE_LOG: 3161,
+  MEASURE_CLEAR: 3162,
+  MEASURE_NOW: 3163,
+  MEASURE_CAPTURE: 3164,
+  MEASURE_CAPTURE_READ: 3165,
 };
 export const STATUS = {
   LF_TAG_OK: 0x40,
@@ -25,13 +25,13 @@ export const STATUS = {
 };
 export const MOD = { LOW: 0, HIGH: 1, TONE: 2 };
 export const MOD_NAMES = ["off", "on (constant load)", "tone (fc/8)"];
-// The Hitag 2 reader-side authentication mode (fp_lf_rec_t.auth_mode / FP_AUTH_*): the length of the reader's command
+// The Hitag 2 reader-side authentication mode (fm_lf_rec_t.auth_mode / FM_AUTH_*): the length of the reader's command
 // after the tag's UID reply. The firmware reads the frame's length only; it classifies the install, not any secret.
-export const AUTH_MODE = ["none", "password", "crypto", "ambiguous"];
+export const AUTH_MODE = ["none", "pass", "key", "ambiguous"];
 export const LOG_VERSION = 5;
 
 const NOMINAL_HZ = 125000;
-// ADC counts: below this at p90, LF_RSSI saw no field (FP_FIELD_MIN). With no field, the 1 ms means of two CUs read 40
+// ADC counts: below this at p90, LF_RSSI saw no field (FM_FIELD_MIN). With no field, the 1 ms means of two CUs read 40
 // to 115. Log version 5's off level is the larger of this and a tenth of the field's full level.
 const FIELD_LEVEL = 200;
 
@@ -60,7 +60,7 @@ export function parseMode(d) {
   };
 }
 
-// ---------------------------------------------------------------- the log (packed, little-endian; field_probe.h)
+// ---------------------------------------------------------------- the log (packed, little-endian; field_measure.h)
 
 const LF_RECS = 12,
   DIPS = 40,
@@ -112,7 +112,7 @@ function parseCap(v, o) {
   };
 }
 
-// One LF measurement round (fp_lf_rec_t), at byte o of v.
+// One LF measurement round (fm_lf_rec_t), at byte o of v.
 export function parseRec(v, o = 0, version = LOG_VERSION) {
   const flags = v.getUint8(o + 9);
   const nDips = v.getUint8(o + 17);
@@ -338,7 +338,7 @@ export function parseHeader(bytes) {
 // One line for the page's event log.
 export function headerLine(h) {
   const c = h.counts;
-  let t = `probe ${h.on ? "on" : "off"}, wake ${h.wake}, ${c.lfFields} LF field(s), ${c.lfRecs} LF round(s), ${c.hfFields} HF field(s)`;
+  let t = `measurement ${h.on ? "on" : "off"}, wake ${h.wake}, ${c.lfFields} LF field(s), ${c.lfRecs} LF round(s), ${c.hfFields} HF field(s)`;
   if (h.crash.count) t += `; ${h.crash.count} reset(s) by a crash, the last by ${h.crash.kind} in wake ${h.crash.wake}`;
   if (h.usb.dropped) t += `; ${h.usb.dropped} USB repl(ies) dropped, last error ${h.usb.err}`;
   return t;
@@ -520,7 +520,7 @@ export function describeRound(rec) {
   };
 }
 
-// The Hitag 2 authentication-mode summary the firmware measured for one round (fp_hitag_scan), or null if it
+// The Hitag 2 authentication-mode summary the firmware measured for one round (fm_hitag_scan), or null if it
 // classified nothing. bits is the frame's length as a class (32 or 64 bits), for the safe report; gaps is the raw
 // count, for the private details. ms is the command's span. A round with no field gives null: its envelope is noise,
 // and the firmware's scan anchors START_AUTH in it.
@@ -540,14 +540,14 @@ export function authOf(rec) {
 }
 
 // The Hitag 2 auth mode across the rounds. A transaction is caught in at most one round; a decisive verdict
-// (password or crypto) is preferred over ambiguous, and an anchored one (START_AUTH seen) over not.
+// is preferred over ambiguous, and an anchored one (START_AUTH seen) over not.
 export function authVerdict(all) {
   const rounds = all.filter((rec) => describeRound(rec).field && envelopeReadable(rec));
   const got = rounds.map((rec) => authOf(rec)).filter(Boolean);
   if (!got.length) return { mode: null, sawStart: rounds.some((r) => r.authStartGaps > 0) };
   const rank = { 1: 2, 2: 2, 3: 1 };
   const best = [...got].sort((a, b) => rank[b.modeId] - rank[a.modeId] || b.startGaps - a.startGaps)[0];
-  const counts = { password: 0, crypto: 0, ambiguous: 0 };
+  const counts = { pass: 0, key: 0, ambiguous: 0 };
   for (const a of got) counts[a.mode] = (counts[a.mode] ?? 0) + 1;
   return { ...best, counts, n: got.length, sawStart: true };
 }
@@ -651,9 +651,9 @@ const sgn = (x, d = 0) => (x >= 0 ? "+" : "") + x.toFixed(d);
 
 // The Hitag 2 auth-mode line for the safe report: the verdict and the command's length (no raw gap count).
 const AUTH_WHY = {
-  password: "32 bits (PWD), a static password sent in the clear",
-  crypto: "64 bits (AUTH), the Hitag 2 cipher and its 48-bit key",
-  ambiguous: "a length between the 32-bit (password) and 64-bit (crypto) commands",
+  pass: "32 bits (PWD), a static pass sent in the clear",
+  key: "64 bits (AUTH), the Hitag 2 cipher and its 48-bit key",
+  ambiguous: "a length between the 32-bit and 64-bit commands",
 };
 function authLineSafe(av) {
   const len = `about ${av.bits} bits (~${av.ms.toFixed(0)} ms)`;
@@ -690,7 +690,7 @@ function dipLine(ds) {
 
 export function safeMarkdown(r) {
   const L = [];
-  L.push("**Chameleon Ultra field probe report** (safe to share)", "");
+  L.push("**Chameleon Ultra field measurement report** (safe to share)", "");
   L.push(`- Firmware: ${r.firmware}`);
   L.push(`- Log: ${r.log.counts.lfFields} LF field(s), ${r.log.counts.lfRecs} LF round(s), ${r.log.counts.hfFields} HF field(s); envelope LF_MOD ${MOD_NAMES[r.log.envMode] ?? r.log.envMode}`);
   const cr = r.log.crash;

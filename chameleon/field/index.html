@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CU Field Probe</title>
+    <title>CU Field Measurement</title>
     <link rel="stylesheet" href="../../common/style.css?v=5a564509ea" />
   </head>
   <body>
     <main id="app" data-state="connect">
       <a class="back" href="../../">← RFID test tools</a>
-      <h1>Chameleon Ultra field probe (experimental)</h1>
+      <h1>Chameleon Ultra field measurement (experimental)</h1>
       <p class="sub">
         Point the CU at a reader instead of a card, and find out what kind of
         field the reader makes. On LF, the CU measures the carrier's frequency
@@ -28,16 +28,16 @@
       </div>
       <div class="callout caution">
         <p>
-          <b>While the probe is on, the CU doesn't emulate any card.</b> No slot
+          <b>While measuring, the CU doesn't emulate any card.</b> No slot
           answers a reader, and the buttons only wake the CU. The experimental
-          firmware starts with the probe on. Turn it off here when you're done,
+          firmware starts with measurement on. Turn it off here when you're done,
           or flash stock firmware.
         </p>
       </div>
 
       <ol class="steps" aria-label="Progress">
         <li id="step-connect"><span>1</span>Connect</li>
-        <li id="step-probe"><span>2</span>Measure</li>
+        <li id="step-measure"><span>2</span>Measure</li>
       </ol>
 
       <section class="flow" aria-live="polite">
@@ -60,21 +60,21 @@
             <button id="reconnect">Reconnect</button>
           </div>
           <p class="note warn" id="fwneed" hidden>
-            This firmware has no field probe. Flash the experimental firmware
+            This firmware has no field measurement. Flash the experimental firmware
             below, then connect again.
           </p>
 
           <div class="gap-top">
-            <div class="title">1. Check the probe is on</div>
+            <div class="title">1. Check measurement is on</div>
             <p class="note">
-              The experimental firmware starts with the probe on. It stays on
+              The experimental firmware starts with measurement on. It stays on
               through sleep, unplugging and reconnecting, until you turn it off.
               It goes off if the battery runs flat.
             </p>
             <div class="row">
-              <button id="probeOn" class="primary">Turn the probe on</button>
-              <button id="probeOff">Turn it off</button>
-              <span class="note" id="probeinfo"></span>
+              <button id="measureOn" class="primary">Turn measuring on</button>
+              <button id="measureOff">Turn it off</button>
+              <span class="note" id="modeinfo"></span>
             </div>
           </div>
 
@@ -92,14 +92,11 @@
               own.
             </p>
             <p class="note">
-              <b>Hitag 2 readers: password or crypto.</b> Clear the log in the
+              <b>Hitag readers: check which mode they use.</b> Clear the log in the
               browser before you go. At the reader, hold the CU against it, then
               bring your fob up next to it and keep both there for about 5
               seconds. Take them both away, wait until the CU's lights go off,
               and do it again, three times in all. Then read the log as usual.
-              The CU doesn't record the fob's data or the reader's password: it
-              measures only how long the reader's reply to the fob is. If the
-              reader opens the door or beeps, that's the fob working as normal.
             </p>
             <p class="note">
               With the CU still plugged in, you can hold it against a reader and
@@ -188,9 +185,9 @@
         <div class="aside">
           <div class="small"><b>Firmware</b></div>
           <p class="note">
-            The probe needs the experimental firmware: the card search page's
-            firmware (<code>lf-search</code>) with the field probe added (<a
-              href="https://github.com/mfcarroll/ChameleonUltra/tree/exp/field-probe"
+            Field measurement needs the experimental firmware: the card search page's
+            firmware (<code>lf-search</code>) with field measurement added (<a
+              href="https://github.com/mfcarroll/ChameleonUltra/tree/exp/field-measure"
               >source</a
             >). Flashing replaces the CU's firmware and keeps the current slots.
           </p>
@@ -224,7 +221,7 @@
         <div class="callout caution">
           <p>
             A reader's commands, decoded to bits, and the first bytes of HF
-            frames. A reader can send a password in a command, so don't post
+            frames. May include sensitive info, so don't post
             these publicly.
           </p>
         </div>
@@ -241,9 +238,9 @@
         <summary><h2>What the page does</h2></summary>
         <ol class="note">
           <li>
-            The experimental firmware starts with the probe on, and
-            <b>Turn the probe on</b> sets the CU to tag mode and switches it on
-            again. While the probe is on, the CU senses LF and HF fields
+            The experimental firmware starts with measurement on, and
+            <b>Turn measuring on</b> sets the CU to tag mode and switches it on
+            again. While measuring, the CU senses LF and HF fields
             whatever its slots hold, never answers, and ignores its buttons
             except to wake up.
           </li>
@@ -254,9 +251,8 @@
             command may still be sending, and finds every dip in it. The
             carrier's ripple in that envelope gives the reader's carrier
             frequency. Then it records the field's level with the CU's load off.
-            For a Hitag 2 reader, the envelope also gives the length of the
-            reader's command after the fob's UID: 32 bits is password mode, 64
-            bits is crypto mode.
+            For a Hitag reader, the envelope also gives the length of the
+            reader's command after the fob's UID.
           </li>
           <li>
             When an <b>HF field</b> appears, the CU listens with its ISO 14443-A
@@ -272,14 +268,9 @@
           The carrier frequency is measured against the CU's own crystal, which
           can be off by up to ±40 ppm. A steady LF field means the reader waits
           for a card to talk (EM4100, HID Prox, Indala, Paradox). Gaps in the
-          field mean the reader sends commands, as Hitag readers and readers of
-          password-protected T55xx or EM4x05 tags do. The CU's HF receiver only
+          field mean the reader sends commands. The CU's HF receiver only
           decodes ISO 14443-A, so a reader of iCLASS, ISO 15693 or FeliCa cards
           shows as a field with no frames.
-        </p>
-        <p class="note">
-          It has been checked against a Proxmark3, not yet against door readers.
-          The numbers are a guide, not a verdict.
         </p>
       </details>
       <details class="fold" id="logbox">
@@ -293,7 +284,7 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=da961c33e6",
           "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
-          "./probe.js": "./probe.js?v=ee55ee4057",
+          "./measure.js": "./measure.js?v=5c69cdd4cf",
           "../../common/page.js": "../../common/page.js?v=925f61259f"
         }
       }
@@ -309,22 +300,22 @@
         saveJson,
         showSiteCommit,
       } from "../../common/page.js";
-      import * as P from "./probe.js";
+      import * as P from "./measure.js";
 
-      const PROBE_FW = {
-        zip: "firmware/field-probe-cbb0b5c6-ultra-dfu-app.zip",
+      const MEASURE_FW = {
+        zip: "firmware/field-measure-e67be65e-ultra-dfu-app.zip",
         name: "experimental cbb0b5c6",
       };
       const STOCK = {
         zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
         name: "stock v2.3.0",
       };
-      $("fwname").textContent = PROBE_FW.name.replace("experimental ", "");
+      $("fwname").textContent = MEASURE_FW.name.replace("experimental ", "");
 
       let cu = null,
         busy = false,
-        has = false, // the firmware has the probe
-        probeVersion = null, // its log version, for a measurement's record
+        has = false, // the firmware has field measurement
+        measureVersion = null, // its log version, for a measurement's record
         firmware = "",
         report = null,
         rawLog = null,
@@ -333,11 +324,11 @@
       function setState(state) {
         $("app").dataset.state = state;
         $("step-connect").className = state === "connect" ? "current" : "done";
-        $("step-probe").className = state === "ready" ? "current" : "";
+        $("step-measure").className = state === "ready" ? "current" : "";
       }
       const CONTROLS = [
-        "probeOn",
-        "probeOff",
+        "measureOn",
+        "measureOff",
         "measure",
         "readlog",
         "clearlog",
@@ -362,35 +353,35 @@
         }
       }
       const need = () => {
-        if (!has) throw new Error("this firmware has no field probe");
+        if (!has) throw new Error("this firmware has no field measurement");
       };
 
       // ---------------------------------------------------------------- connect and firmware
       function showMode(m) {
-        $("probeinfo").textContent = m.on
-          ? "The probe is on: the CU won't emulate."
-          : "The probe is off: the CU emulates as usual.";
-        $("probeinfo").className = m.on ? "note warn" : "note";
+        $("modeinfo").textContent = m.on
+          ? "Measurement is on: the CU won't emulate."
+          : "Measurement is off: the CU emulates as usual.";
+        $("modeinfo").className = m.on ? "note warn" : "note";
         $("envmode").value = String(m.envMode);
       }
       async function checkFirmware() {
         const fw = await cu.version();
-        const r = await cu.cmd(P.CMD.PROBE_MODE);
+        const r = await cu.cmd(P.CMD.MEASURE_MODE);
         has = r.status === P.STATUS.SUCCESS;
         const m = has ? P.parseMode(r.data) : null;
-        // A tester's CU on older probe firmware still reads: the page knows every log version from 3 on.
+        // A tester's CU on older measurement firmware still reads: the page knows every log version from 3 on.
         if (m && P.recSizeOf(m.version) !== m.recSize) {
           has = false;
           log(
-            `the probe's log is version ${m.version}, record ${m.recSize} bytes. This page reads versions 3 to ${P.LOG_VERSION}`,
+            `the log is version ${m.version}, record ${m.recSize} bytes. This page reads versions 3 to ${P.LOG_VERSION}`,
           );
         }
-        if (has) probeVersion = m.version;
+        if (has) measureVersion = m.version;
         $("fwinfo").textContent =
-          `CU on ${fw}: ` + (has ? "has the field probe" : "no field probe");
+          `CU on ${fw}: ` + (has ? "has field measurement" : "no field measurement");
         $("fwneed").hidden = has;
         if (m && has) showMode(m);
-        log(`connected: ${fw}, field probe ${has ? "yes" : "no"}`);
+        log(`connected: ${fw}, field measurement ${has ? "yes" : "no"}`);
         if (has) {
           try {
             await readHeader();
@@ -429,7 +420,7 @@
         log("the CU disconnected");
       });
       bindFlashButtons({
-        firmware: { test: PROBE_FW, stock: STOCK },
+        firmware: { test: MEASURE_FW, stock: STOCK },
         port: () => cu?.port ?? null,
         release: async () => {
           await cu?.close();
@@ -439,33 +430,33 @@
         done: () => setState("connect"),
       });
 
-      // The probe works in tag mode only.
+      // Field measurement works in tag mode only.
       async function tagMode() {
         const m = await cu.cmd(P.CMD.GET_DEVICE_MODE, undefined, 8);
         if (m.data[0] !== 0)
           await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, P.reqMode(false));
       }
-      async function setProbe(on, envMode) {
+      async function setMeasure(on, envMode) {
         need();
         await tagMode();
-        const r = await cu.cmd(P.CMD.PROBE_MODE, P.reqMode(on, envMode), 8);
+        const r = await cu.cmd(P.CMD.MEASURE_MODE, P.reqMode(on, envMode), 8);
         if (r.status !== P.STATUS.SUCCESS)
           throw new Error(`status 0x${r.status.toString(16)}`);
         const m = P.parseMode(r.data);
         showMode(m);
         log(
-          `probe ${m.on ? "on" : "off"}, envelope load ${P.MOD_NAMES[m.envMode]}`,
+          `measurement ${m.on ? "on" : "off"}, envelope load ${P.MOD_NAMES[m.envMode]}`,
         );
         return m;
       }
-      $("probeOn").onclick = () => run("probe on", () => setProbe(true));
-      $("probeOff").onclick = () => run("probe off", () => setProbe(false));
+      $("measureOn").onclick = () => run("measurement on", () => setMeasure(true));
+      $("measureOff").onclick = () => run("measurement off", () => setMeasure(false));
       $("setenv").onclick = () =>
         run("envelope mode", async () => {
           const r = P.parseMode(
-            (await cu.cmd(P.CMD.PROBE_MODE, undefined, 8)).data,
+            (await cu.cmd(P.CMD.MEASURE_MODE, undefined, 8)).data,
           );
-          await setProbe(r.on, Number($("envmode").value));
+          await setMeasure(r.on, Number($("envmode").value));
         });
 
       // ---------------------------------------------------------------- measuring and the log
@@ -473,7 +464,7 @@
       async function logPiece(offset, max) {
         for (let tries = 1; ; tries++) {
           try {
-            const r = await cu.cmd(P.CMD.PROBE_LOG, P.reqLog(offset, max), 8);
+            const r = await cu.cmd(P.CMD.MEASURE_LOG, P.reqLog(offset, max), 8);
             if (r.status !== P.STATUS.SUCCESS)
               throw new Error(`status 0x${r.status.toString(16)}`);
             return r.data;
@@ -531,8 +522,8 @@
       $("clearlog").onclick = () =>
         run("clearing the log", async () => {
           need();
-          if (!confirm("Clear the CU's probe log?")) return;
-          await cu.cmd(P.CMD.PROBE_CLEAR);
+          if (!confirm("Clear the CU's measurement log?")) return;
+          await cu.cmd(P.CMD.MEASURE_CLEAR);
           $("resultbox").hidden = true;
           $("loginfo").textContent = "cleared";
           log("log cleared");
@@ -542,17 +533,17 @@
           need();
           await tagMode();
           const m = P.parseMode(
-            (await cu.cmd(P.CMD.PROBE_MODE, undefined, 8)).data,
+            (await cu.cmd(P.CMD.MEASURE_MODE, undefined, 8)).data,
           );
-          if (!m.on) await setProbe(true);
+          if (!m.on) await setMeasure(true);
           $("measureinfo").textContent = "measuring…";
-          const r = await cu.cmd(P.CMD.PROBE_MEASURE, undefined, 10);
+          const r = await cu.cmd(P.CMD.MEASURE_NOW, undefined, 10);
           if (r.status !== P.STATUS.SUCCESS)
             throw new Error(`status 0x${r.status.toString(16)}`);
           const rec = P.parseRec(
             new DataView(r.data.buffer, r.data.byteOffset, r.data.byteLength),
             0,
-            probeVersion,
+            measureVersion,
           );
           const d = P.describeRound(rec);
           $("measureinfo").textContent = d.field
@@ -600,21 +591,21 @@
           need();
           await tagMode();
           const m = P.parseMode(
-            (await cu.cmd(P.CMD.PROBE_MODE, undefined, 8)).data,
+            (await cu.cmd(P.CMD.MEASURE_MODE, undefined, 8)).data,
           );
-          if (!m.on) await setProbe(true);
+          if (!m.on) await setMeasure(true);
           const req = {
             mod: Number($("capmod").value),
             rateKhz: Number($("caprate").value),
             n: Number($("capn").value),
           };
-          const r = await cu.cmd(P.CMD.PROBE_CAPTURE, P.reqCapture(req), 10);
+          const r = await cu.cmd(P.CMD.MEASURE_CAPTURE, P.reqCapture(req), 10);
           if (r.status !== P.STATUS.SUCCESS)
             throw new Error(`status 0x${r.status.toString(16)}`);
           const parts = [];
           for (let c = 0; c < 0xff; c++) {
             const d = await cu.cmd(
-              P.CMD.PROBE_CAPTURE_READ,
+              P.CMD.MEASURE_CAPTURE_READ,
               P.reqCaptureRead(c),
               8,
             );
@@ -635,7 +626,7 @@
       $("capdownload").onclick = () => {
         if (
           !confirm(
-            "A raw capture can include a reader's commands. Download it anyway?",
+            "A raw capture can include sensitive info. Download it anyway?",
           )
         )
           return;
@@ -648,7 +639,7 @@
       $("download").onclick = () => {
         if (
           !confirm(
-            "The log can include a reader's commands. Download it anyway?",
+            "The log can include sensitive info. Download it anyway?",
           )
         )
           return;
