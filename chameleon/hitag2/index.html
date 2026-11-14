@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CU Hitag 2 emulation test</title>
+    <link rel="stylesheet" href="../../common/style.css?v=5a564509ea" />
+  </head>
+  <body>
+    <main id="app" data-state="connect">
+      <a class="back" href="../../">← RFID test tools</a>
+      <h1>Chameleon Ultra Hitag 2 emulation (experimental)</h1>
+      <p class="sub">
+        The CU emulates a Hitag 2 tag and answers a real reader's commands in
+        time, the way a fob does. Set up a test tag here, hold the CU to a Hitag
+        2 reader, and read back the exchange: whether the reader read the UID,
+        whether it uses password or crypto mode, and how it answered. It records
+        what a reader does without needing a Proxmark3.
+      </p>
+
+      <div class="callout">
+        <p>
+          <b>Everything happens in this browser.</b> The page talks to the CU
+          over USB. Nothing is sent to any server, and it saves nothing unless
+          you press Copy or Download.
+        </p>
+      </div>
+      <div class="callout caution">
+        <p>
+          <b>This is a made-up test tag, not a working credential.</b> It uses a
+          placeholder UID and password and opens no door. A reader reads the UID
+          and then asks for a password; unless you know and set the reader's own
+          password, the read stops there. That still proves the reader sees the
+          tag and shows which mode it uses.
+        </p>
+      </div>
+      <div class="callout caution">
+        <p>
+          <b>Keep the CU plugged into this computer while testing.</b> The
+          exchange trace is kept in memory and is lost when the CU sleeps or
+          loses power. USB power keeps it awake, so hold the CU to the reader
+          with the cable attached, then read the trace here.
+        </p>
+      </div>
+
+      <ol class="steps" aria-label="Progress">
+        <li id="step-connect"><span>1</span>Connect</li>
+        <li id="step-setup"><span>2</span>Set up</li>
+        <li id="step-test"><span>3</span>Test</li>
+      </ol>
+
+      <section class="flow" aria-live="polite">
+        <div class="only-connect">
+          <h2>Connect the Chameleon Ultra</h2>
+          <p class="note">
+            This page requires Chrome or Edge on a computer. Use USB, not
+            Bluetooth, and close anything else using the CU, such as the CU app
+            or the Python CLI.
+          </p>
+          <div class="row gap-top">
+            <button id="connect" class="primary">Connect CU</button>
+            <span id="connectinfo" class="note"></span>
+          </div>
+        </div>
+
+        <div class="only-ready">
+          <div class="row">
+            <span class="note" id="fwinfo">Checking the firmware…</span>
+            <button id="reconnect">Reconnect</button>
+          </div>
+          <p class="note warn" id="fwneed" hidden>
+            This firmware has no interactive LF engine. Flash the experimental
+            firmware below, then connect again.
+          </p>
+
+          <div class="gap-top">
+            <div class="title">1. Set up the test tag</div>
+            <p class="note">
+              Sets the active slot to Hitag 2, loads these values, and saves. A
+              reader only needs the UID to start; set the password only if you
+              know the reader's own.
+            </p>
+            <div class="row gap-top">
+              <label class="note"
+                >UID
+                <input
+                  id="uid"
+                  type="text"
+                  value="01020304"
+                  size="10"
+                  maxlength="8"
+                />
+              </label>
+              <label class="note"
+                >Password
+                <input
+                  id="pwd"
+                  type="text"
+                  value="0A0B0C0D"
+                  size="10"
+                  maxlength="8"
+                />
+              </label>
+              <button id="setup" class="primary">Set up the test tag</button>
+            </div>
+            <p class="note" id="setupinfo"></p>
+          </div>
+
+          <div class="gap-top">
+            <div class="title">2. Clear the trace, then test at the reader</div>
+            <p class="note">
+              Clear the trace, hold the CU to the Hitag 2 reader (cable still
+              attached), then read the trace.
+            </p>
+            <div class="row gap-top">
+              <button id="cleartrace">Clear the trace</button>
+              <button id="readtrace" class="primary">Read the trace</button>
+              <span class="note" id="traceinfo"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="aside">
+          <div class="small"><b>Firmware</b></div>
+          <p class="note">
+            The emulation needs the experimental firmware: the interactive LF
+            engine with the Hitag 2 module (<a
+              href="https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-interactive"
+              >source</a
+            >). Flashing replaces the CU's firmware and keeps the current slots.
+          </p>
+          <div class="row gap-top">
+            <button id="flashTest">
+              Flash the experimental firmware (<span id="fwname"></span>)
+            </button>
+            <button id="flashStock">Flash stock v2.3.0</button>
+            <button id="flashFile">Flash a file…</button>
+            <input id="fwfile" type="file" accept=".zip" hidden />
+            <button id="flashDfu" class="primary" hidden>
+              Allow the bootloader
+            </button>
+          </div>
+          <div class="note gap-top" id="flashinfo"></div>
+        </div>
+      </section>
+
+      <section class="flow" id="resultbox" hidden>
+        <h2>Safe report</h2>
+        <p class="note">
+          What the reader did. You can post this, for example in a GitHub issue.
+        </p>
+        <div class="cmdbox gap-top">
+          <pre class="cmd" id="safe"></pre>
+          <button class="copy">Copy</button>
+        </div>
+
+        <h2 class="gap-top">Private details</h2>
+        <div class="callout caution">
+          <p>
+            Each reader command decoded to bits. May include sensitive info so
+            don't post these publicly.
+          </p>
+        </div>
+        <details class="options">
+          <summary>Show the private details</summary>
+          <pre class="cmd gap-top" id="private"></pre>
+        </details>
+        <div class="row gap-top">
+          <button id="download">Download the trace</button>
+        </div>
+      </section>
+
+      <details class="fold">
+        <summary><h2>What the page does</h2></summary>
+        <ol class="note">
+          <li>
+            <b>Set up the test tag</b> puts the active slot in Hitag 2 mode,
+            loads the UID and password you enter (with a placeholder
+            configuration and data pages), saves, and switches the CU to tag
+            mode.
+          </li>
+          <li>
+            At the reader, the CU listens for each command and answers in the
+            reader's timing window. A reader sends START_AUTH to ask for the
+            UID, then a 32-bit password (password mode) or a 64-bit command
+            (crypto mode). The CU answers the UID, and, if the password matches
+            the one you set, the configuration and data pages.
+          </li>
+          <li>
+            <b>Read the trace</b> reads the record of the exchange and works
+            out, in this browser, what the reader did: whether it read the UID,
+            which mode it uses, and whether it authenticated.
+          </li>
+        </ol>
+        <p class="note">
+          The emulation answers <b>password mode</b> only. A crypto-mode reader
+          reads the UID but goes no further, which the report names. The trace
+          lives in memory, so keep the CU on USB power during a test. It has
+          been checked against a Proxmark3 acting as a reader, not yet against
+          door readers. The result is a guide, not a verdict.
+        </p>
+      </details>
+      <details class="fold" id="logbox">
+        <summary><h2>Log</h2></summary>
+        <pre id="log"></pre>
+      </details>
+      <p class="note" id="siteversion"></p>
+    </main>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "../common/cu.js": "../common/cu.js?v=da961c33e6",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
+          "./hitag2.js": "./hitag2.js?v=98c2c6aaf9",
+          "../../common/page.js": "../../common/page.js?v=925f61259f"
+        }
+      }
+    </script>
+    <script type="module">
+      import { SerialCU } from "../common/cu.js";
+      import { bindFlashButtons } from "../common/flash-ui.js";
+      import {
+        $,
+        log,
+        hasWebSerial,
+        bindCopyButtons,
+        saveJson,
+        showSiteCommit,
+      } from "../../common/page.js";
+      import * as H from "./hitag2.js";
+
+      const TEST_FW = {
+        zip: "firmware/lf-interactive-1c2ed68d-ultra-dfu-app.zip",
+        name: "experimental 1c2ed68d",
+      };
+      const STOCK = {
+        zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
+        name: "stock v2.3.0",
+      };
+      $("fwname").textContent = TEST_FW.name.replace("experimental ", "");
+
+      let cu = null,
+        busy = false,
+        has = false,
+        firmware = "",
+        report = null;
+
+      function setState(state) {
+        $("app").dataset.state = state;
+        $("step-connect").className = state === "connect" ? "current" : "done";
+        $("step-setup").className = state === "ready" ? "current" : "";
+      }
+      const CONTROLS = [
+        "setup",
+        "cleartrace",
+        "readtrace",
+        "reconnect",
+        "flashTest",
+        "flashStock",
+        "flashFile",
+      ];
+      async function run(what, fn) {
+        if (busy) return;
+        busy = true;
+        for (const id of CONTROLS) $(id).disabled = true;
+        try {
+          await fn();
+        } catch (e) {
+          log(`${what} failed: ${e.message}`);
+        } finally {
+          busy = false;
+          for (const id of CONTROLS) $(id).disabled = false;
+        }
+      }
+      const need = () => {
+        if (!has) throw new Error("this firmware has no interactive LF engine");
+      };
+      async function ok(cmd, data, timeoutS) {
+        const r = await cu.cmd(cmd, data, timeoutS);
+        if (r.status !== H.STATUS.SUCCESS)
+          throw new Error(
+            `command ${cmd} returned status 0x${r.status.toString(16)}`,
+          );
+        return r;
+      }
+
+      // ---------------------------------------------------------------- connect and firmware
+      async function checkFirmware() {
+        const fw = await cu.version();
+        const r = await cu.cmd(H.CMD.TRACE_READ, H.reqU16be(0));
+        has = r.status === H.STATUS.SUCCESS;
+        $("fwinfo").textContent =
+          `CU on ${fw}: ` +
+          (has ? "has the interactive LF engine" : "no interactive engine");
+        $("fwneed").hidden = has;
+        log(`connected: ${fw}, interactive engine ${has ? "yes" : "no"}`);
+        return fw;
+      }
+      const connectCU = () =>
+        run("connect", async () => {
+          if (!hasWebSerial()) return;
+          try {
+            const port = await navigator.serial.requestPort();
+            await cu?.close();
+            cu = new SerialCU();
+            await cu.open(port);
+          } catch (e) {
+            $("connectinfo").textContent = `Couldn't connect: ${e.message}`;
+            cu = null;
+            throw e;
+          }
+          firmware = await checkFirmware();
+          setState("ready");
+        });
+      $("connect").onclick = connectCU;
+      $("reconnect").onclick = connectCU;
+      navigator.serial?.addEventListener("disconnect", (e) => {
+        if (!cu || e.target !== cu.port) return;
+        cu.close();
+        cu = null;
+        setState("connect");
+        $("connectinfo").textContent =
+          "The CU disconnected. Plug it in and connect again.";
+        log("the CU disconnected");
+      });
+      bindFlashButtons({
+        firmware: { test: TEST_FW, stock: STOCK },
+        port: () => cu?.port ?? null,
+        release: async () => {
+          await cu?.close();
+          cu = null;
+        },
+        busy: () => (busy ? "wait for the current step to finish" : null),
+        done: () => setState("connect"),
+      });
+
+      // ---------------------------------------------------------------- set up and test
+      async function tagMode() {
+        const m = await cu.cmd(H.CMD.GET_MODE, undefined, 8);
+        if (m.data[0] !== 0) await cu.cmd(H.CMD.SET_MODE, H.reqMode(false));
+      }
+      $("setup").onclick = () =>
+        run("setting up the tag", async () => {
+          need();
+          const uid = H.parseHex4($("uid").value, "UID");
+          const pwd = H.parseHex4($("pwd").value, "Password");
+          const active = (await ok(H.CMD.GET_ACTIVE, undefined, 8)).data[0];
+          await ok(H.CMD.SET_TYPE, H.reqType(active, H.TAG_TYPE_HITAG2));
+          await ok(H.CMD.SET_DEFAULT, H.reqType(active, H.TAG_TYPE_HITAG2));
+          await ok(H.CMD.H2_SET, H.defaultPages(uid, pwd));
+          await ok(H.CMD.SET_ENABLE, H.reqEnable(active, H.SENSE_LF, true));
+          await ok(H.CMD.SAVE);
+          await tagMode();
+          report = null;
+          $("resultbox").hidden = true;
+          $("setupinfo").textContent =
+            `Slot ${active + 1} is Hitag 2, UID ${H.hex(uid)}, active and saved. Take it to the reader.`;
+          log($("setupinfo").textContent);
+          setState("test");
+          $("step-setup").className = "done";
+          $("step-test").className = "current";
+        });
+
+      $("cleartrace").onclick = () =>
+        run("clearing the trace", async () => {
+          need();
+          await ok(H.CMD.TRACE_CLEAR);
+          report = null;
+          $("resultbox").hidden = true;
+          $("traceinfo").textContent = "trace cleared";
+          log("trace cleared");
+        });
+
+      async function readTrace() {
+        const recs = [];
+        for (;;) {
+          const r = await ok(H.CMD.TRACE_READ, H.reqU16be(recs.length), 8);
+          const chunk = H.parseTraceChunk(r.data);
+          if (chunk.size !== 268)
+            throw new Error(
+              `trace record is ${chunk.size} bytes; this page reads 268`,
+            );
+          if (chunk.n === 0) return { total: chunk.total, recs };
+          for (const raw of chunk.recs) recs.push(H.parseRec(raw));
+        }
+      }
+      $("readtrace").onclick = () =>
+        run("reading the trace", async () => {
+          need();
+          const { total, recs } = await readTrace();
+          const counts = H.classify(recs);
+          report = {
+            firmware,
+            uid: $("uid").value.toUpperCase(),
+            counts,
+            recs,
+          };
+          $("safe").textContent = H.safeMarkdown(report);
+          $("private").textContent = H.privateMarkdown(report)
+            .split("**Private details**")[1]
+            .trim();
+          $("resultbox").hidden = false;
+          $("traceinfo").textContent =
+            `${total} record(s), ${counts.fields} field(s), ${counts.commands} command(s)`;
+          log(`trace read: ${$("traceinfo").textContent}`);
+        });
+
+      $("download").onclick = () => {
+        if (!report) return;
+        if (
+          !confirm(
+            "The trace includes the reader's command bits, which can be its password. Download it anyway?",
+          )
+        )
+          return;
+        saveJson(`cu-hitag2-trace-${Date.now()}.json`, {
+          firmware: report.firmware,
+          uid: report.uid,
+          counts: report.counts,
+          records: report.recs,
+        });
+      };
+
+      bindCopyButtons();
+      setState("connect");
+      showSiteCommit($("siteversion"));
+    </script>
+  </body>
+</html>

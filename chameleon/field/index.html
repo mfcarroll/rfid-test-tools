@@ -92,14 +92,11 @@
               own.
             </p>
             <p class="note">
-              <b>Hitag 2 readers: password or crypto.</b> Clear the log in the
+              <b>Hitag 2 readers: check which mode they use.</b> Clear the log in the
               browser before you go. At the reader, hold the CU against it, then
               bring your fob up next to it and keep both there for about 5
               seconds. Take them both away, wait until the CU's lights go off,
               and do it again, three times in all. Then read the log as usual.
-              The CU doesn't record the fob's data or the reader's password: it
-              measures only how long the reader's reply to the fob is. If the
-              reader opens the door or beeps, that's the fob working as normal.
             </p>
             <p class="note">
               With the CU still plugged in, you can hold it against a reader and
@@ -224,7 +221,7 @@
         <div class="callout caution">
           <p>
             A reader's commands, decoded to bits, and the first bytes of HF
-            frames. A reader can send a password in a command, so don't post
+            frames. May include sensitive info, so don't post
             these publicly.
           </p>
         </div>
@@ -276,10 +273,6 @@
           password-protected T55xx or EM4x05 tags do. The CU's HF receiver only
           decodes ISO 14443-A, so a reader of iCLASS, ISO 15693 or FeliCa cards
           shows as a field with no frames.
-        </p>
-        <p class="note">
-          It has been checked against a Proxmark3, not yet against door readers.
-          The numbers are a guide, not a verdict.
         </p>
       </details>
       <details class="fold" id="logbox">
@@ -635,7 +628,7 @@
       $("capdownload").onclick = () => {
         if (
           !confirm(
-            "A raw capture can include a reader's commands. Download it anyway?",
+            "A raw capture can include sensitive info. Download it anyway?",
           )
         )
           return;
@@ -648,7 +641,7 @@
       $("download").onclick = () => {
         if (
           !confirm(
-            "The log can include a reader's commands. Download it anyway?",
+            "The log can include sensitive info. Download it anyway?",
           )
         )
           return;
