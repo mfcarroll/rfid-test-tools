@@ -1,6 +1,6 @@
 // Field measurement page: the CU's measurement commands, its log, and what the log says about a reader's field. No DOM in here.
 //
-// The firmware (exp/field-probe) stops emulating while it's measuring. When a reader's LF field appears it measures
+// The firmware (exp/field-measure) stops emulating while it's measuring. When a reader's LF field appears it measures
 // the field in up to three rounds, and when an HF field appears it counts the ISO 14443-A frames the reader sends.
 // The log survives the CU's sleep, so the CU can be taken to a reader on battery and read here afterwards.
 //
@@ -25,13 +25,13 @@ export const STATUS = {
 };
 export const MOD = { LOW: 0, HIGH: 1, TONE: 2 };
 export const MOD_NAMES = ["off", "on (constant load)", "tone (fc/8)"];
-// The Hitag 2 reader-side authentication mode (fp_lf_rec_t.auth_mode / FP_AUTH_*): the length of the reader's command
+// The Hitag 2 reader-side authentication mode (fm_lf_rec_t.auth_mode / FM_AUTH_*): the length of the reader's command
 // after the tag's UID reply. The firmware reads the frame's length only; it classifies the install, not any secret.
 export const AUTH_MODE = ["none", "password", "crypto", "ambiguous"];
 export const LOG_VERSION = 5;
 
 const NOMINAL_HZ = 125000;
-// ADC counts: below this at p90, LF_RSSI saw no field (FP_FIELD_MIN). With no field, the 1 ms means of two CUs read 40
+// ADC counts: below this at p90, LF_RSSI saw no field (FM_FIELD_MIN). With no field, the 1 ms means of two CUs read 40
 // to 115. Log version 5's off level is the larger of this and a tenth of the field's full level.
 const FIELD_LEVEL = 200;
 
@@ -60,7 +60,7 @@ export function parseMode(d) {
   };
 }
 
-// ---------------------------------------------------------------- the log (packed, little-endian; field_probe.h)
+// ---------------------------------------------------------------- the log (packed, little-endian; field_measure.h)
 
 const LF_RECS = 12,
   DIPS = 40,
@@ -112,7 +112,7 @@ function parseCap(v, o) {
   };
 }
 
-// One LF measurement round (fp_lf_rec_t), at byte o of v.
+// One LF measurement round (fm_lf_rec_t), at byte o of v.
 export function parseRec(v, o = 0, version = LOG_VERSION) {
   const flags = v.getUint8(o + 9);
   const nDips = v.getUint8(o + 17);
@@ -520,7 +520,7 @@ export function describeRound(rec) {
   };
 }
 
-// The Hitag 2 authentication-mode summary the firmware measured for one round (fp_hitag_scan), or null if it
+// The Hitag 2 authentication-mode summary the firmware measured for one round (fm_hitag_scan), or null if it
 // classified nothing. bits is the frame's length as a class (32 or 64 bits), for the safe report; gaps is the raw
 // count, for the private details. ms is the command's span. A round with no field gives null: its envelope is noise,
 // and the firmware's scan anchors START_AUTH in it.

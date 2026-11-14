@@ -7,7 +7,7 @@ const check = (ok, what) => {
   if (!ok) failed++;
 };
 
-check(P.LOG_SIZE === 8884, `log size ${P.LOG_SIZE} matches sizeof(fp_store_t) in log version 5`);
+check(P.LOG_SIZE === 8884, `log size ${P.LOG_SIZE} matches sizeof(fm_store_t) in log version 5`);
 check(P.REC_SIZE === 636, `record size ${P.REC_SIZE} is 636`);
 check(P.logSize(4) === 6496 && P.recSizeOf(4) === 437, "a version 4 log is 6496 bytes with 437-byte records (firmware a5c8e8c5)");
 {

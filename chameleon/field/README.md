@@ -74,7 +74,7 @@ reader in low-power card detection does.
 
 ## Firmware
 
-[`exp/field-probe`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/field-probe): the card search page's
+[`exp/field-measure`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/field-measure): the card search page's
 `lf-search` firmware with field measurement added. Commands 3160–3165:
 
 | command | request | reply |
@@ -86,7 +86,7 @@ reader in low-power card detection does.
 | 3164 capture | load, rate in kHz, samples (BE16), analog input, gain divisor | samples taken (BE32) |
 | 3165 capture read | chunk | 4000 bytes of the capture, 16-bit little-endian |
 
-The log's layout is `fp_store_t` in `field_probe.h`, packed and little-endian. Version 2 adds the crash record, this
+The log's layout is `fm_store_t` in `field_measure.h`, packed and little-endian. Version 2 adds the crash record, this
 boot's reset reason and a count of USB replies the CU dropped; version 3 adds the gated carrier, the field timing and
 the drop count; version 4 adds the Hitag 2 authentication-mode summary (the reader's post-UID command length);
 version 5 times the field's offs against an absolute level and adds its full level, its off level and its dips. The
