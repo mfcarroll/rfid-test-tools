@@ -1,5 +1,5 @@
 // node selftest.mjs: the log parser and the report against a synthetic log in the firmware's layout.
-import * as P from "./probe.js";
+import * as P from "./measure.js";
 
 let failed = 0;
 const check = (ok, what) => {

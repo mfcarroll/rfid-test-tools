@@ -1,6 +1,6 @@
-// Field probe page: the CU's probe commands, its log, and what the log says about a reader's field. No DOM in here.
+// Field measurement page: the CU's measurement commands, its log, and what the log says about a reader's field. No DOM in here.
 //
-// The firmware (exp/field-probe) stops emulating while the probe is on. When a reader's LF field appears it measures
+// The firmware (exp/field-probe) stops emulating while it's measuring. When a reader's LF field appears it measures
 // the field in up to three rounds, and when an HF field appears it counts the ISO 14443-A frames the reader sends.
 // The log survives the CU's sleep, so the CU can be taken to a reader on battery and read here afterwards.
 //
@@ -10,12 +10,12 @@
 export const CMD = {
   CHANGE_DEVICE_MODE: 1001, // 1 reader, 0 tag
   GET_DEVICE_MODE: 1002,
-  PROBE_MODE: 3160,
-  PROBE_LOG: 3161,
-  PROBE_CLEAR: 3162,
-  PROBE_MEASURE: 3163,
-  PROBE_CAPTURE: 3164,
-  PROBE_CAPTURE_READ: 3165,
+  MEASURE_MODE: 3160,
+  MEASURE_LOG: 3161,
+  MEASURE_CLEAR: 3162,
+  MEASURE_NOW: 3163,
+  MEASURE_CAPTURE: 3164,
+  MEASURE_CAPTURE_READ: 3165,
 };
 export const STATUS = {
   LF_TAG_OK: 0x40,
@@ -338,7 +338,7 @@ export function parseHeader(bytes) {
 // One line for the page's event log.
 export function headerLine(h) {
   const c = h.counts;
-  let t = `probe ${h.on ? "on" : "off"}, wake ${h.wake}, ${c.lfFields} LF field(s), ${c.lfRecs} LF round(s), ${c.hfFields} HF field(s)`;
+  let t = `measurement ${h.on ? "on" : "off"}, wake ${h.wake}, ${c.lfFields} LF field(s), ${c.lfRecs} LF round(s), ${c.hfFields} HF field(s)`;
   if (h.crash.count) t += `; ${h.crash.count} reset(s) by a crash, the last by ${h.crash.kind} in wake ${h.crash.wake}`;
   if (h.usb.dropped) t += `; ${h.usb.dropped} USB repl(ies) dropped, last error ${h.usb.err}`;
   return t;
@@ -690,7 +690,7 @@ function dipLine(ds) {
 
 export function safeMarkdown(r) {
   const L = [];
-  L.push("**Chameleon Ultra field probe report** (safe to share)", "");
+  L.push("**Chameleon Ultra field measurement report** (safe to share)", "");
   L.push(`- Firmware: ${r.firmware}`);
   L.push(`- Log: ${r.log.counts.lfFields} LF field(s), ${r.log.counts.lfRecs} LF round(s), ${r.log.counts.hfFields} HF field(s); envelope LF_MOD ${MOD_NAMES[r.log.envMode] ?? r.log.envMode}`);
   const cr = r.log.crash;

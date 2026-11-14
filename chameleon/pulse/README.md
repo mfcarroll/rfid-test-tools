@@ -45,7 +45,7 @@ The firmware fixes each slot's mode, so every tester's setup is the same. Slot 8
 4. **+ learned trim**: the CU runs on its own crystal, and a reader's clock can be well off 125 kHz. Over one frame the
    difference shifts the bits against the reader's timing (at 0.5 %, about half a bit by the frame's end). This slot
    first measures the reader, without sending the card: it holds a load on its coil, captures 41 ms at 100 kHz and
-   fits the carrier on the part of the capture where the field is on (the field probe's method). Two measurements
+   fits the carrier on the part of the capture where the field is on (the field measurement page's method). Two measurements
    within 11.4 ppm confirm each other. The slot then trims the card's timing to match and keeps the result through
    sleep.
 5. As 4, with exact bits.
