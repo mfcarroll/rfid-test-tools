@@ -16,6 +16,8 @@ export const CMD = {
   SET_SLOT_ENABLE: 1006,
   SLOT_DATA_CONFIG_SAVE: 1009,
   GET_ACTIVE_SLOT: 1018,
+  HITAG2_SCAN: 3036, // read a tag's UID (the firmware flips to reader mode for this command)
+  HITAG2_READ: 3037, // read a tag's eight pages with a password (reader mode)
   HITAG2_SET_EMU_DATA: 5040,
   HITAG2_GET_EMU_DATA: 5041,
   LF_IA_TRACE_READ: 3180,
@@ -23,6 +25,9 @@ export const CMD = {
   LF_IA_TUNING: 3184,
 };
 export const STATUS = {
+  MF_ERR_AUTH: 0x06, // the tag rejected the password
+  LF_TAG_OK: 0x40, // a reader command read the tag
+  LF_TAG_NO_FOUND: 0x41, // no tag, or some pages could not be read
   PAR_ERR: 0x60,
   INVALID_CMD: 0x67,
   SUCCESS: 0x68,
@@ -42,11 +47,12 @@ export const FLAG = { LATE: 1, GAPS_DROPPED: 2, ENCODE_FAILED: 4, FIELD_BACK: 8 
 
 // ---------------------------------------------------------------- Hitag 2 pages and config
 
-// The made-up placeholder tag the firmware ships. Never a real credential.
+// A made-up default tag, not a real credential. The fields on the page start from this; a tester can change them, or
+// read a real tag over them.
 export const PLACEHOLDER_PAGES = Uint8Array.of(
   0x01, 0x02, 0x03, 0x04, // page 0: UID
   0x0a, 0x0b, 0x0c, 0x0d, // page 1: reader password
-  0x02, 0x02, 0x02, 0x02, // page 2
+  0x02, 0x02, 0x02, 0x02, // page 2 (unused in password mode)
   0x06, 0x0e, 0x0f, 0x10, // page 3: config byte + tag password
   0x04, 0x04, 0x04, 0x04,
   0x05, 0x05, 0x05, 0x05,
@@ -54,19 +60,71 @@ export const PLACEHOLDER_PAGES = Uint8Array.of(
   0x07, 0x07, 0x07, 0x07,
 );
 
+// The page names the firmware's CLI uses (software/script/chameleon_cli_unit.py). Page 2 is unused in password mode.
+export const HITAG2_PAGE_NAMES = [
+  "UID",
+  "Password (reader's)",
+  "Key, high bytes (crypto mode only)",
+  "Config + tag password",
+  "User",
+  "User",
+  "User",
+  "User",
+];
+
 const hex = (b) => [...b].map((x) => x.toString(16).padStart(2, "0").toUpperCase()).join("");
 
-// A UID as 8 hex digits, or null. The password and config keep their placeholder values; a reader's password is its
-// own secret, so the page never asks a tester to type one.
+// A hex string of exactly nBytes bytes, as a Uint8Array, or null. Spaces and a 0x prefix are allowed.
+export function parseHex(s, nBytes) {
+  const t = (s ?? "").trim().replace(/^0x/i, "").replace(/\s+/g, "");
+  if (!new RegExp(`^[0-9a-fA-F]{${nBytes * 2}}$`).test(t)) return null;
+  const b = new Uint8Array(nBytes);
+  for (let i = 0; i < nBytes; i++) b[i] = parseInt(t.slice(i * 2, i * 2 + 2), 16);
+  return b;
+}
+
+// A UID as 8 hex digits, or null.
 export function parseUid(s) {
-  const t = s.trim().replace(/^0x/i, "").replace(/\s+/g, "");
-  return /^[0-9a-fA-F]{8}$/.test(t) ? t : null;
+  const b = parseHex(s, 4);
+  return b ? hex(b) : null;
 }
 
 export function pagesWithUid(uidHex, base = PLACEHOLDER_PAGES) {
   const p = Uint8Array.from(base);
   for (let i = 0; i < 4; i++) p[i] = parseInt(uidHex.slice(i * 2, i * 2 + 2), 16);
   return p;
+}
+
+// The editable fields a tester sets for a password-mode tag. uid and pwd are 4 bytes; config is 1 byte (page 3 byte
+// 0); tagpw is the 3 bytes after it (page 3 bytes 1..3). Everything is hex; any field left null keeps base's value.
+// Returns the 32 page bytes, or null if a given field is not valid hex.
+export function pagesFromFields({ uid, pwd, config, tagpw }, base = PLACEHOLDER_PAGES) {
+  const p = Uint8Array.from(base);
+  const put = (off, bytes) => {
+    for (let i = 0; i < bytes.length; i++) p[off + i] = bytes[i];
+  };
+  for (const [v, off, n] of [
+    [uid, 0, 4],
+    [pwd, 4, 4],
+    [config, 12, 1],
+    [tagpw, 13, 3],
+  ]) {
+    if (v == null || v === "") continue;
+    const b = parseHex(v, n);
+    if (!b) return null;
+    put(off, b);
+  }
+  return p;
+}
+
+// The field values that describe a 32-byte page image, for filling the form after a read.
+export function fieldsFromPages(pages) {
+  return {
+    uid: hex(pages.slice(0, 4)),
+    pwd: hex(pages.slice(4, 8)),
+    config: hex(pages.slice(12, 13)),
+    tagpw: hex(pages.slice(13, 16)),
+  };
 }
 
 export const uidOf = (pages) => hex(pages.slice(0, 4));
@@ -87,6 +145,35 @@ export const reqSetType = (slotFw, type) => Uint8Array.of(slotFw, type >> 8, typ
 export const reqSetEnable = (slotFw, sense, on) => Uint8Array.of(slotFw, sense, on ? 1 : 0);
 export const reqActiveSlot = (slotFw) => Uint8Array.of(slotFw);
 export const reqTraceRead = (first) => Uint8Array.of(first >> 8, first & 0xff);
+
+// ---------------------------------------------------------------- reading a physical tag (reader mode)
+
+// HITAG2_READ takes the reader password, 4 bytes.
+export const reqHitag2Read = (pwBytes) => Uint8Array.from(pwBytes);
+
+// HITAG2_SCAN reply: the UID, 4 bytes. Returns the UID as 8 hex digits, or null if the reply is short.
+export function parseHitag2Scan(d) {
+  return d.length >= 4 ? hex(d.slice(0, 4)) : null;
+}
+
+// HITAG2_READ reply: 32 page bytes, then a 1-byte mask of which pages were read (bit p set = page p read). Returns
+// { count, mask, pages } with pages the 8 four-byte pages (an unread page is null), or null if the reply is short.
+export function parseHitag2Read(d) {
+  if (d.length < 33) return null;
+  const mask = d[32];
+  const pages = [];
+  for (let p = 0; p < 8; p++) pages.push(mask & (1 << p) ? d.slice(p * 4, p * 4 + 4) : null);
+  let count = 0;
+  for (let p = 0; p < 8; p++) if (mask & (1 << p)) count++;
+  return { count, mask, pages };
+}
+
+// Fold a HITAG2_READ result into a full 32-byte page image, filling pages that could not be read from base.
+export function pagesFromRead(read, base = PLACEHOLDER_PAGES) {
+  const p = Uint8Array.from(base);
+  for (let i = 0; i < 8; i++) if (read.pages[i]) p.set(read.pages[i], i * 4);
+  return p;
+}
 
 // ---------------------------------------------------------------- the counters (LF_IA_TUNING reply)
 

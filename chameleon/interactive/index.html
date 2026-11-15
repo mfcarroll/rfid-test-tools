@@ -26,10 +26,11 @@
       </div>
       <div class="callout caution">
         <p>
-          <b>This is a made-up test tag, not a real credential.</b> Its UID is
-          yours to set; its password is a fixed placeholder. A reader won't open
-          anything with it — the point is to see whether the reader treats the
-          CU as a Hitag 2 tag at all.
+          <b>The tag's details are yours to set.</b> The fields start from a
+          made-up tag; change them, or read a real tag over them. A password you
+          type or read stays on this page — it goes into the slot and the private
+          details, never the safe report. The UID does appear in the safe report,
+          since a reader broadcasts it over the air anyway.
         </p>
       </div>
 
@@ -64,16 +65,31 @@
           </p>
 
           <div class="gap-top">
-            <div class="title">1. Set up a Hitag 2 test tag</div>
+            <div class="title">1. Set up a Hitag 2 tag</div>
             <p class="note">
-              Puts a Hitag 2 test tag in the active slot and saves it. Set the
-              UID to your fob's if you want the reader to see that number; the
-              password stays a placeholder.
+              Enter the tag's details, or read a real tag into the fields, then
+              write it to the active slot. All four are hex. For a reader to
+              authenticate, the password must match the one the reader sends; the
+              config byte <code>06</code> is Hitag 2, password mode.
             </p>
             <div class="row gap-top">
               <label>UID <input id="uid" value="01020304" size="10" spellcheck="false" /></label>
-              <button id="setup" class="primary">Set up the test tag</button>
+              <label>Password <input id="pwd" value="0A0B0C0D" size="10" spellcheck="false" /></label>
+              <label>Config <input id="config" value="06" size="3" spellcheck="false" /></label>
+              <label>Tag password <input id="tagpw" value="0E0F10" size="8" spellcheck="false" /></label>
+            </div>
+            <div class="row gap-top">
+              <button id="setup" class="primary">Write it to the slot</button>
               <span class="note" id="setupinfo"></span>
+            </div>
+            <p class="note gap-top">
+              Or read a real tag: hold it to the CU and read its UID, or, with its
+              password in the field above, read all its pages into the fields.
+            </p>
+            <div class="row gap-top">
+              <button id="scan">Read a tag's UID</button>
+              <button id="readtag">Read a tag (uses the password)</button>
+              <span class="note" id="scaninfo"></span>
             </div>
           </div>
 
@@ -157,13 +173,14 @@
         <summary><h2>What the page does</h2></summary>
         <ol class="note">
           <li>
-            Sets the active slot to a Hitag 2 test tag (UID yours, password a
-            fixed placeholder) and saves it.
+            Sets the active slot to a Hitag 2 tag with the UID, password, config
+            and tag password you entered — or that it read from a real tag — and
+            saves it.
           </li>
           <li>
             The CU's interactive engine listens for a reader's commands and
             answers them: it gives its UID to START_AUTH, and if a reader's
-            password matched the stored one it would serve the data pages.
+            password matches the stored one it serves the data pages.
           </li>
           <li>
             Each command and answer goes into a trace in retained RAM, which
@@ -189,7 +206,7 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=da961c33e6",
           "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
-          "./interactive.js": "./interactive.js?v=a656902313",
+          "./interactive.js": "./interactive.js?v=e813c75696",
           "../../common/page.js": "../../common/page.js?v=925f61259f"
         }
       }
@@ -230,6 +247,8 @@
       }
       const CONTROLS = [
         "setup",
+        "scan",
+        "readtag",
         "clear",
         "read",
         "reconnect",
@@ -300,18 +319,75 @@
         log("the CU disconnected");
       });
 
-      // ---------------------------------------------------------------- set up the test tag
+      // ---------------------------------------------------------------- the tag's details
+      const readFields = () => ({
+        uid: $("uid").value,
+        pwd: $("pwd").value,
+        config: $("config").value,
+        tagpw: $("tagpw").value,
+      });
+      function fillFields(f) {
+        $("uid").value = f.uid;
+        $("pwd").value = f.pwd;
+        $("config").value = f.config;
+        $("tagpw").value = f.tagpw;
+      }
+
+      // Read a physical tag (reader mode). The firmware flips to reader mode for the command itself, so afterwards the
+      // page sets tag mode again (done when the slot is written).
+      $("scan").onclick = () =>
+        run("scan", async () => {
+          need();
+          $("scaninfo").textContent = "Hold a tag to the CU…";
+          const r = await cu.cmd(P.CMD.HITAG2_SCAN);
+          if (r.status !== P.STATUS.LF_TAG_OK) {
+            $("scaninfo").textContent = "No Hitag 2 tag found.";
+            return;
+          }
+          const uid = P.parseHitag2Scan(r.data);
+          $("uid").value = uid;
+          $("scaninfo").textContent = `Read UID ${uid}. Set the password to read the pages, or write it to the slot.`;
+          log(`scanned a Hitag 2 tag, UID ${uid}`);
+        });
+
+      $("readtag").onclick = () =>
+        run("read a tag", async () => {
+          need();
+          const pw = P.parseHex($("pwd").value, 4);
+          if (!pw) {
+            $("scaninfo").textContent = "Password must be 8 hex digits to read a tag.";
+            return;
+          }
+          $("scaninfo").textContent = "Hold a tag to the CU…";
+          const r = await cu.cmd(P.CMD.HITAG2_READ, P.reqHitag2Read(pw));
+          if (r.status === P.STATUS.MF_ERR_AUTH) {
+            $("scaninfo").textContent = "The tag did not accept the password.";
+            return;
+          }
+          const read = (r.status === P.STATUS.LF_TAG_OK || r.status === P.STATUS.LF_TAG_NO_FOUND) && P.parseHitag2Read(r.data);
+          if (!read) {
+            $("scaninfo").textContent = "No Hitag 2 tag found.";
+            return;
+          }
+          fillFields(P.fieldsFromPages(P.pagesFromRead(read)));
+          const partial = r.status === P.STATUS.LF_TAG_NO_FOUND;
+          $("scaninfo").textContent = `Read ${read.count}/8 pages into the fields${partial ? " (some pages unread)" : ""}. Review, then write it to the slot.`;
+          log(`read a Hitag 2 tag, ${read.count}/8 pages, UID ${P.uidOf(P.pagesFromRead(read))}`);
+        });
+
+      // ---------------------------------------------------------------- write the tag to the slot
       $("setup").onclick = () =>
         run("set up", async () => {
           need();
-          const uid = P.parseUid($("uid").value);
-          if (!uid) {
-            $("setupinfo").textContent = "UID must be 8 hex digits.";
+          const pages = P.pagesFromFields(readFields());
+          if (!pages) {
+            $("setupinfo").textContent = "UID and password must be 8 hex digits, config 2, tag password 6.";
             return;
           }
+          const uid = P.uidOf(pages);
           const slotFw = ok(await cu.cmd(P.CMD.GET_ACTIVE_SLOT)).data[0];
           ok(await cu.cmd(P.CMD.SET_SLOT_TAG_TYPE, P.reqSetType(slotFw, P.TAG_TYPE_HITAG2)));
-          ok(await cu.cmd(P.CMD.HITAG2_SET_EMU_DATA, P.pagesWithUid(uid)));
+          ok(await cu.cmd(P.CMD.HITAG2_SET_EMU_DATA, pages));
           ok(await cu.cmd(P.CMD.SET_SLOT_ENABLE, P.reqSetEnable(slotFw, P.SENSE_LF, true)));
           ok(await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, Uint8Array.of(0)));
           ok(await cu.cmd(P.CMD.SLOT_DATA_CONFIG_SAVE));

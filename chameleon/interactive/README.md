@@ -4,19 +4,29 @@ https://mfcarroll.github.io/rfid-test-tools/chameleon/interactive/
 
 Emulates an interactive LF tag — one that answers a reader's commands, not just a fixed card number. The CU's
 existing LF emulation only broadcasts a pattern; this firmware adds a listen-and-respond engine, and its first
-module is Hitag 2 in password mode. The page sets up a test tag, and after you hold the CU to a reader it reports
-whether the reader engaged with the emulation and how far the exchange got.
+module is Hitag 2 in password mode. The page sets up the tag — from fields you enter or from a real tag it reads —
+and after you hold the CU to a reader it reports whether the reader engaged with the emulation and how far the
+exchange got.
 
-## The test tag
+## The tag
 
-A made-up Hitag 2 tag, not a real credential:
+The page sets up a Hitag 2 tag from four fields, each hex, pre-filled with a made-up default:
 
-- **UID**: yours to set on the page. Set it to your fob's if you want the reader to see that number.
-- **Password**: a fixed placeholder (`0A0B0C0D`). A reader won't open anything, because its own password won't
-  match. That is fine: the test is whether the reader treats the CU as a Hitag 2 tag at all.
-- **Config**: `0x06` — Hitag 2, Manchester, password mode.
+- **UID** (page 0): yours to set. Set it to your fob's if you want the reader to see that number. The UID appears in
+  the safe report, since a reader broadcasts it over the air anyway.
+- **Password** (page 1): the reader password the tag expects. The default `0A0B0C0D` won't match a real reader, so a
+  reader won't authenticate — which is fine if the test is only whether it treats the CU as a Hitag 2 tag. Set it to
+  the reader's own password to have the CU authenticate. It stays on the page and in the private details, never the
+  safe report.
+- **Config** (page 3, byte 0): `06` — Hitag 2, password mode.
+- **Tag password** (page 3, bytes 1–3): what the tag returns after a successful authentication.
 
-The page writes these to the active slot and saves them. Flashing keeps the slots; setting up the tag overwrites the
+Either type the fields, or **read a real tag** into them: hold the tag to the CU and read its UID alone, or, with the
+tag's password in the field, read all eight pages into the fields. Review them, then write the tag to the slot. Reading
+uses the firmware's Hitag 2 reader (it flips to reader mode for the read, then back to tag mode when the slot is
+written).
+
+The page writes the fields to the active slot and saves them. Flashing keeps the slots; writing the tag overwrites the
 active slot's LF side.
 
 ## What it reports
@@ -57,17 +67,22 @@ without reading any secret.
 ## Firmware
 
 [`exp/lf-interactive`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-interactive): the interactive LF
-engine (a protocol-agnostic listen-and-respond loop), the Hitag 2 password-mode module, and the retained exchange
-trace, on top of upstream `main`. Commands the page uses:
+engine (a protocol-agnostic listen-and-respond loop), the Hitag 2 password-mode module, a Hitag 2 reader, and the
+retained exchange trace, on top of upstream `main`. Commands the page uses:
 
 | command | request | reply |
 | --- | --- | --- |
 | 1004 set slot type | slot (u8), tag type (BE16) | – |
+| 3036 Hitag 2 scan | – | the tag's UID, 4 bytes (status `LF_TAG_OK`, else `LF_TAG_NO_FOUND`) |
+| 3037 Hitag 2 read | the reader password, 4 bytes | 32 page bytes, then a u8 mask of which pages read (status `LF_TAG_OK`, `LF_TAG_NO_FOUND` if partial, `MF_ERR_AUTH` on a wrong password) |
 | 5040 set Hitag 2 data | 32 bytes: eight pages, page 0 first, MSB first | – |
 | 5041 get Hitag 2 data | – | the active slot's 32 bytes, if its LF type is Hitag 2 |
 | 3180 trace read | first record index (BE16) | total (u32 LE), record size (u16 LE), count (u8), first kept (u8), boot (u16 LE), then the records |
 | 3181 trace clear | – | – |
 | 3184 counters | – | the 14-byte tuning struct, then seven u32 counters (sessions, commands, answers, late, ADC ticks, slips, longest tick) |
+
+3036 and 3037 are reader commands: the firmware switches to reader mode to run them, so the page sets tag mode again
+(it does this when it writes the tag to the slot).
 
 The record layout is `lf_ia_trace_rec_t` in `lf_ia_trace.h`, packed and little-endian, 276 bytes. The page reads the
 10-byte reply header, then the records, asking for the next batch until it has them all. `node selftest.mjs` checks

@@ -122,5 +122,49 @@ check(P.uidOf(P.pagesWithUid("DEADBEEF")) === "DEADBEEF", "UID round-trips into 
 const many = P.safeMarkdown({ ...r, total: 40, recs: parsed.recs });
 check(many.includes("overwritten"), "the safe report notes overwritten records when some rolled off");
 
+// ---------------------------------------------------------------- the editable fields
+
+check(P.parseHex("0A0B0C0D", 4) !== null && P.parseHex("0a0b", 4) === null, "parseHex enforces the byte count");
+check(P.parseHex("06", 1)[0] === 0x06 && P.parseHex("zz", 1) === null, "parseHex reads one byte, rejects junk");
+
+const fields = { uid: "AABBCCDD", pwd: "11223344", config: "06", tagpw: "556677" };
+const built = P.pagesFromFields(fields);
+check(P.uidOf(built) === "AABBCCDD", "pagesFromFields writes the UID");
+check(built[4] === 0x11 && built[7] === 0x44, "pagesFromFields writes the password to page 1");
+check(built[12] === 0x06, "pagesFromFields writes the config byte");
+check(built[13] === 0x55 && built[15] === 0x77, "pagesFromFields writes the tag password after the config byte");
+check(P.pagesFromFields({ ...fields, uid: "xyz" }) === null, "pagesFromFields rejects an invalid field");
+
+const round = P.fieldsFromPages(built);
+check(round.uid === "AABBCCDD" && round.pwd === "11223344" && round.config === "06" && round.tagpw === "556677", "fieldsFromPages round-trips");
+
+check(P.HITAG2_PAGE_NAMES[1] === "Password (reader's)" && P.HITAG2_PAGE_NAMES[2].includes("crypto"), "page names match the firmware's");
+
+// ---------------------------------------------------------------- reading a physical tag
+
+// A HITAG2_SCAN reply: four UID bytes.
+check(P.parseHitag2Scan(Uint8Array.of(0xde, 0xad, 0xbe, 0xef)) === "DEADBEEF", "parseHitag2Scan reads the UID");
+check(P.parseHitag2Scan(Uint8Array.of(1, 2)) === null, "parseHitag2Scan rejects a short reply");
+
+// A HITAG2_READ reply: 32 page bytes, then a 1-byte mask. Here pages 0,1,3 read (mask 0b00001011), the rest not.
+const readData = new Uint8Array(33);
+for (let i = 0; i < 32; i++) readData[i] = i + 1;
+readData[32] = 0b00001011;
+const read = P.parseHitag2Read(readData);
+check(read.count === 3 && read.mask === 0x0b, "parseHitag2Read counts the pages read");
+check(read.pages[0] !== null && read.pages[2] === null && read.pages[3] !== null, "parseHitag2Read marks unread pages null");
+check(P.parseHitag2Read(new Uint8Array(10)) === null, "parseHitag2Read rejects a short reply");
+
+const folded = P.pagesFromRead(read);
+check(folded[0] === 1 && folded[13] === 14, "pagesFromRead keeps the read pages");
+check(folded[8] === P.PLACEHOLDER_PAGES[8], "pagesFromRead fills an unread page from the base");
+
+// A real tag read into the fields must not leak into the safe report: its password lives on page 1, private only.
+const realPw = "A1B2C3D4";
+const realPages = P.pagesFromFields({ uid: "01020304", pwd: realPw, config: "06", tagpw: "0E0F10" });
+const realReport = { ...r, emu: realPages };
+check(!P.safeMarkdown(realReport).includes(realPw), "a read-in tag's password does NOT reach the safe report");
+check(P.privateMarkdown(realReport).toLowerCase().includes(realPw.toLowerCase()), "a read-in tag's pages ARE in the private details");
+
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exit(failed ? 1 : 0);
