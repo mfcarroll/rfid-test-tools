@@ -25,8 +25,8 @@ tag's password in page 1, read all eight pages into the fields. Review them, the
 uses the firmware's Hitag 2 reader (it flips to reader mode for the read, then back to tag mode when the slot is
 written); a page it cannot read keeps its field's value.
 
-The page writes the fields to the active slot and saves them. Flashing keeps the slots; writing the tag overwrites the
-active slot's LF side.
+Pick the slot to write to (it defaults to the CU's active slot); writing makes that slot active, sets its LF side to the
+tag and saves it. Flashing keeps the slots; writing the tag overwrites the chosen slot's LF side.
 
 ## What it reports
 
@@ -71,7 +71,9 @@ retained exchange trace, on top of upstream `main`. Commands the page uses:
 
 | command | request | reply |
 | --- | --- | --- |
+| 1003 set active slot | slot (u8) | – |
 | 1004 set slot type | slot (u8), tag type (BE16) | – |
+| 1018 get active slot | – | the active slot (u8) |
 | 3036 Hitag 2 scan | – | the tag's UID, 4 bytes (status `LF_TAG_OK`, else `LF_TAG_NO_FOUND`) |
 | 3037 Hitag 2 read | the reader password, 4 bytes | 32 page bytes, then a u8 mask of which pages read (status `LF_TAG_OK`, `LF_TAG_NO_FOUND` if partial, `MF_ERR_AUTH` on a wrong password) |
 | 5040 set Hitag 2 data | 32 bytes: eight pages, page 0 first, MSB first | – |

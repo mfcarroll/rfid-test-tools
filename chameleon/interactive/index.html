@@ -103,6 +103,10 @@
               reader sends. The config byte is fixed at <code>06</code> — Hitag 2,
               password mode, the only mode supported.
             </p>
+            <div class="row gap-top">
+              <label>Slot <select id="slot"></select></label>
+              <span class="note">the tag is written here, and this slot is made active</span>
+            </div>
             <div class="pages gap-top">
               <span class="pn">0</span><div class="pf"><input id="p0" value="01020304" size="10" spellcheck="false" aria-label="page 0, UID" /></div><span class="pl">UID</span>
               <span class="pn">1</span><div class="pf"><input id="p1" value="4D494B52" size="10" spellcheck="false" aria-label="page 1, reader password" /></div><span class="pl">Reader password</span>
@@ -208,9 +212,9 @@
         <summary><h2>What the page does</h2></summary>
         <ol class="note">
           <li>
-            Sets the active slot to a Hitag 2 tag with the UID, password, config
-            and tag password you entered — or that it read from a real tag — and
-            saves it.
+            Makes the chosen slot active and sets it to a Hitag 2 tag with the
+            UID, password, config and tag password you entered — or that it read
+            from a real tag — and saves it.
           </li>
           <li>
             The CU's interactive engine listens for a reader's commands and
@@ -268,6 +272,7 @@
         name: "stock v2.3.0",
       };
       $("fwname").textContent = TEST_FW.name.replace("experimental ", "");
+      for (let s = 0; s < 8; s++) $("slot").append(new Option(`slot ${s + 1}`, s));
 
       let cu = null,
         busy = false,
@@ -281,6 +286,7 @@
         $("step-setup").className = state === "ready" ? "current" : "";
       }
       const CONTROLS = [
+        "slot",
         "setup",
         "scan",
         "readtag",
@@ -340,6 +346,10 @@
             throw e;
           }
           firmware = await checkFirmware();
+          if (has) {
+            const a = await cu.cmd(P.CMD.GET_ACTIVE_SLOT);
+            if (a.status === P.STATUS.SUCCESS) $("slot").value = String(a.data[0]);
+          }
           setState("ready");
         });
       $("connect").onclick = connectCU;
@@ -424,7 +434,8 @@
             return;
           }
           const uid = P.uidOf(pages);
-          const slotFw = ok(await cu.cmd(P.CMD.GET_ACTIVE_SLOT)).data[0];
+          const slotFw = Number($("slot").value);
+          ok(await cu.cmd(P.CMD.SET_ACTIVE_SLOT, P.reqActiveSlot(slotFw)));
           ok(await cu.cmd(P.CMD.SET_SLOT_TAG_TYPE, P.reqSetType(slotFw, P.TAG_TYPE_HITAG2)));
           ok(await cu.cmd(P.CMD.HITAG2_SET_EMU_DATA, pages));
           ok(await cu.cmd(P.CMD.SET_SLOT_ENABLE, P.reqSetEnable(slotFw, P.SENSE_LF, true)));
