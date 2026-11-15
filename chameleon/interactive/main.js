@@ -23,7 +23,7 @@ const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
 };
-$("fwname").textContent = TEST_FW.name.replace("experimental ", "");
+TEST_FW.label = `Flash the experimental firmware (${TEST_FW.name.replace("experimental ", "")})`;
 for (let s = 0; s < 8; s++) $("slot").append(new Option(`slot ${s + 1}`, s));
 
 let cu = null,

@@ -223,18 +223,7 @@
               >source</a
             >). Flashing replaces the CU's firmware and keeps the current slots.
           </p>
-          <div class="row gap-top">
-            <button id="flashTest">
-              Flash the experimental firmware (<span id="fwname"></span>)
-            </button>
-            <button id="flashStock">Flash stock v2.3.0</button>
-            <button id="flashFile">Flash a file…</button>
-            <input id="fwfile" type="file" accept=".zip" hidden />
-            <button id="flashDfu" class="primary" hidden>
-              Allow the bootloader
-            </button>
-          </div>
-          <div class="note gap-top" id="flashinfo"></div>
+          <div id="flash"></div>
         </div>
       </section>
 
@@ -301,13 +290,13 @@
       {
         "imports": {
           "../common/cu.js": "../common/cu.js?v=203e0cbf62",
-          "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=ef92af58fb",
           "../common/session.js": "../common/session.js?v=c093969636",
           "./interactive.js": "./interactive.js?v=4ba0f8c23f",
           "../../common/page.js": "../../common/page.js?v=b1fd354243"
         }
       }
     </script>
-    <script type="module" src="main.js?v=b88a15ae17"></script>
+    <script type="module" src="main.js?v=ee026f8f6b"></script>
   </body>
 </html>

@@ -209,16 +209,7 @@
             firmwares, flash here between runs without moving the CU or the
             Flipper, then connect again.
           </p>
-          <div class="row gap-top">
-            <button id="flashPr">Flash #509 (<span id="prname"></span>)</button>
-            <button id="flashStock">Flash stock v2.3.0</button>
-            <button id="flashFile">Flash a file…</button>
-            <input id="fwfile" type="file" accept=".zip" hidden />
-            <button id="flashDfu" class="primary" hidden>
-              Allow the bootloader
-            </button>
-          </div>
-          <div class="note gap-top" id="flashinfo"></div>
+          <div id="flash"></div>
           <p class="note">
             "Flash a file" takes an application DFU package (a .zip), such as a
             nieldk release.
@@ -293,7 +284,7 @@
       {
         "imports": {
           "../common/cu.js": "../common/cu.js?v=203e0cbf62",
-          "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=ef92af58fb",
           "../common/session.js": "../common/session.js?v=c093969636",
           "./indala.js": "./indala.js?v=6a79f0a778",
           "../../common/page.js": "../../common/page.js?v=b1fd354243",
@@ -301,6 +292,6 @@
         }
       }
     </script>
-    <script type="module" src="main.js?v=19aef91fbe"></script>
+    <script type="module" src="main.js?v=4bbde2ad3a"></script>
   </body>
 </html>

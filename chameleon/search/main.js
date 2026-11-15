@@ -31,7 +31,7 @@ const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
 };
-$("fwname").textContent = IDENTIFY.name.replace("experimental ", "");
+IDENTIFY.label = `Flash the experimental firmware (${IDENTIFY.name.replace("experimental ", "")})`;
 
 let cu = null,
   long = false; // the firmware has long captures and the chip check

@@ -198,18 +198,7 @@
             done, flash stock back, or use "Flash a file" for another
             application DFU package (a .zip).
           </p>
-          <div class="row gap-top">
-            <button id="flashTest">
-              Flash the test firmware (<span id="fwname"></span>)
-            </button>
-            <button id="flashStock">Flash stock v2.3.0</button>
-            <button id="flashFile">Flash a file…</button>
-            <input id="fwfile" type="file" accept=".zip" hidden />
-            <button id="flashDfu" class="primary" hidden>
-              Allow the bootloader (first time only)
-            </button>
-            <span id="flashinfo" class="note"></span>
-          </div>
+          <div id="flash"></div>
         </div>
       </section>
 
@@ -313,8 +302,8 @@
       {
         "imports": {
           "../common/cu.js": "../common/cu.js?v=203e0cbf62",
-          "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
-          "../common/fsk-page.js": "../common/fsk-page.js?v=2f2e8eb662",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=ef92af58fb",
+          "../common/fsk-page.js": "../common/fsk-page.js?v=ed4846138c",
           "../common/fsk.js": "../common/fsk.js?v=0ed0439182",
           "../common/session.js": "../common/session.js?v=c093969636",
           "./pulse.js": "./pulse.js?v=9c38e0b006",

@@ -32,7 +32,7 @@ const FIRMWARE = {
   },
 };
 // The test firmware's commit, on its flash button
-$("fwname").textContent = FIRMWARE.test.name.match(/([0-9a-f]{7,8})\)$/)[1];
+FIRMWARE.test.label = `Flash the test firmware (${FIRMWARE.test.name.match(/([0-9a-f]{7,8})\)$/)[1]})`;
 
 let cu = null,
   counter = false, // the connected firmware has command 3125

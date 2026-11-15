@@ -319,6 +319,6 @@ $("details").addEventListener(
 
 bindTabs();
 bindCopyButtons();
-showSiteCommit($("sitecommit"));
+showSiteCommit($("siteversion"));
 bindRunControls("flipper-crystal");
 setState("connect");

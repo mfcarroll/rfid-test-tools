@@ -27,7 +27,7 @@ const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
 };
-$("prname").textContent = PR.name.replace("#509 ", "");
+PR.label = `Flash #509 (${PR.name.replace("#509 ", "")})`;
 
 let cu = null,
   fl = null,

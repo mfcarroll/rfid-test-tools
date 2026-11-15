@@ -131,18 +131,7 @@
             <a href="../selftrim/">FSK self-trim</a> test firmware has the
             counter too: if your CU is on it, measure without flashing.
           </p>
-          <div class="row gap-top">
-            <button id="flashTest">
-              Flash the test firmware (<span id="fwname"></span>)
-            </button>
-            <button id="flashStock">Flash stock v2.3.0</button>
-            <button id="flashFile">Flash a file…</button>
-            <input id="fwfile" type="file" accept=".zip" hidden />
-            <button id="flashDfu" class="primary" hidden>
-              Allow the bootloader (first time only)
-            </button>
-            <span id="flashinfo" class="note"></span>
-          </div>
+          <div id="flash"></div>
         </div>
       </section>
 
@@ -347,7 +336,7 @@ py hfxo_ntp.py COM5</pre>
       {
         "imports": {
           "../common/cu.js": "../common/cu.js?v=203e0cbf62",
-          "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=ef92af58fb",
           "../common/session.js": "../common/session.js?v=c093969636",
           "./hfxo.js": "./hfxo.js?v=d4b037022a",
           "../../common/page.js": "../../common/page.js?v=b1fd354243",
@@ -356,6 +345,6 @@ py hfxo_ntp.py COM5</pre>
         }
       }
     </script>
-    <script type="module" src="main.js?v=a64d1049cf"></script>
+    <script type="module" src="main.js?v=58aa1ef79a"></script>
   </body>
 </html>

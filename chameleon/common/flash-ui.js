@@ -1,7 +1,9 @@
-// The Firmware section's buttons (flashTest, flashStock, flashFile, flashDfu, flashinfo), shared by the Chameleon pages.
-//   firmware: { test: { zip, name }, stock: { zip, name } }. An entry may instead be a function that returns the
-//             firmware ({ name, data } for a file the person picked), or null to cancel. A "file" button with no
-//             entry uses pickFile().
+// The Firmware section's controls, shared by the Chameleon pages. bindFlashButtons() puts them in the page's
+// <div id="flash">: a button per firmware (flashTest, flashStock, flashFile), the bootloader button (flashDfu) and a
+// status line (flashinfo).
+//   firmware: { test: { zip, name, label }, stock: { zip, name } }. A button shows its entry's label, or
+//             "Flash <name>". An entry may instead be a function that returns the firmware ({ name, data } for a file
+//             the person picked), or null to cancel. A "file" button with no entry uses pickFile().
 //   buttons:  which button flashes which entry, { key: element id }. The default is test, stock and file as above.
 //   port():    the connected CU's port, reused so the browser doesn't ask again (or null)
 //   release(): close the page's connection to the CU before flashing
@@ -27,6 +29,28 @@ export function pickFile() {
   return picked;
 }
 
+function addControls(firmware, buttons) {
+  const row = document.createElement("div");
+  row.className = "row gap-top";
+  for (const [key, id] of Object.entries(buttons)) {
+    const b = document.createElement("button");
+    b.id = id;
+    const f = firmware[key];
+    b.textContent = f?.label ?? (f?.name ? `Flash ${f.name}` : "Flash a file…");
+    row.append(b);
+  }
+  const input = document.createElement("input");
+  Object.assign(input, { id: "fwfile", type: "file", accept: ".zip" });
+  input.hidden = true;
+  const dfu = document.createElement("button");
+  Object.assign(dfu, { id: "flashDfu", className: "primary", hidden: true });
+  dfu.textContent = "Allow the bootloader (first time only)";
+  row.append(input, dfu);
+  const info = document.createElement("div");
+  Object.assign(info, { id: "flashinfo", className: "note gap-top" });
+  $("flash").replaceChildren(row, info);
+}
+
 export function bindFlashButtons({
   firmware,
   buttons = { test: "flashTest", stock: "flashStock", file: "flashFile" },
@@ -35,6 +59,7 @@ export function bindFlashButtons({
   busy = () => null,
   done = () => {},
 }) {
+  addControls(firmware, buttons);
   let flash = null;
   loadFlashLib().catch((e) =>
     log(`couldn't load the flashing library: ${e.message}`),

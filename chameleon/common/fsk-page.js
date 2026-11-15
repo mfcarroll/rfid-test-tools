@@ -40,7 +40,7 @@ export function fskPage(variant) {
   const V = variant,
     X = variant.presets;
   // The test firmware's commit, on its flash button
-  $("fwname").textContent = V.firmware.test.name.match(/([0-9a-f]{7,8})\)$/)[1];
+  V.firmware.test.label = `Flash the test firmware (${V.firmware.test.name.match(/([0-9a-f]{7,8})\)$/)[1]})`;
 
   let cu = null,
     fw = "",

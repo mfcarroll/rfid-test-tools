@@ -22,7 +22,7 @@ const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
 };
-$("fwname").textContent = MEASURE_FW.name.replace("experimental ", "");
+MEASURE_FW.label = `Flash the experimental firmware (${MEASURE_FW.name.replace("experimental ", "")})`;
 
 let cu = null,
   has = false, // the firmware has field measurement
