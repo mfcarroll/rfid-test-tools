@@ -10,16 +10,17 @@ exchange got.
 
 ## The tag
 
-The page shows all eight Hitag 2 pages as fields, in order, each hex. A made-up default is shown as a greyed
-placeholder; leave a field blank to use its default, or type over it:
+The page shows all eight Hitag 2 pages as fields, in order, each hex, with an ASCII column beside them (the page's
+bytes as printable characters, a dot for each non-printable one, like a Proxmark dump). Most defaults are greyed
+placeholders — leave a field blank to use its default, or type over it:
 
 | page | default | holds |
 | --- | --- | --- |
-| 0 | `01020304` | **UID.** Yours to set; set it to your fob's for the reader to see that number. It appears in the safe report, since a reader broadcasts it over the air anyway. |
-| 1 | `4D494B52` (`MIKR`) | **Reader password.** The password the tag expects. The default won't match a real reader, which is fine if the test is only whether the reader treats the CU as a Hitag 2 tag; set it to the reader's own password to have the CU authenticate. It stays on the page and in the private details, never the safe report. |
+| 0 | `12345678` | **UID.** Yours to set; set it to your fob's for the reader to see that number. It appears in the safe report, since a reader broadcasts it over the air anyway. |
+| 1 | `4D494B52` (`MIKR`) | **Reader password.** The password the tag expects, defaulting to the Hitag 2 manufacturer default `MIKR`. It won't match a real reader, which is fine if the test is only whether the reader treats the CU as a Hitag 2 tag; set it to the reader's own password to have the CU authenticate. It stays on the page and in the private details, never the safe report. |
 | 2 | `22222222` | Crypto key, high bytes. Unused in password mode. |
 | 3 | `06` + `AABBCC` | **Config + tag password.** The config byte box is read-only, `06` (Hitag 2, password mode) by default; reading a tag shows that tag's real config byte instead, flagged when it isn't `06`. The three bytes after it are what the tag returns once a reader authenticates. The emulation ignores the config byte and always runs password mode, so a non-`06` value is informational. |
-| 4–7 | `04…`–`07…` | User pages. |
+| 4–7 | `44444444`–`77777777` | User pages. |
 
 Either type the fields, or **read a real tag** into them: hold the tag to the CU and read its UID alone, or, with the
 tag's password in page 1, read all eight pages into the fields. Review them, then write the tag to the slot. Reading

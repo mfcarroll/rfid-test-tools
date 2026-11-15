@@ -50,14 +50,14 @@ export const FLAG = { LATE: 1, GAPS_DROPPED: 2, ENCODE_FAILED: 4, FIELD_BACK: 8 
 // A made-up default tag, not a real credential. The page's fields start from this; a tester can change them, or read
 // a real tag over them. The config byte (page 3, byte 0) is 0x06: Hitag 2, password mode, the only mode supported.
 export const PLACEHOLDER_PAGES = Uint8Array.of(
-  0x01, 0x02, 0x03, 0x04, // page 0: UID
+  0x12, 0x34, 0x56, 0x78, // page 0: UID
   0x4d, 0x49, 0x4b, 0x52, // page 1: reader password (MIKR)
   0x22, 0x22, 0x22, 0x22, // page 2: crypto key high bytes (unused in password mode)
   0x06, 0xaa, 0xbb, 0xcc, // page 3: config byte + tag password
-  0x04, 0x04, 0x04, 0x04, // page 4: user
-  0x05, 0x05, 0x05, 0x05, // page 5: user
-  0x06, 0x06, 0x06, 0x06, // page 6: user
-  0x07, 0x07, 0x07, 0x07, // page 7: user
+  0x44, 0x44, 0x44, 0x44, // page 4: user
+  0x55, 0x55, 0x55, 0x55, // page 5: user
+  0x66, 0x66, 0x66, 0x66, // page 6: user
+  0x77, 0x77, 0x77, 0x77, // page 7: user
 );
 
 // The config byte for Hitag 2 password mode, page 3 byte 0. The page fixes it, since it is the only mode supported.
