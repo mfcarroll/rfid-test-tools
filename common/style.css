@@ -15,6 +15,10 @@
   --fast2: #c2410c;
   --hl: #eef3fc;
   --on-accent: #ffffff;
+  /* secondary buttons, and the borders of buttons, inputs and selects */
+  --control: #f7f7f5;
+  --control-hover: #ecebe6;
+  --control-line: #d6d5cf;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -32,6 +36,9 @@
     --fast2: #f08a4b;
     --hl: #232a36;
     --on-accent: #141413;
+    --control: #2e2e2b;
+    --control-hover: #3a3a36;
+    --control-line: #4d4c47;
   }
 }
 * {
@@ -93,7 +100,7 @@ select,
 input {
   font: inherit;
   padding: 4px 6px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 6px;
   background: var(--bg);
   color: var(--text);
@@ -105,10 +112,14 @@ button {
   font: inherit;
   padding: 6px 14px;
   border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--bg);
+  border: 1px solid var(--control-line);
+  background: var(--control);
   color: var(--text);
   cursor: pointer;
+}
+/* :where() keeps this below the primary, tab and icon buttons' own backgrounds */
+button:where(:hover:not(:disabled)) {
+  background: var(--control-hover);
 }
 button.primary {
   background: var(--accent);
