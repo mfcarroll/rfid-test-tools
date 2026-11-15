@@ -385,13 +385,23 @@
         $("p3config").value = f.config;
       }
 
-      // Read a physical tag (reader mode). The firmware flips to reader mode for the command itself, so afterwards the
-      // page sets tag mode again (done when the slot is written).
+      // Read a physical tag. The reader commands require the device to be in reader mode (the firmware rejects them in
+      // tag mode with a device-mode error); this puts it in reader mode for the command and back to tag mode after, so
+      // the slot keeps emulating.
+      async function inReaderMode(fn) {
+        ok(await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, Uint8Array.of(1)));
+        try {
+          return await fn();
+        } finally {
+          await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, Uint8Array.of(0));
+        }
+      }
+
       $("scan").onclick = () =>
         run("scan", async () => {
           need();
           $("scaninfo").textContent = "Hold a tag to the CU…";
-          const r = await cu.cmd(P.CMD.HITAG2_SCAN);
+          const r = await inReaderMode(() => cu.cmd(P.CMD.HITAG2_SCAN));
           if (r.status !== P.STATUS.LF_TAG_OK) {
             $("scaninfo").textContent = "No Hitag 2 tag found.";
             return;
@@ -411,7 +421,7 @@
             return;
           }
           $("scaninfo").textContent = "Hold a tag to the CU…";
-          const r = await cu.cmd(P.CMD.HITAG2_READ, P.reqHitag2Read(pw));
+          const r = await inReaderMode(() => cu.cmd(P.CMD.HITAG2_READ, P.reqHitag2Read(pw)));
           if (r.status === P.STATUS.MF_ERR_AUTH) {
             $("scaninfo").textContent = "The tag did not accept the password.";
             return;

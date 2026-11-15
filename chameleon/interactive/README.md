@@ -22,8 +22,8 @@ The page shows all eight Hitag 2 pages as fields, in order, each hex and pre-fil
 
 Either type the fields, or **read a real tag** into them: hold the tag to the CU and read its UID alone, or, with the
 tag's password in page 1, read all eight pages into the fields. Review them, then write the tag to the slot. Reading
-uses the firmware's Hitag 2 reader (it flips to reader mode for the read, then back to tag mode when the slot is
-written); a page it cannot read keeps its field's value.
+uses the firmware's Hitag 2 reader; the page puts the CU in reader mode for the read and back to tag mode after, so the
+slot keeps emulating. A page it cannot read keeps its field's value.
 
 Pick the slot to write to (it defaults to the CU's active slot); writing makes that slot active, sets its LF side to the
 tag and saves it. Flashing keeps the slots; writing the tag overwrites the chosen slot's LF side.
@@ -82,8 +82,9 @@ retained exchange trace, on top of upstream `main`. Commands the page uses:
 | 3181 trace clear | – | – |
 | 3184 counters | – | the 14-byte tuning struct, then seven u32 counters (sessions, commands, answers, late, ADC ticks, slips, longest tick) |
 
-3036 and 3037 are reader commands: the firmware switches to reader mode to run them, so the page sets tag mode again
-(it does this when it writes the tag to the slot).
+3036 and 3037 are reader commands: the firmware rejects them unless the CU is already in reader mode (command 1001,
+argument 1), returning a device-mode error. The page switches to reader mode around each read and back to tag mode
+after, so the slot keeps emulating.
 
 The record layout is `lf_ia_trace_rec_t` in `lf_ia_trace.h`, packed and little-endian, 276 bytes. The page reads the
 10-byte reply header, then the records, asking for the next batch until it has them all. `node selftest.mjs` checks
