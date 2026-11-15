@@ -28,6 +28,7 @@ MEASURE_FW.label = `Flash the experimental firmware (${MEASURE_FW.name.replace("
 
 let cu = null,
   has = false, // the firmware has field measurement
+  measuring = null, // whether measurement is on, once the page has read it
   measureVersion = null, // its log version, for a measurement's record
   firmware = "",
   report = null,
@@ -52,13 +53,24 @@ const CONTROLS = [
   "flashStock",
   "flashFile",
 ];
-const { run, isBusy } = oneAtATime((on) => setDisabled(CONTROLS, on));
+const { run, isBusy } = oneAtATime((on) => {
+  setDisabled(CONTROLS, on);
+  if (!on) syncMeasureButtons();
+});
+// Once the page knows the mode, the measuring button that would change nothing is disabled.
+function syncMeasureButtons() {
+  if (measuring === null || isBusy()) return;
+  $("measureOn").disabled = measuring;
+  $("measureOff").disabled = !measuring;
+}
 const need = () => {
   if (!has) throw new Error("this firmware has no field measurement");
 };
 
 // ---------------------------------------------------------------- connect and firmware
 function showMode(m) {
+  measuring = m.on;
+  syncMeasureButtons();
   $("modeinfo").textContent = m.on
     ? "Measurement is on: the CU won't emulate."
     : "Measurement is off: the CU emulates as usual.";
@@ -66,6 +78,7 @@ function showMode(m) {
   $("envmode").value = String(m.envMode);
 }
 async function checkFirmware() {
+  measuring = null;
   const fw = await cu.version();
   const r = await cu.cmd(P.CMD.MEASURE_MODE);
   has = r.status === P.STATUS.SUCCESS;
