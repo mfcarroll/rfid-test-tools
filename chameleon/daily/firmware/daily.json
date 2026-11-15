@@ -1,0 +1,130 @@
+{
+ "version": "v2.3.0-125-ge66a58e",
+ "commit": "e66a58e9",
+ "published": "2026-11-15T08:27:31Z",
+ "zip": "daily-e66a58e9-ultra-dfu-app.zip",
+ "upstream": {
+  "commit": "6009a5fb",
+  "url": "https://github.com/RfidResearchGroup/ChameleonUltra/commit/6009a5fb8adbb92d3efb548eaac9e501bd179801"
+ },
+ "source": {
+  "commit": "73148e16",
+  "url": "https://github.com/mfcarroll/ChameleonUltra/tree/73148e16c4a2909b0ea6f52c8012117610291d64"
+ },
+ "changes": [
+  {
+   "title": "fix(lf): hold the crystal (HFXO) in reader mode",
+   "pr": 504,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/504",
+   "state": "open"
+  },
+  {
+   "title": "feat(lf): make T55xx password protection an explicit opt-in",
+   "pr": 502,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/502",
+   "state": "open"
+  },
+  {
+   "title": "CLI: T55xx write and clone commands read the tag back and say whether the write took",
+   "pr": null,
+   "url": null,
+   "state": "not upstreamed yet"
+  },
+  {
+   "title": "fix(lf): pause BLE advertising during LF reader commands",
+   "pr": 506,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/506",
+   "state": "open"
+  },
+  {
+   "title": "fix: resync the Viking decoder when it falls out of phase",
+   "pr": 505,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/505",
+   "state": "open"
+  },
+  {
+   "title": "feat(lf): Indala 64-bit read, emulate and T55xx clone",
+   "pr": 509,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/509",
+   "state": "open"
+  },
+  {
+   "title": "fix: fewer LF emulation burst gaps, emulation after a mode switch or type change, and slot type changes",
+   "pr": 555,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/555",
+   "state": "open"
+  },
+  {
+   "title": "PSK1 self-trim: PSK1 emulation (such as Indala and IDTECK) measures the reader's clock and matches its timing to it",
+   "pr": null,
+   "url": null,
+   "state": "not upstreamed yet"
+  },
+  {
+   "title": "fix: respond to a reader faster after waking from sleep",
+   "pr": 514,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/514",
+   "state": "open"
+  },
+  {
+   "title": "fix: start emulation before bluetooth on boot",
+   "pr": 515,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/515",
+   "state": "open"
+  },
+  {
+   "title": "fix: start the sleep timer after a VBUS wake-up with no USB power",
+   "pr": 552,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/552",
+   "state": "open"
+  },
+  {
+   "title": "fix: stay dark when static on the case wakes the device",
+   "pr": 554,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/554",
+   "state": "open"
+  },
+  {
+   "title": "USB animations play only while a computer is using the CU. On a charger the LEDs show the slot",
+   "pr": null,
+   "url": null,
+   "state": "not upstreamed yet"
+  },
+  {
+   "title": "The USB idle animation breathes the active slot's LED, dimmer",
+   "pr": null,
+   "url": null,
+   "state": "personal preference"
+  },
+  {
+   "title": "fix(lf): delay the first PSK1 frame after field detection like a tag power-up",
+   "pr": 561,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/561",
+   "state": "open"
+  },
+  {
+   "title": "Interactive LF emulation: Hitag 2 tags in password mode, and a Hitag 2 reader",
+   "pr": null,
+   "url": null,
+   "state": "not upstreamed yet"
+  },
+  {
+   "title": "fix(lf): reject IND26 frames when the even parity fails",
+   "pr": 531,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/531",
+   "state": "open"
+  },
+  {
+   "title": "fix(cli): close the connection after --command so the CLI exits",
+   "pr": 562,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/562",
+   "state": "open"
+  },
+  {
+   "title": "PSK1 self-trim starts on for a new or reset CU. A CU with saved settings keeps its own setting",
+   "pr": null,
+   "url": null,
+   "state": "personal preference"
+  }
+ ]
+}
