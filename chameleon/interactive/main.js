@@ -166,7 +166,9 @@ updateAscii();
 
 // Read a physical tag. The reader commands require the device to be in reader mode (the firmware rejects them in
 // tag mode with a device-mode error); this puts it in reader mode for the command and back to tag mode after, so
-// the slot keeps emulating.
+// the slot keeps emulating. The commands themselves get a long timeout (scan 6 s, read 12 s), because the reader
+// retries internally — 8 START_AUTH tries, and 6 tries per page over 8 pages — which can run past the 3 s default
+// (the CLI uses 5 s and 10 s for the same reason).
 async function inReaderMode(fn) {
   await cu.ok(P.CMD.CHANGE_DEVICE_MODE, Uint8Array.of(1));
   try {
@@ -186,7 +188,9 @@ $("scan").onclick = () =>
   run("scan", async () => {
     need();
     setScan("Hold a tag to the CU…");
-    const r = await inReaderMode(() => cu.cmd(P.CMD.HITAG2_SCAN));
+    const r = await inReaderMode(() =>
+      cu.cmd(P.CMD.HITAG2_SCAN, new Uint8Array(0), 6),
+    );
     if (r.status !== P.STATUS.LF_TAG_OK) {
       setScan("No Hitag 2 tag found.", "bad");
       return;
@@ -214,7 +218,7 @@ $("readtag").onclick = () =>
     }
     setScan("Hold a tag to the CU…");
     const r = await inReaderMode(() =>
-      cu.cmd(P.CMD.HITAG2_READ, P.reqHitag2Read(pw)),
+      cu.cmd(P.CMD.HITAG2_READ, P.reqHitag2Read(pw), 12),
     );
     if (r.status === P.STATUS.MF_ERR_AUTH) {
       setScan("The tag did not accept the password.", "bad");
