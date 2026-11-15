@@ -327,6 +327,29 @@ export function sessionVerdict(s) {
   return { verdict, sawStart, startAnswered, sawPassword, passwordAnswered, sawCrypto, reads, answered, late, failed };
 }
 
+// A command/answer bit string (first-sent-first) as hex, one byte per 8 bits, MSB first — the order page 1 stores the
+// password in (the firmware compares the 32 command bits, first bit = MSB, against page 1 as a big-endian word). Null
+// if the length is not a whole number of bytes.
+export function bitsToHex(bitStr) {
+  if (!bitStr || bitStr.length % 8 !== 0) return null;
+  let h = "";
+  for (let i = 0; i < bitStr.length; i += 8) h += parseInt(bitStr.slice(i, i + 8), 2).toString(16).padStart(2, "0").toUpperCase();
+  return h;
+}
+
+// Recover the reader's password from the trace. A reader whose password the emulated tag does not hold retries
+// START_AUTH and its 32-bit password, so the same 32-bit command appears several times. Returns the value seen at
+// least `min` times (the most frequent), as { hex, bits, count }, or null — the agreement guards against a mis-decode.
+export function recoverPassword(recs, min = 2) {
+  const counts = new Map();
+  for (const r of recs) {
+    if (r.type === TR.COMMAND && r.nBits === 32 && r.decode === 0) counts.set(r.bits, (counts.get(r.bits) || 0) + 1);
+  }
+  let best = null;
+  for (const [bits, count] of counts) if (count >= min && (!best || count > best.count)) best = { bits, count };
+  return best ? { hex: bitsToHex(best.bits), bits: best.bits, count: best.count } : null;
+}
+
 const s3 = (us) => (us / 1e6).toFixed(6);
 
 // ---------------------------------------------------------------- the report
@@ -345,6 +368,8 @@ export function safeMarkdown(r) {
     L.push(
       `- Trace: ${c.sessions} field session(s), ${c.commands} command(s), ${c.responses} answered, ${c.late} late, since the trace was cleared (boot ${r.boot})`,
     );
+  const pw = recoverPassword(r.recs);
+  if (pw) L.push(`- Reader password: recovered from ${pw.count} matching attempts (value in the private details)`);
   if (r.total > r.recs.length)
     L.push(`- ⚠ ${r.total} records were made and ${r.recs.length} kept: the first ${r.keep} and the latest, with ${r.total - r.recs.length} in between overwritten`);
 
@@ -373,6 +398,8 @@ export function privateMarkdown(r) {
   const L = [];
   L.push("**Interactive LF trace — private details**", "");
   L.push("A reader's commands decoded to bits (a Hitag 2 reader's password is one of them) and the CU's answers. Don't post this publicly.", "");
+  const pw = recoverPassword(r.recs);
+  if (pw) L.push(`**Recovered reader password: ${pw.hex}** (${pw.bits}, from ${pw.count} matching attempts). Put it in page 1 to authenticate.`, "");
   if (r.emu) L.push("```", `emulated Hitag 2 pages: ${[...r.emu].map((x) => x.toString(16).padStart(2, "0")).join("")}`, "```", "");
   const ss = sessions(r.recs);
   for (const s of ss) {
@@ -381,7 +408,10 @@ export function privateMarkdown(r) {
       const cl = classifyCommand(c);
       const parts = [`${s3(c.tUs)} s`, `${c.nGaps} gaps`, `${c.nBits} bits`, cl ? cl.label : ""];
       if (c.decode !== 0) parts.push(`decode: ${DECODE[c.decode] ?? c.decode}`);
-      else parts.push(`bits ${c.bits}`);
+      else {
+        const h = bitsToHex(c.bits);
+        parts.push(`bits ${c.bits}${h ? ` (0x${h})` : ""}`);
+      }
       parts.push(VERDICT[c.verdict] ?? c.verdict);
       L.push(`- ${parts.filter(Boolean).join(", ")}`);
       if (c.verdict === 1) {

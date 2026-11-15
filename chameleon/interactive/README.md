@@ -17,7 +17,7 @@ placeholders — leave a field blank to use its default, or type over it:
 | page | default | holds |
 | --- | --- | --- |
 | 0 | `12345678` | **UID.** Yours to set; set it to your fob's for the reader to see that number. It appears in the safe report, since a reader broadcasts it over the air anyway. |
-| 1 | `4D494B52` (`MIKR`) | **Reader password.** The password the tag expects, defaulting to the Hitag 2 manufacturer default `MIKR`. It won't match a real reader, which is fine if the test is only whether the reader treats the CU as a Hitag 2 tag; set it to the reader's own password to have the CU authenticate. It stays on the page and in the private details, never the safe report. |
+| 1 | empty (placeholder `4D494B52` / `MIKR`) | **Reader password.** The password the tag expects. It starts empty — the placeholder is the Hitag 2 manufacturer default; blank falls back to it. Set it to the reader's own password to authenticate, or leave it and let a reader's failed attempts reveal it (see below), which fills this field. It stays on the page and in the private details, never the safe report. |
 | 2 | `22222222` | Crypto key, high bytes. Unused in password mode. |
 | 3 | `06` + `AABBCC` | **Config + tag password.** The config byte box is read-only, `06` (Hitag 2, password mode) by default; reading a tag shows that tag's real config byte instead, flagged when it isn't `06`. The three bytes after it are what the tag returns once a reader authenticates. The emulation ignores the config byte and always runs password mode, so a non-`06` value is informational. |
 | 4–7 | `44444444`–`77777777` | User pages. |
@@ -41,9 +41,20 @@ The report splits in two, like the field page:
 - **Safe to share.** Per field session: whether a reader's field appeared, whether it sent START_AUTH and the CU
   answered its UID, whether it sent a 32-bit password command (password mode) or a 64-bit command (crypto mode,
   which this emulation does not support), and how many pages it read. It gives the emulated UID and counts of
-  commands and answers. It never gives the content of a command.
-- **Private details.** Every command decoded to bits, and every answer. In password mode one of those commands is
-  the reader's password, so these are kept out of the safe report and marked not to post.
+  commands and answers, and, if the reader's password was recovered, says so — without the value. It never gives the
+  content of a command.
+- **Private details.** Every command decoded to bits (and, for byte-aligned frames, as hex) and every answer. In
+  password mode one of those commands is the reader's password, so these are kept out of the safe report and marked
+  not to post. When the password is recovered it is called out here in hex.
+
+### Recovering the reader's password
+
+A reader whose password the emulated tag does not hold will not authenticate, so it retries: START_AUTH, then its
+32-bit password, over and over. The page collects those 32-bit commands and, when the same value appears at least
+twice (so a single mis-decode cannot stand), treats it as the reader's password. It reports it (hex in the private
+details, "recovered" in the safe report) and fills it into page 1, so writing the tag to the slot and visiting the
+reader again authenticates. Page 1 therefore starts empty (its default `MIKR` is only a placeholder): leave it for the
+reader to reveal, or type a password you already know.
 
 ## How a reader's exchange reads
 

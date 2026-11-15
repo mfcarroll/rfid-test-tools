@@ -176,5 +176,30 @@ const realReport = { ...r, emu: realPages };
 check(!P.safeMarkdown(realReport).includes(realPw), "a read-in tag's password does NOT reach the safe report");
 check(P.privateMarkdown(realReport).toLowerCase().includes(realPw.toLowerCase()), "a read-in tag's pages ARE in the private details");
 
+// ---------------------------------------------------------------- recovering the reader password
+
+check(P.bitsToHex("01010101011001100111011110001001") === "55667789", "bitsToHex groups 8 bits MSB-first");
+check(P.bitsToHex("11000") === null, "bitsToHex rejects a non-byte length");
+
+const PW_BITS = "01010101011001100111011110001001"; // 0x55667789
+const recovParsed = P.parseTraceReply(
+  reply(
+    [
+      rec({ nBits: 5, bits: "11000", txBits: "1".repeat(37), tUs: 4000, boot: 2, session: 1 }),
+      rec({ nBits: 32, bits: PW_BITS, verdict: 0, tUs: 20000, boot: 2, session: 1 }),
+      rec({ nBits: 32, bits: PW_BITS, verdict: 0, tUs: 40000, boot: 2, session: 1 }),
+      rec({ nBits: 32, bits: PW_BITS, verdict: 0, tUs: 60000, boot: 2, session: 1 }),
+    ],
+    { boot: 2 },
+  ),
+).recs;
+const rp = P.recoverPassword(recovParsed);
+check(rp && rp.hex === "55667789" && rp.count === 3, "recoverPassword finds the repeated password");
+check(P.recoverPassword(recovParsed.slice(0, 2)) === null, "recoverPassword needs at least two that match");
+
+const recovReport = { firmware: "x", counters: { sessions: 1, commands: 4, responses: 0, late: 0 }, boot: 2, total: 4, keep: 8, recs: recovParsed };
+check(P.safeMarkdown(recovReport).includes("Reader password: recovered") && !P.safeMarkdown(recovReport).includes("55667789"), "safe report notes the recovery but hides the value");
+check(P.privateMarkdown(recovReport).includes("55667789"), "private details give the recovered password hex");
+
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exit(failed ? 1 : 0);

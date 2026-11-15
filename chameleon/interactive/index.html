@@ -130,7 +130,7 @@
             <div class="pages gap-top">
               <span class="ph">#</span><span class="ph">data</span><span class="ph">ascii</span><span class="ph">Info</span>
               <span class="pn">0</span><div class="pf"><input id="p0" placeholder="12345678" spellcheck="false" aria-label="page 0, UID" /></div><span class="pa" id="a0"></span><span class="pl">UID</span>
-              <span class="pn">1</span><div class="pf"><input id="p1" value="4D494B52" spellcheck="false" aria-label="page 1, reader password" /></div><span class="pa" id="a1"></span><span class="pl">Reader password (manufacturer default: 4D494B52 / MIKR)</span>
+              <span class="pn">1</span><div class="pf"><input id="p1" placeholder="4D494B52" spellcheck="false" aria-label="page 1, reader password" /></div><span class="pa" id="a1"></span><span class="pl">Reader password (manufacturer default: 4D494B52 / MIKR)</span>
               <span class="pn">2</span><div class="pf"><input id="p2" placeholder="22222222" spellcheck="false" aria-label="page 2, crypto key high bytes" /></div><span class="pa" id="a2"></span><span class="pl">Key, high bytes (crypto mode only, not supported yet)</span>
               <span class="pn">3</span><div class="pf"><input id="p3config" value="06" readonly aria-label="page 3, config byte" /><input id="p3tagpw" placeholder="AABBCC" spellcheck="false" aria-label="page 3, tag password" /></div><span class="pa" id="a3"></span><span class="pl">Config + tag password</span>
               <span class="pn">4</span><div class="pf"><input id="p4" placeholder="44444444" spellcheck="false" aria-label="page 4, user" /></div><span class="pa" id="a4"></span><span class="pl">User</span>
@@ -267,7 +267,7 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=ffca74e8e8",
           "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
-          "./interactive.js": "./interactive.js?v=851dfc02d2",
+          "./interactive.js": "./interactive.js?v=73d6e739a0",
           "../../common/page.js": "../../common/page.js?v=925f61259f"
         }
       }
@@ -592,8 +592,17 @@
           $("safe").textContent = P.safeMarkdown(report);
           $("private").textContent = P.privateMarkdown(report);
           $("resultbox").hidden = false;
-          $("readinfo").textContent = `${t.recs.length} record(s) over ${counters.sessions} session(s).`;
-          log(`read the trace: ${t.recs.length} records, boot ${t.boot}`);
+          // If the reader's password turned up in the trace (repeated attempts that agree), put it in page 1 so the
+          // tag can authenticate on the next visit.
+          const pw = P.recoverPassword(t.recs);
+          if (pw) {
+            $("p1").value = pw.hex;
+            updateAscii();
+          }
+          $("readinfo").textContent =
+            `${t.recs.length} record(s) over ${counters.sessions} session(s).` +
+            (pw ? ` Reader password ${pw.hex} recovered into page 1 — write it to the slot to authenticate.` : "");
+          log(`read the trace: ${t.recs.length} records, boot ${t.boot}${pw ? `, recovered reader password into page 1` : ""}`);
           $("resultbox").scrollIntoView({ behavior: "smooth", block: "start" });
         });
 
