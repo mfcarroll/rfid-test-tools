@@ -82,10 +82,51 @@ export async function showSiteCommit(el) {
   }
 }
 
+// Says so on #connectinfo and in the log if the browser has no Web Serial.
 export function hasWebSerial() {
   if ("serial" in navigator) return true;
-  log("This browser has no Web Serial. Use Chrome or Edge on a computer.");
+  const msg =
+    "This browser can't reach USB devices. Use Chrome or Edge on a computer.";
+  if ($("connectinfo")) $("connectinfo").textContent = msg;
+  log(msg);
   return false;
+}
+
+// Shows a page state. <main id="app"> takes the state, and the page's CSS shows the parts for it. Each item of the
+// progress list (.steps li, in order) takes its class from the state's row in rows: "current", "done" or "". An
+// item the row leaves out gets "".
+export function showState(state, rows) {
+  $("app").dataset.state = state;
+  const row = rows[state];
+  document
+    .querySelectorAll(".steps li")
+    .forEach((li, i) => (li.className = row[i] ?? ""));
+}
+
+export function setDisabled(ids, disabled) {
+  for (const id of ids) $(id).disabled = disabled;
+}
+
+// Runs a page's steps one at a time. run(what, fn) ignores a click while a step is running, and logs a step that
+// fails. onBusy(true) runs before each step and onBusy(false) after it.
+export function oneAtATime(onBusy = () => {}) {
+  let busy = false;
+  return {
+    isBusy: () => busy,
+    run: async (what, fn) => {
+      if (busy) return;
+      busy = true;
+      onBusy(true);
+      try {
+        await fn();
+      } catch (e) {
+        log(`${what} failed: ${e.message}`);
+      } finally {
+        busy = false;
+        onBusy(false);
+      }
+    },
+  };
 }
 
 // Tabs: buttons with role="tab" and aria-controls naming their panel. Arrow keys move between them.

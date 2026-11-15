@@ -119,6 +119,15 @@ export class SerialCU {
     await this.writer.write(makeFrame(cmd, 0, data));
     return { ...(await reply), tb };
   }
+  // The reply, or an error if its status isn't success.
+  async ok(cmd, data, timeoutS) {
+    const r = await this.cmd(cmd, data, timeoutS);
+    if (r.status !== STATUS_SUCCESS)
+      throw new Error(
+        `command ${cmd} returned status 0x${r.status.toString(16)}`,
+      );
+    return r;
+  }
   async version() {
     const r = await this.cmd(CMD_GET_GIT_VERSION);
     return r.status === STATUS_SUCCESS

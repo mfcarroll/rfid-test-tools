@@ -1,11 +1,14 @@
 // The interactive LF emulation page (index.html): connecting the CU, the Hitag 2 test tag, and reading its trace.
 
-import { SerialCU } from "../common/cu.js";
 import { bindFlashButtons } from "../common/flash-ui.js";
+import { openCU, watchDisconnect } from "../common/session.js";
 import {
   $,
   log,
   hasWebSerial,
+  showState,
+  setDisabled,
+  oneAtATime,
   bindCopyButtons,
   saveJson,
   showSiteCommit,
@@ -24,16 +27,15 @@ $("fwname").textContent = TEST_FW.name.replace("experimental ", "");
 for (let s = 0; s < 8; s++) $("slot").append(new Option(`slot ${s + 1}`, s));
 
 let cu = null,
-  busy = false,
   has = false, // the firmware has the interactive engine
   firmware = "",
   report = null;
 
-function setState(state) {
-  $("app").dataset.state = state;
-  $("step-connect").className = state === "connect" ? "current" : "done";
-  $("step-setup").className = state === "ready" ? "current" : "";
-}
+const setState = (state) =>
+  showState(state, {
+    connect: ["current"],
+    ready: ["done", "current"],
+  });
 const CONTROLS = [
   "slot",
   "setup",
@@ -46,28 +48,9 @@ const CONTROLS = [
   "flashStock",
   "flashFile",
 ];
-async function run(what, fn) {
-  if (busy) return;
-  busy = true;
-  for (const id of CONTROLS) $(id).disabled = true;
-  try {
-    await fn();
-  } catch (e) {
-    log(`${what} failed: ${e.message}`);
-  } finally {
-    busy = false;
-    for (const id of CONTROLS) $(id).disabled = false;
-  }
-}
+const { run, isBusy } = oneAtATime((on) => setDisabled(CONTROLS, on));
 const need = () => {
   if (!has) throw new Error("this firmware has no interactive LF engine");
-};
-const ok = (r) => {
-  if (r.status !== P.STATUS.SUCCESS)
-    throw new Error(
-      `command ${r.cmd} returned status 0x${r.status.toString(16)}`,
-    );
-  return r;
 };
 
 // ---------------------------------------------------------------- connect and firmware
@@ -85,17 +68,8 @@ async function checkFirmware() {
 }
 const connectCU = () =>
   run("connect", async () => {
-    if (!hasWebSerial()) return;
-    try {
-      const port = await navigator.serial.requestPort();
-      await cu?.close();
-      cu = new SerialCU();
-      await cu.open(port);
-    } catch (e) {
-      $("connectinfo").textContent = `Couldn't connect: ${e.message}`;
-      cu = null;
-      throw e;
-    }
+    cu = await openCU(cu);
+    if (!cu) return;
     firmware = await checkFirmware();
     if (has) {
       const a = await cu.cmd(P.CMD.GET_ACTIVE_SLOT);
@@ -105,15 +79,13 @@ const connectCU = () =>
   });
 $("connect").onclick = connectCU;
 $("reconnect").onclick = connectCU;
-navigator.serial?.addEventListener("disconnect", (e) => {
-  if (!cu || e.target !== cu.port) return;
-  cu.close();
-  cu = null;
-  setState("connect");
-  $("connectinfo").textContent =
-    "The CU disconnected. Plug it in and connect again.";
-  log("the CU disconnected");
-});
+watchDisconnect(
+  () => cu,
+  () => {
+    cu = null;
+    setState("connect");
+  },
+);
 
 // ---------------------------------------------------------------- the tag's details
 // A blank field uses its placeholder (the default shown greyed), so the defaults still write without being typed.
@@ -195,7 +167,7 @@ updateAscii();
 // tag mode with a device-mode error); this puts it in reader mode for the command and back to tag mode after, so
 // the slot keeps emulating.
 async function inReaderMode(fn) {
-  ok(await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, Uint8Array.of(1)));
+  await cu.ok(P.CMD.CHANGE_DEVICE_MODE, Uint8Array.of(1));
   try {
     return await fn();
   } finally {
@@ -284,22 +256,18 @@ $("setup").onclick = () =>
     }
     const uid = P.uidOf(pages);
     const slotFw = Number($("slot").value);
-    ok(await cu.cmd(P.CMD.SET_ACTIVE_SLOT, P.reqActiveSlot(slotFw)));
-    ok(
-      await cu.cmd(
-        P.CMD.SET_SLOT_TAG_TYPE,
-        P.reqSetType(slotFw, P.TAG_TYPE_HITAG2),
-      ),
+    await cu.ok(P.CMD.SET_ACTIVE_SLOT, P.reqActiveSlot(slotFw));
+    await cu.ok(
+      P.CMD.SET_SLOT_TAG_TYPE,
+      P.reqSetType(slotFw, P.TAG_TYPE_HITAG2),
     );
-    ok(await cu.cmd(P.CMD.HITAG2_SET_EMU_DATA, pages));
-    ok(
-      await cu.cmd(
-        P.CMD.SET_SLOT_ENABLE,
-        P.reqSetEnable(slotFw, P.SENSE_LF, true),
-      ),
+    await cu.ok(P.CMD.HITAG2_SET_EMU_DATA, pages);
+    await cu.ok(
+      P.CMD.SET_SLOT_ENABLE,
+      P.reqSetEnable(slotFw, P.SENSE_LF, true),
     );
-    ok(await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, Uint8Array.of(0)));
-    ok(await cu.cmd(P.CMD.SLOT_DATA_CONFIG_SAVE));
+    await cu.ok(P.CMD.CHANGE_DEVICE_MODE, Uint8Array.of(0));
+    await cu.ok(P.CMD.SLOT_DATA_CONFIG_SAVE);
     $("setupinfo").textContent =
       `Slot ${slotFw + 1}: Hitag 2, UID ${uid}, saved. Clear the trace, then go to the reader.`;
     log(`set up Hitag 2 on slot ${slotFw + 1}, UID ${uid}`);
@@ -308,7 +276,7 @@ $("setup").onclick = () =>
 $("clear").onclick = () =>
   run("clear", async () => {
     need();
-    ok(await cu.cmd(P.CMD.LF_IA_TRACE_CLEAR));
+    await cu.ok(P.CMD.LF_IA_TRACE_CLEAR);
     $("clearinfo").textContent =
       "Trace cleared. Unplug the CU and hold it to the reader.";
     $("resultbox").hidden = true;
@@ -322,7 +290,7 @@ async function traceBatch(first) {
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      return ok(await cu.cmd(P.CMD.LF_IA_TRACE_READ, P.reqTraceRead(first), 8));
+      return await cu.ok(P.CMD.LF_IA_TRACE_READ, P.reqTraceRead(first), 8);
     } catch (e) {
       lastErr = e;
       log(`trace read from ${first}: attempt ${attempt} ${e.message}`);
@@ -352,7 +320,7 @@ async function readTrace() {
 $("read").onclick = () =>
   run("read", async () => {
     need();
-    const counters = P.parseCounters(ok(await cu.cmd(P.CMD.LF_IA_TUNING)).data);
+    const counters = P.parseCounters((await cu.ok(P.CMD.LF_IA_TUNING)).data);
     const emuR = await cu.cmd(P.CMD.HITAG2_GET_EMU_DATA);
     const emu =
       emuR.status === P.STATUS.SUCCESS
@@ -393,7 +361,7 @@ bindFlashButtons({
     await cu?.close();
     cu = null;
   },
-  busy: () => (busy ? "busy, try again in a moment" : null),
+  busy: () => (isBusy() ? "busy, try again in a moment" : null),
   done: () => {
     setState("connect");
     $("connectinfo").textContent = "Flashed. Connect the CU again to continue.";
@@ -402,6 +370,4 @@ bindFlashButtons({
 
 bindCopyButtons();
 showSiteCommit($("siteversion"));
-if (!hasWebSerial())
-  $("connectinfo").textContent =
-    "This browser has no Web Serial. Use Chrome or Edge on a computer.";
+hasWebSerial();

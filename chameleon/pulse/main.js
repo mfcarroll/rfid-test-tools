@@ -1,13 +1,15 @@
 // The pulse test page (index.html): connecting the CU, setting up the slots, and reading the results.
 
-import { SerialCU, STATUS_SUCCESS, STATUS_INVALID_CMD } from "../common/cu.js";
+import { STATUS_SUCCESS, STATUS_INVALID_CMD } from "../common/cu.js";
 import { bindFlashButtons } from "../common/flash-ui.js";
+import { openCU } from "../common/session.js";
 import {
   $,
   log,
-  hasWebSerial,
   saveJson,
   showSiteCommit,
+  showState,
+  oneAtATime,
 } from "../../common/page.js";
 import * as X from "./pulse.js";
 
@@ -30,22 +32,16 @@ let cu = null,
   last = null,
   lastLog = null,
   lastPulse = null,
-  support = false, // the connected firmware has commands 3120 and 3130
-  busy = false;
+  support = false; // the connected firmware has commands 3120 and 3130
 
 // The page shows one step of the flow at a time: connect, ready (set up), run (at the reader) or done (results).
-function setState(state) {
-  $("app").dataset.state = state;
-  const steps = {
-    connect: ["current", "", "", ""],
-    ready: ["done", "current", "", ""],
-    run: ["done", "done", "current", ""],
+const setState = (state) =>
+  showState(state, {
+    connect: ["current"],
+    ready: ["done", "current"],
+    run: ["done", "done", "current"],
     done: ["done", "done", "done", "current"],
-  }[state];
-  ["step-connect", "step-setup", "step-test", "step-results"].forEach(
-    (id, i) => ($(id).className = steps[i]),
-  );
-}
+  });
 
 async function exp(req) {
   const r = await cu.cmd(X.CMD_EXP_FSK, req);
@@ -71,39 +67,13 @@ async function pulse(req = new Uint8Array(0)) {
   return X.parsePulse(r.data);
 }
 
-async function ok(cmd, data) {
-  const r = await cu.cmd(cmd, data);
-  if (r.status !== STATUS_SUCCESS)
-    throw new Error(
-      `command ${cmd} returned status 0x${r.status.toString(16)}`,
-    );
-  return r;
-}
-
-async function run(what, fn) {
-  if (busy) return;
-  busy = true;
-  try {
-    await fn();
-  } catch (e) {
-    log(`${what} failed: ${e.message}`);
-  } finally {
-    busy = false;
-  }
-}
+const { run } = oneAtATime();
 
 // ---------------------------------------------------------------- connect and firmware
 
 async function connect() {
-  if (!hasWebSerial()) {
-    $("connectinfo").textContent =
-      "This browser can't reach USB devices. Use Chrome or Edge on a computer.";
-    throw new Error("no Web Serial");
-  }
-  const port = await navigator.serial.requestPort();
-  await cu?.close();
-  cu = new SerialCU();
-  await cu.open(port);
+  cu = await openCU(cu);
+  if (!cu) throw new Error("no Web Serial");
   fw = await cu.version();
   log(`connected, firmware ${fw}`);
   try {
@@ -268,8 +238,8 @@ $("apply").onclick = () =>
       return;
     await backupNow();
     $("planinfo").textContent = "reading the card…";
-    await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(from.slot));
-    let card = (await ok(get)).data.slice(0, len);
+    await cu.ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(from.slot));
+    let card = (await cu.ok(get)).data.slice(0, len);
     if (card.length !== len)
       throw new Error(
         `the card in slot ${from.slot + 1} is ${card.length} bytes, expected ${len}`,
@@ -278,13 +248,13 @@ $("apply").onclick = () =>
       for (const [t, mode] of targets) {
         $("planinfo").textContent = `slot ${t + 1}…`;
         if (t !== from.slot) {
-          await ok(X.CMD.SET_SLOT_TAG_TYPE, X.reqSlotType(t, type));
-          await ok(X.CMD.SET_SLOT_DATA_DEFAULT, X.reqSlotType(t, type));
-          await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(t));
-          await ok(set, card);
-          await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(t));
+          await cu.ok(X.CMD.SET_SLOT_TAG_TYPE, X.reqSlotType(t, type));
+          await cu.ok(X.CMD.SET_SLOT_DATA_DEFAULT, X.reqSlotType(t, type));
+          await cu.ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(t));
+          await cu.ok(set, card);
+          await cu.ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(t));
         }
-        await ok(
+        await cu.ok(
           X.CMD.SET_SLOT_TAG_NICK,
           X.reqNickLf(t, X.presetNick(type, mode, t)),
         );
@@ -296,13 +266,13 @@ $("apply").onclick = () =>
       const sp = X.SPARE;
       await cu.cmd(X.CMD.DELETE_SLOT_SENSE_TYPE, X.reqSlotLf(sp)); // an empty LF side answers with an error
       await cu.cmd(X.CMD.DELETE_SLOT_TAG_NICK, X.reqSlotLf(sp));
-      await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(sp, false));
-      await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableHf(sp, false));
+      await cu.ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(sp, false));
+      await cu.ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableHf(sp, false));
       log(
         "slot 8: LF card removed, slot disabled (an HF card stays, disabled)",
       );
-      await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(targets[0][0]));
-      await ok(X.CMD.SLOT_DATA_CONFIG_SAVE);
+      await cu.ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(targets[0][0]));
+      await cu.ok(X.CMD.SLOT_DATA_CONFIG_SAVE);
       log(`saved; slot ${targets[0][0] + 1} is active`);
       $("planinfo").textContent = `Done. Slot ${targets[0][0] + 1} is active.`;
     } finally {
@@ -350,7 +320,7 @@ $("scan").onclick = () =>
       return;
     if (was) await backupNow();
     scanInfo("Hold the card flat against the CU's button side…");
-    await ok(X.CHANGE_DEVICE_MODE, Uint8Array.of(1));
+    await cu.ok(X.CHANGE_DEVICE_MODE, Uint8Array.of(1));
     let found = null;
     try {
       found = await scanCard();
@@ -358,7 +328,7 @@ $("scan").onclick = () =>
       scanInfo(`Couldn't read a card: ${e.message}`, "bad");
       throw e;
     } finally {
-      await ok(X.CHANGE_DEVICE_MODE, Uint8Array.of(0));
+      await cu.ok(X.CHANGE_DEVICE_MODE, Uint8Array.of(0));
     }
     if (!found) {
       scanInfo(
@@ -367,13 +337,13 @@ $("scan").onclick = () =>
       return;
     }
     try {
-      await ok(X.CMD.SET_SLOT_TAG_TYPE, X.reqSlotType(t, found.type));
-      await ok(X.CMD.SET_SLOT_DATA_DEFAULT, X.reqSlotType(t, found.type));
-      await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(t));
-      await ok(X.EMU_ID[found.type][1], found.card);
-      await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(t));
+      await cu.ok(X.CMD.SET_SLOT_TAG_TYPE, X.reqSlotType(t, found.type));
+      await cu.ok(X.CMD.SET_SLOT_DATA_DEFAULT, X.reqSlotType(t, found.type));
+      await cu.ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(t));
+      await cu.ok(X.EMU_ID[found.type][1], found.card);
+      await cu.ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(t));
       await cu.cmd(X.CMD.DELETE_SLOT_TAG_NICK, X.reqSlotLf(t)); // a nickname may name the old card's mode
-      await ok(X.CMD.SLOT_DATA_CONFIG_SAVE);
+      await cu.ok(X.CMD.SLOT_DATA_CONFIG_SAVE);
     } finally {
       found.card.fill(0);
     }
@@ -455,8 +425,8 @@ function render(r) {
       : `Slot ${s.slot + 1} is empty`;
     radio.onchange = () =>
       run("change the active slot", async () => {
-        await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(s.slot));
-        await ok(X.CMD.SLOT_DATA_CONFIG_SAVE); // kept after a restart, as the CU's buttons do
+        await cu.ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(s.slot));
+        await cu.ok(X.CMD.SLOT_DATA_CONFIG_SAVE); // kept after a restart, as the CU's buttons do
         log(`slot ${s.slot + 1} is now active`);
         last = await exp(X.reqQuery());
         lastPulse = await pulse();
@@ -545,7 +515,7 @@ $("newSetup").onclick = () => {
 
 async function readBackup() {
   const r = await exp(X.reqQuery());
-  const enabled = (await ok(X.CMD.GET_ENABLED_SLOTS)).data;
+  const enabled = (await cu.ok(X.CMD.GET_ENABLED_SLOTS)).data;
   const b = {
     kind: X.BACKUP_KIND,
     version: 1,
@@ -568,14 +538,14 @@ async function readBackup() {
     if (n.status === STATUS_SUCCESS) e.nick = new TextDecoder().decode(n.data);
     const io = X.LF_CARD[s.lfType];
     if (io) {
-      await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(s.slot));
-      e.card = X.hex((await ok(io[0])).data.slice(io[2]));
+      await cu.ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(s.slot));
+      e.card = X.hex((await cu.ok(io[0])).data.slice(io[2]));
     } else if (s.lfType) {
       e.unreadable = `${X.lfName(s.lfType)}: this firmware can't read this card type back`;
     }
     b.slots.push(e);
   }
-  await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(r.active));
+  await cu.ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(r.active));
   return b;
 }
 
@@ -629,26 +599,29 @@ $("restorefile").onchange = () =>
           throw new Error(
             `slot ${e.slot + 1}: this firmware can't write ${X.lfName(e.lfType)}`,
           );
-        await ok(X.CMD.SET_SLOT_TAG_TYPE, X.reqSlotType(e.slot, e.lfType));
-        await ok(X.CMD.SET_SLOT_DATA_DEFAULT, X.reqSlotType(e.slot, e.lfType));
-        await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(e.slot));
+        await cu.ok(X.CMD.SET_SLOT_TAG_TYPE, X.reqSlotType(e.slot, e.lfType));
+        await cu.ok(
+          X.CMD.SET_SLOT_DATA_DEFAULT,
+          X.reqSlotType(e.slot, e.lfType),
+        );
+        await cu.ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(e.slot));
         let card = X.unhex(e.card);
         try {
-          await ok(io[1], card);
+          await cu.ok(io[1], card);
         } finally {
           card.fill(0);
         }
-        await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(e.slot, e.lfEnabled));
+        await cu.ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(e.slot, e.lfEnabled));
       }
       if (e.nick)
-        await ok(X.CMD.SET_SLOT_TAG_NICK, X.reqNickLf(e.slot, e.nick));
+        await cu.ok(X.CMD.SET_SLOT_TAG_NICK, X.reqNickLf(e.slot, e.nick));
       else await cu.cmd(X.CMD.DELETE_SLOT_TAG_NICK, X.reqSlotLf(e.slot));
       if (e.hfEnabled !== undefined)
-        await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableHf(e.slot, e.hfEnabled));
+        await cu.ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableHf(e.slot, e.hfEnabled));
       // the pulse test firmware fixes the slots' modes, so a backup's modes aren't restored
     }
-    await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(b.active));
-    await ok(X.CMD.SLOT_DATA_CONFIG_SAVE);
+    await cu.ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(b.active));
+    await cu.ok(X.CMD.SLOT_DATA_CONFIG_SAVE);
     log(
       `restored from the backup of ${b.created}; slot ${b.active + 1} active`,
     );

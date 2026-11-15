@@ -1,11 +1,13 @@
 // The field measurement page (index.html): connecting the CU, setting up a measurement, and reading its log.
 
-import { SerialCU } from "../common/cu.js";
 import { bindFlashButtons } from "../common/flash-ui.js";
+import { openCU, watchDisconnect } from "../common/session.js";
 import {
   $,
   log,
-  hasWebSerial,
+  showState,
+  setDisabled,
+  oneAtATime,
   bindCopyButtons,
   saveJson,
   showSiteCommit,
@@ -23,7 +25,6 @@ const STOCK = {
 $("fwname").textContent = MEASURE_FW.name.replace("experimental ", "");
 
 let cu = null,
-  busy = false,
   has = false, // the firmware has field measurement
   measureVersion = null, // its log version, for a measurement's record
   firmware = "",
@@ -31,11 +32,11 @@ let cu = null,
   rawLog = null,
   lastCapture = null;
 
-function setState(state) {
-  $("app").dataset.state = state;
-  $("step-connect").className = state === "connect" ? "current" : "done";
-  $("step-measure").className = state === "ready" ? "current" : "";
-}
+const setState = (state) =>
+  showState(state, {
+    connect: ["current"],
+    ready: ["done", "current"],
+  });
 const CONTROLS = [
   "measureOn",
   "measureOff",
@@ -49,19 +50,7 @@ const CONTROLS = [
   "flashStock",
   "flashFile",
 ];
-async function run(what, fn) {
-  if (busy) return;
-  busy = true;
-  for (const id of CONTROLS) $(id).disabled = true;
-  try {
-    await fn();
-  } catch (e) {
-    log(`${what} failed: ${e.message}`);
-  } finally {
-    busy = false;
-    for (const id of CONTROLS) $(id).disabled = false;
-  }
-}
+const { run, isBusy } = oneAtATime((on) => setDisabled(CONTROLS, on));
 const need = () => {
   if (!has) throw new Error("this firmware has no field measurement");
 };
@@ -103,32 +92,20 @@ async function checkFirmware() {
 }
 const connectCU = () =>
   run("connect", async () => {
-    if (!hasWebSerial()) return;
-    try {
-      const port = await navigator.serial.requestPort();
-      await cu?.close();
-      cu = new SerialCU();
-      await cu.open(port);
-    } catch (e) {
-      $("connectinfo").textContent = `Couldn't connect: ${e.message}`;
-      cu = null;
-      throw e;
-    }
+    cu = await openCU(cu);
+    if (!cu) return;
     firmware = await checkFirmware();
     setState("ready");
   });
 $("connect").onclick = connectCU;
 $("reconnect").onclick = connectCU;
-// A CU that restarts, or is unplugged, disappears from USB. Say so, rather than let the next button time out.
-navigator.serial?.addEventListener("disconnect", (e) => {
-  if (!cu || e.target !== cu.port) return;
-  cu.close();
-  cu = null;
-  setState("connect");
-  $("connectinfo").textContent =
-    "The CU disconnected. Plug it in and connect again.";
-  log("the CU disconnected");
-});
+watchDisconnect(
+  () => cu,
+  () => {
+    cu = null;
+    setState("connect");
+  },
+);
 bindFlashButtons({
   firmware: { test: MEASURE_FW, stock: STOCK },
   port: () => cu?.port ?? null,
@@ -136,7 +113,7 @@ bindFlashButtons({
     await cu?.close();
     cu = null;
   },
-  busy: () => (busy ? "wait for the current step to finish" : null),
+  busy: () => (isBusy() ? "wait for the current step to finish" : null),
   done: () => setState("connect"),
 });
 

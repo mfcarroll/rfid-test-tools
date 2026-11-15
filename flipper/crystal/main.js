@@ -14,6 +14,7 @@ import {
   log,
   nowS,
   hasWebSerial,
+  showState,
   bindTabs,
   bindCopyButtons,
   showSiteCommit,
@@ -40,17 +41,13 @@ let fl = null,
 
 // The page shows one step of the flow at a time: connect, ready, run or done.
 function setState(state) {
-  $("app").dataset.state = state;
-  const saved = state === "done" && currentRun()?.saved !== undefined;
-  const steps = {
-    connect: ["current", "", ""],
-    ready: ["done", "current", ""],
-    run: ["done", "current", ""],
+  const saved = currentRun()?.saved !== undefined;
+  showState(state, {
+    connect: ["current"],
+    ready: ["done", "current"],
+    run: ["done", "current"],
     done: ["done", "done", saved ? "done" : "current"],
-  }[state];
-  ["step-connect", "step-measure", "step-save"].forEach(
-    (id, i) => ($(id).className = steps[i]),
-  );
+  });
   setButtons();
 }
 
@@ -97,11 +94,7 @@ async function checkFlipper() {
 }
 
 $("connect").onclick = async () => {
-  if (!hasWebSerial()) {
-    $("connectinfo").textContent =
-      "This browser can't reach USB devices. Use Chrome or Edge on a computer.";
-    return;
-  }
+  if (!hasWebSerial()) return;
   try {
     const port = await navigator.serial.requestPort();
     await fl?.close();

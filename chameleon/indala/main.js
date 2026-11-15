@@ -1,7 +1,8 @@
 // The Indala test page (index.html): connecting the CU, loading the test card, and timing the reads.
 
-import { SerialCU, STATUS_SUCCESS, STATUS_INVALID_CMD } from "../common/cu.js";
+import { STATUS_INVALID_CMD } from "../common/cu.js";
 import { bindFlashButtons } from "../common/flash-ui.js";
+import { openCU } from "../common/session.js";
 import { SerialFlipper } from "../../flipper/crystal/flipper.js";
 import {
   $,
@@ -9,6 +10,9 @@ import {
   nowS,
   sleep,
   hasWebSerial,
+  showState,
+  setDisabled,
+  oneAtATime,
   bindTabs,
   showSiteCommit,
 } from "../../common/page.js";
@@ -28,17 +32,16 @@ $("prname").textContent = PR.name.replace("#509 ", "");
 let cu = null,
   fl = null,
   fw = "",
-  busy = false,
   stopping = false,
   loaded = null; // the slot the test card went into on this connection
 const runs = [];
 
 // Two steps: connect, then test (ready). The results stay visible below the tests once there are any.
-function setState(state) {
-  $("app").dataset.state = state;
-  $("step-connect").className = state === "connect" ? "current" : "done";
-  $("step-test").className = state === "ready" ? "current" : "";
-}
+const setState = (state) =>
+  showState(state, {
+    connect: ["current"],
+    ready: ["done", "current"],
+  });
 
 // While a test runs, its progress shows under the tabs and the other controls wait.
 const CONTROLS = [
@@ -53,31 +56,12 @@ const CONTROLS = [
 ];
 function setRunning(on) {
   $("runbox").hidden = !on;
-  for (const id of CONTROLS) $(id).disabled = on;
+  setDisabled(CONTROLS, on);
   for (const b of document.querySelectorAll(".connectFlipper")) b.disabled = on;
   if (!on) showReady();
 }
 
-async function ok(cmd, data, timeoutS) {
-  const r = await cu.cmd(cmd, data, timeoutS);
-  if (r.status !== STATUS_SUCCESS)
-    throw new Error(
-      `command ${cmd} returned status 0x${r.status.toString(16)}`,
-    );
-  return r;
-}
-
-async function run(what, fn) {
-  if (busy) return;
-  busy = true;
-  try {
-    await fn();
-  } catch (e) {
-    log(`${what} failed: ${e.message}`);
-  } finally {
-    busy = false;
-  }
-}
+const { run, isBusy } = oneAtATime();
 
 const profile = () => X.PROFILES[$("profile").value] ?? null;
 
@@ -138,7 +122,7 @@ $("stop").onclick = () => {
 
 // Runs one test, with its progress showing, and puts the controls back whatever happens.
 async function test(what, fn) {
-  if (busy) return;
+  if (isBusy()) return;
   stopping = false;
   $("stop").disabled = false;
   $("last").textContent = "–";
@@ -159,7 +143,7 @@ async function detectProfile() {
 }
 
 async function showSlots() {
-  const r = await ok(X.CMD.GET_SLOT_INFO);
+  const r = await cu.ok(X.CMD.GET_SLOT_INFO);
   const slots = X.parseSlotInfo(r.data);
   const keep = $("slot").value;
   $("slot").innerHTML = slots
@@ -182,16 +166,9 @@ function showReady() {
 
 const connectCU = () =>
   run("connect", async () => {
-    if (!hasWebSerial()) {
-      $("connectinfo").textContent =
-        "This browser can't reach USB devices. Use Chrome or Edge on a computer.";
-      return;
-    }
     try {
-      const port = await navigator.serial.requestPort();
-      await cu?.close();
-      cu = new SerialCU();
-      await cu.open(port);
+      cu = await openCU(cu);
+      if (!cu) return;
       fw = await cu.version();
     } catch (e) {
       $("connectinfo").textContent = `Couldn't connect: ${e.message}`;
@@ -236,7 +213,7 @@ bindFlashButtons({
     await cu?.close();
     cu = null;
   },
-  busy: () => (busy ? "wait for the current test to finish" : null),
+  busy: () => (isBusy() ? "wait for the current test to finish" : null),
   done: (f) => {
     $("connectinfo").textContent = `Flashed ${f.name}. Connect again.`;
     $("continue").disabled = true;
@@ -256,7 +233,7 @@ $("readTest").onclick = () =>
       tries: [],
     };
     runs.push(r);
-    await ok(X.CMD.CHANGE_DEVICE_MODE, X.reqMode(true));
+    await cu.ok(X.CMD.CHANGE_DEVICE_MODE, X.reqMode(true));
     try {
       for (let i = 0; i < n && !stopping; i++) {
         progress("Reading the card", i, n);
@@ -277,7 +254,7 @@ $("readTest").onclick = () =>
         showResults();
       }
     } finally {
-      await ok(X.CMD.CHANGE_DEVICE_MODE, X.reqMode(false));
+      await cu.ok(X.CMD.CHANGE_DEVICE_MODE, X.reqMode(false));
     }
   });
 
@@ -288,7 +265,7 @@ $("readTest").onclick = () =>
 async function loadTestCard() {
   const p = profile();
   const s = Number($("slot").value);
-  await ok(X.CMD.CHANGE_DEVICE_MODE, X.reqMode(false));
+  await cu.ok(X.CMD.CHANGE_DEVICE_MODE, X.reqMode(false));
   if (loaded === s) return true;
   if (
     !confirm(
@@ -296,13 +273,13 @@ async function loadTestCard() {
     )
   )
     return false;
-  await ok(X.CMD.SET_SLOT_TAG_TYPE, X.reqSlotType(s, p.type));
-  await ok(X.CMD.SET_SLOT_DATA_DEFAULT, X.reqSlotType(s, p.type));
-  await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(s));
-  await ok(p.setEmu, X.TEST_FRAME);
-  await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(s));
-  await ok(X.CMD.SET_SLOT_TAG_NICK, X.reqNickLf(s, X.TEST_NICK));
-  await ok(X.CMD.SLOT_DATA_CONFIG_SAVE, undefined, 10);
+  await cu.ok(X.CMD.SET_SLOT_TAG_TYPE, X.reqSlotType(s, p.type));
+  await cu.ok(X.CMD.SET_SLOT_DATA_DEFAULT, X.reqSlotType(s, p.type));
+  await cu.ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(s));
+  await cu.ok(p.setEmu, X.TEST_FRAME);
+  await cu.ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(s));
+  await cu.ok(X.CMD.SET_SLOT_TAG_NICK, X.reqNickLf(s, X.TEST_NICK));
+  await cu.ok(X.CMD.SLOT_DATA_CONFIG_SAVE, undefined, 10);
   log(`slot ${s + 1}: Indala test card loaded, slot active`);
   loaded = s;
   await showSlots();

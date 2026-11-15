@@ -6,6 +6,7 @@ import {
   nowS,
   log,
   hasWebSerial,
+  showState,
   bindTabs,
   bindCopyButtons,
   showSiteCommit,
@@ -26,16 +27,12 @@ let pm3 = null,
 
 // The page shows one step of the flow at a time: connect, ready, run or done.
 function setState(state) {
-  $("app").dataset.state = state;
-  const steps = {
-    connect: ["current", "", ""],
-    ready: ["done", "current", ""],
-    run: ["done", "current", ""],
+  showState(state, {
+    connect: ["current"],
+    ready: ["done", "current"],
+    run: ["done", "current"],
     done: ["done", "done", "done"],
-  }[state];
-  ["step-connect", "step-measure", "step-result"].forEach(
-    (id, i) => ($(id).className = steps[i]),
-  );
+  });
   setButtons();
 }
 
@@ -72,11 +69,7 @@ async function pickPort() {
 }
 
 $("connect").onclick = async () => {
-  if (!hasWebSerial()) {
-    $("connectinfo").textContent =
-      "This browser can't reach USB devices. Use Chrome or Edge on a computer.";
-    return;
-  }
+  if (!hasWebSerial()) return;
   try {
     const port = await pickPort();
     await pm3?.close();

@@ -1,11 +1,14 @@
 // The card search page (index.html): connecting the CU, running the reads and chip checks, and the report.
 
-import { SerialCU, STATUS_SUCCESS } from "../common/cu.js";
+import { STATUS_SUCCESS } from "../common/cu.js";
 import { bindFlashButtons } from "../common/flash-ui.js";
+import { openCU } from "../common/session.js";
 import {
   $,
   log,
-  hasWebSerial,
+  showState,
+  setDisabled,
+  oneAtATime,
   bindCopyButtons,
   saveJson,
   showSiteCommit,
@@ -31,17 +34,16 @@ const STOCK = {
 $("fwname").textContent = IDENTIFY.name.replace("experimental ", "");
 
 let cu = null,
-  busy = false,
   long = false; // the firmware has long captures and the chip check
 let report = null,
   baseline = null,
   captures = {};
 
-function setState(state) {
-  $("app").dataset.state = state;
-  $("step-connect").className = state === "connect" ? "current" : "done";
-  $("step-test").className = state === "ready" ? "current" : "";
-}
+const setState = (state) =>
+  showState(state, {
+    connect: ["current"],
+    ready: ["done", "current"],
+  });
 const CONTROLS = [
   "baseline",
   "identify",
@@ -52,25 +54,13 @@ const CONTROLS = [
 ];
 function setRunning(on) {
   $("runbox").hidden = !on;
-  for (const id of CONTROLS) $(id).disabled = on;
+  setDisabled(CONTROLS, on);
 }
 function progress(phase, part) {
   $("phase").textContent = phase;
   $("progress").style.width = `${Math.round(100 * part)}%`;
 }
-async function run(what, fn) {
-  if (busy) return;
-  busy = true;
-  setRunning(true);
-  try {
-    await fn();
-  } catch (e) {
-    log(`${what} failed: ${e.message}`);
-  } finally {
-    busy = false;
-    setRunning(false);
-  }
-}
+const { run, isBusy } = oneAtATime(setRunning);
 
 // Reader mode for the duration of fn, then the mode the CU was in.
 async function asReader(fn) {
@@ -124,17 +114,8 @@ async function checkFirmware() {
 let firmware = "";
 const connectCU = () =>
   run("connect", async () => {
-    if (!hasWebSerial()) return;
-    try {
-      const port = await navigator.serial.requestPort();
-      await cu?.close();
-      cu = new SerialCU();
-      await cu.open(port);
-    } catch (e) {
-      $("connectinfo").textContent = `Couldn't connect: ${e.message}`;
-      cu = null;
-      throw e;
-    }
+    cu = await openCU(cu);
+    if (!cu) return;
     firmware = await checkFirmware();
     setState("ready");
   });
@@ -148,7 +129,7 @@ bindFlashButtons({
     await cu?.close();
     cu = null;
   },
-  busy: () => (busy ? "wait for the current step to finish" : null),
+  busy: () => (isBusy() ? "wait for the current step to finish" : null),
   done: () => setState("connect"),
 });
 
