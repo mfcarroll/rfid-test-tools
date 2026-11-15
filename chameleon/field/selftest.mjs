@@ -222,18 +222,18 @@ check(
 // Hitag 2 authentication mode (log v4): the firmware classifies the reader's command after the UID reply.
 const a2 = P.authOf(log.rounds[2]);
 check(
-  a2?.mode === "password" && a2?.gaps === 33 && a2?.bits === 32,
-  `round 2 password, 33 gaps, 32-bit (${a2?.mode}/${a2?.gaps})`,
+  a2?.mode === "pass" && a2?.gaps === 33 && a2?.bits === 32,
+  `round 2 pass, 33 gaps, 32-bit (${a2?.mode}/${a2?.gaps})`,
 );
 const a3 = P.authOf(log.rounds[3]);
 check(
-  a3?.mode === "crypto" && a3?.gaps === 65 && a3?.bits === 64,
-  `round 3 crypto, 65 gaps, 64-bit (${a3?.mode}/${a3?.gaps})`,
+  a3?.mode === "key" && a3?.gaps === 65 && a3?.bits === 64,
+  `round 3 key, 65 gaps, 64-bit (${a3?.mode}/${a3?.gaps})`,
 );
 const av = P.authVerdict(log.rounds);
 check(
-  av.counts?.password === 1 && av.counts?.crypto === 1,
-  `authVerdict counts password ${av.counts?.password} crypto ${av.counts?.crypto}`,
+  av.counts?.pass === 1 && av.counts?.key === 1,
+  `authVerdict counts pass ${av.counts?.pass} key ${av.counts?.key}`,
 );
 check(log.lfFields[0].drops === 4, "the field's drops parse");
 // A round taken after the field has gone: the firmware's scan anchors START_AUTH in the noise envelope.
@@ -484,7 +484,7 @@ check(
 check(!/11000/.test(safe), "the safe report leaves the bits out");
 check(/11000/.test(P.privateMarkdown(r)), "the private details hold the bits");
 check(
-  /authentication mode: \*\*password\*\* — after the fob's UID the reader's command is about 32 bits/.test(
+  /authentication mode: \*\*pass\*\* — after the fob's UID the reader's command is about 32 bits/.test(
     safe,
   ),
   "the safe report names the Hitag auth mode and frame length",
