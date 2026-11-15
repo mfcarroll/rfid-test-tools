@@ -14,8 +14,8 @@ const STATE = {
   open: ["badge", "open PR"],
   merged: ["badge upstreamed", "merged upstream"],
   closed: ["badge", "closed PR"],
-  "no PR": ["badge", "no PR yet"],
-  "daily only": ["badge", "daily only"],
+  "not upstreamed yet": ["badge", "not upstreamed yet"],
+  "personal preference": ["badge", "personal preference"],
 };
 
 function showChanges(d) {

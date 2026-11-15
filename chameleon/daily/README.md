@@ -14,7 +14,8 @@ source, and adds a `fw-daily-<commit>` release. The page reads `daily.json`, so 
 
 `daily.json` holds the version the firmware reports, the commit, the publish time, the DFU's file name, the upstream
 commit it builds on, the fork commit with its source, and the changes: each one's title, PR number and link (or
-none), and state (`open`, `merged`, `closed`, `no PR` or `daily only`).
+none), and state: `open`, `merged` or `closed` for a PR, `not upstreamed yet` for a change meant for upstream with no PR, or
+`personal preference`.
 
 ## Files
 
