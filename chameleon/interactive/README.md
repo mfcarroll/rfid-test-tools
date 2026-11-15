@@ -17,7 +17,7 @@ The page shows all eight Hitag 2 pages as fields, in order, each hex and pre-fil
 | 0 | `01020304` | **UID.** Yours to set; set it to your fob's for the reader to see that number. It appears in the safe report, since a reader broadcasts it over the air anyway. |
 | 1 | `4D494B52` (`MIKR`) | **Reader password.** The password the tag expects. The default won't match a real reader, which is fine if the test is only whether the reader treats the CU as a Hitag 2 tag; set it to the reader's own password to have the CU authenticate. It stays on the page and in the private details, never the safe report. |
 | 2 | `22222222` | Crypto key, high bytes. Unused in password mode. |
-| 3 | `06` + `AABBCC` | **Config + tag password.** The config byte is fixed at `06` (Hitag 2, password mode, the only mode supported) and shown read-only; the three bytes after it are what the tag returns once a reader authenticates. |
+| 3 | `06` + `AABBCC` | **Config + tag password.** The config byte box is read-only, `06` (Hitag 2, password mode) by default; reading a tag shows that tag's real config byte instead, flagged when it isn't `06`. The three bytes after it are what the tag returns once a reader authenticates. The emulation ignores the config byte and always runs password mode, so a non-`06` value is informational. |
 | 4–7 | `04…`–`07…` | User pages. |
 
 Either type the fields, or **read a real tag** into them: hold the tag to the CU and read its UID alone, or, with the

@@ -165,6 +165,9 @@ check(P.parseHitag2Read(new Uint8Array(10)) === null, "parseHitag2Read rejects a
 const folded = P.pagesFromRead(read);
 check(folded[0] === 1 && folded[13] === 14, "pagesFromRead keeps the read pages");
 check(folded[8] === P.PLACEHOLDER_PAGES[8], "pagesFromRead fills an unread page from the base");
+// Page 3 was read (byte 12 = 0x0D here), so a read surfaces the tag's real config, not a forced 06.
+check(P.fieldsFromPages(folded).config === "0D", "fieldsFromPages surfaces the tag's real config byte");
+check(P.describeConfig(folded).byte === 0x0d, "describeConfig reads the real config byte");
 
 // A real tag read into the fields must not leak into the safe report: its password lives on page 1, private only.
 const realPw = "A1B2C3D4";

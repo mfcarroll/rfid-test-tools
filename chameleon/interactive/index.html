@@ -380,6 +380,9 @@
       function fillFields(f) {
         for (const k of ["p0", "p1", "p2", "p4", "p5", "p6", "p7"]) $(k).value = f[k];
         $("p3tagpw").value = f.tagpw;
+        // Show the tag's real config byte, even though it is normally fixed at 06. The emulation ignores it and always
+        // runs password mode, so a non-06 value is informational.
+        $("p3config").value = f.config;
       }
 
       // Read a physical tag (reader mode). The firmware flips to reader mode for the command itself, so afterwards the
@@ -418,9 +421,12 @@
             $("scaninfo").textContent = "No Hitag 2 tag found.";
             return;
           }
-          fillFields(P.fieldsFromPages(P.pagesFromRead(read)));
+          const pages = P.pagesFromRead(read);
+          fillFields(P.fieldsFromPages(pages));
           const partial = r.status === P.STATUS.LF_TAG_NO_FOUND;
-          $("scaninfo").textContent = `Read ${read.count}/8 pages into the fields${partial ? " (some pages unread)" : ""}. Review, then write it to the slot.`;
+          const cfg = P.describeConfig(pages);
+          const cfgNote = cfg.byte === 0x06 ? "" : ` Config is 0x${cfg.byte.toString(16).padStart(2, "0")} (${cfg.mode} mode); the emulation runs password mode regardless.`;
+          $("scaninfo").textContent = `Read ${read.count}/8 pages into the fields${partial ? " (some pages unread)" : ""}. Review, then write it to the slot.${cfgNote}`;
           log(`read a Hitag 2 tag, ${read.count}/8 pages, UID ${P.uidOf(P.pagesFromRead(read))}`);
         });
 
