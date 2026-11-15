@@ -127,18 +127,25 @@ check(many.includes("overwritten"), "the safe report notes overwritten records w
 check(P.parseHex("0A0B0C0D", 4) !== null && P.parseHex("0a0b", 4) === null, "parseHex enforces the byte count");
 check(P.parseHex("06", 1)[0] === 0x06 && P.parseHex("zz", 1) === null, "parseHex reads one byte, rejects junk");
 
-const fields = { uid: "AABBCCDD", pwd: "11223344", config: "06", tagpw: "556677" };
+const fields = { p0: "AABBCCDD", p1: "11223344", p2: "22222222", config: "06", tagpw: "556677", p4: "04040404", p5: "05050505", p6: "06060606", p7: "07070707" };
 const built = P.pagesFromFields(fields);
-check(P.uidOf(built) === "AABBCCDD", "pagesFromFields writes the UID");
-check(built[4] === 0x11 && built[7] === 0x44, "pagesFromFields writes the password to page 1");
+check(built.length === 32, "pagesFromFields returns 32 bytes");
+check(P.uidOf(built) === "AABBCCDD", "pagesFromFields writes page 0 (UID)");
+check(built[4] === 0x11 && built[7] === 0x44, "pagesFromFields writes page 1 (reader password)");
+check(built[8] === 0x22 && built[11] === 0x22, "pagesFromFields writes page 2");
 check(built[12] === 0x06, "pagesFromFields writes the config byte");
 check(built[13] === 0x55 && built[15] === 0x77, "pagesFromFields writes the tag password after the config byte");
-check(P.pagesFromFields({ ...fields, uid: "xyz" }) === null, "pagesFromFields rejects an invalid field");
+check(built[28] === 0x07 && built[31] === 0x07, "pagesFromFields writes page 7");
+check(P.pagesFromFields({ ...fields, p0: "xyz" }) === null, "pagesFromFields rejects an invalid field");
 
 const round = P.fieldsFromPages(built);
-check(round.uid === "AABBCCDD" && round.pwd === "11223344" && round.config === "06" && round.tagpw === "556677", "fieldsFromPages round-trips");
+check(
+  round.p0 === "AABBCCDD" && round.p1 === "11223344" && round.p2 === "22222222" && round.config === "06" && round.tagpw === "556677" && round.p7 === "07070707",
+  "fieldsFromPages round-trips every page",
+);
 
-check(P.HITAG2_PAGE_NAMES[1] === "Password (reader's)" && P.HITAG2_PAGE_NAMES[2].includes("crypto"), "page names match the firmware's");
+check(P.HITAG2_PAGE_NAMES.length === 8, "a name for each of the eight pages");
+check(P.HITAG2_PAGE_NAMES[1] === "Reader password" && P.HITAG2_PAGE_NAMES[2].includes("crypto"), "page names read in order");
 
 // ---------------------------------------------------------------- reading a physical tag
 
@@ -161,7 +168,7 @@ check(folded[8] === P.PLACEHOLDER_PAGES[8], "pagesFromRead fills an unread page 
 
 // A real tag read into the fields must not leak into the safe report: its password lives on page 1, private only.
 const realPw = "A1B2C3D4";
-const realPages = P.pagesFromFields({ uid: "01020304", pwd: realPw, config: "06", tagpw: "0E0F10" });
+const realPages = P.pagesFromFields({ p0: "01020304", p1: realPw, p2: "22222222", config: "06", tagpw: "0E0F10", p4: "04040404", p5: "05050505", p6: "06060606", p7: "07070707" });
 const realReport = { ...r, emu: realPages };
 check(!P.safeMarkdown(realReport).includes(realPw), "a read-in tag's password does NOT reach the safe report");
 check(P.privateMarkdown(realReport).toLowerCase().includes(realPw.toLowerCase()), "a read-in tag's pages ARE in the private details");

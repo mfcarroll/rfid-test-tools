@@ -47,24 +47,27 @@ export const FLAG = { LATE: 1, GAPS_DROPPED: 2, ENCODE_FAILED: 4, FIELD_BACK: 8 
 
 // ---------------------------------------------------------------- Hitag 2 pages and config
 
-// A made-up default tag, not a real credential. The fields on the page start from this; a tester can change them, or
-// read a real tag over them.
+// A made-up default tag, not a real credential. The page's fields start from this; a tester can change them, or read
+// a real tag over them. The config byte (page 3, byte 0) is 0x06: Hitag 2, password mode, the only mode supported.
 export const PLACEHOLDER_PAGES = Uint8Array.of(
   0x01, 0x02, 0x03, 0x04, // page 0: UID
-  0x0a, 0x0b, 0x0c, 0x0d, // page 1: reader password
-  0x02, 0x02, 0x02, 0x02, // page 2 (unused in password mode)
-  0x06, 0x0e, 0x0f, 0x10, // page 3: config byte + tag password
-  0x04, 0x04, 0x04, 0x04,
-  0x05, 0x05, 0x05, 0x05,
-  0x06, 0x06, 0x06, 0x06,
-  0x07, 0x07, 0x07, 0x07,
+  0x4d, 0x49, 0x4b, 0x52, // page 1: reader password (MIKR)
+  0x22, 0x22, 0x22, 0x22, // page 2: crypto key high bytes (unused in password mode)
+  0x06, 0xaa, 0xbb, 0xcc, // page 3: config byte + tag password
+  0x04, 0x04, 0x04, 0x04, // page 4: user
+  0x05, 0x05, 0x05, 0x05, // page 5: user
+  0x06, 0x06, 0x06, 0x06, // page 6: user
+  0x07, 0x07, 0x07, 0x07, // page 7: user
 );
 
-// The page names the firmware's CLI uses (software/script/chameleon_cli_unit.py). Page 2 is unused in password mode.
+// The config byte for Hitag 2 password mode, page 3 byte 0. The page fixes it, since it is the only mode supported.
+export const CONFIG_BYTE = "06";
+
+// One label per page, in order. Page 2 holds the crypto key's high bytes, unused in the supported password mode.
 export const HITAG2_PAGE_NAMES = [
   "UID",
-  "Password (reader's)",
-  "Key, high bytes (crypto mode only)",
+  "Reader password",
+  "Key, high bytes (crypto mode only, not supported yet)",
   "Config + tag password",
   "User",
   "User",
@@ -95,35 +98,43 @@ export function pagesWithUid(uidHex, base = PLACEHOLDER_PAGES) {
   return p;
 }
 
-// The editable fields a tester sets for a password-mode tag. uid and pwd are 4 bytes; config is 1 byte (page 3 byte
-// 0); tagpw is the 3 bytes after it (page 3 bytes 1..3). Everything is hex; any field left null keeps base's value.
-// Returns the 32 page bytes, or null if a given field is not valid hex.
-export function pagesFromFields({ uid, pwd, config, tagpw }, base = PLACEHOLDER_PAGES) {
-  const p = Uint8Array.from(base);
-  const put = (off, bytes) => {
-    for (let i = 0; i < bytes.length; i++) p[off + i] = bytes[i];
-  };
-  for (const [v, off, n] of [
-    [uid, 0, 4],
-    [pwd, 4, 4],
-    [config, 12, 1],
-    [tagpw, 13, 3],
+// The page shows every page as a field, in order. Page 3 is split into config (1 byte) and tagpw (3 bytes); the other
+// pages (p0..p2, p4..p7) are 4 bytes each. Everything is hex. Returns the 32 page bytes in order, or null if any field
+// is not valid hex of the right length.
+export function pagesFromFields(f) {
+  const out = new Uint8Array(32);
+  let o = 0;
+  for (const [v, n] of [
+    [f.p0, 4],
+    [f.p1, 4],
+    [f.p2, 4],
+    [f.config, 1],
+    [f.tagpw, 3],
+    [f.p4, 4],
+    [f.p5, 4],
+    [f.p6, 4],
+    [f.p7, 4],
   ]) {
-    if (v == null || v === "") continue;
     const b = parseHex(v, n);
     if (!b) return null;
-    put(off, b);
+    out.set(b, o);
+    o += n;
   }
-  return p;
+  return out;
 }
 
 // The field values that describe a 32-byte page image, for filling the form after a read.
-export function fieldsFromPages(pages) {
+export function fieldsFromPages(p) {
   return {
-    uid: hex(pages.slice(0, 4)),
-    pwd: hex(pages.slice(4, 8)),
-    config: hex(pages.slice(12, 13)),
-    tagpw: hex(pages.slice(13, 16)),
+    p0: hex(p.slice(0, 4)),
+    p1: hex(p.slice(4, 8)),
+    p2: hex(p.slice(8, 12)),
+    config: hex(p.slice(12, 13)),
+    tagpw: hex(p.slice(13, 16)),
+    p4: hex(p.slice(16, 20)),
+    p5: hex(p.slice(20, 24)),
+    p6: hex(p.slice(24, 28)),
+    p7: hex(p.slice(28, 32)),
   };
 }
 

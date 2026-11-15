@@ -10,21 +10,20 @@ exchange got.
 
 ## The tag
 
-The page sets up a Hitag 2 tag from four fields, each hex, pre-filled with a made-up default:
+The page shows all eight Hitag 2 pages as fields, in order, each hex and pre-filled with a made-up default:
 
-- **UID** (page 0): yours to set. Set it to your fob's if you want the reader to see that number. The UID appears in
-  the safe report, since a reader broadcasts it over the air anyway.
-- **Password** (page 1): the reader password the tag expects. The default `0A0B0C0D` won't match a real reader, so a
-  reader won't authenticate — which is fine if the test is only whether it treats the CU as a Hitag 2 tag. Set it to
-  the reader's own password to have the CU authenticate. It stays on the page and in the private details, never the
-  safe report.
-- **Config** (page 3, byte 0): `06` — Hitag 2, password mode.
-- **Tag password** (page 3, bytes 1–3): what the tag returns after a successful authentication.
+| page | default | holds |
+| --- | --- | --- |
+| 0 | `01020304` | **UID.** Yours to set; set it to your fob's for the reader to see that number. It appears in the safe report, since a reader broadcasts it over the air anyway. |
+| 1 | `4D494B52` (`MIKR`) | **Reader password.** The password the tag expects. The default won't match a real reader, which is fine if the test is only whether the reader treats the CU as a Hitag 2 tag; set it to the reader's own password to have the CU authenticate. It stays on the page and in the private details, never the safe report. |
+| 2 | `22222222` | Crypto key, high bytes. Unused in password mode. |
+| 3 | `06` + `AABBCC` | **Config + tag password.** The config byte is fixed at `06` (Hitag 2, password mode, the only mode supported) and shown read-only; the three bytes after it are what the tag returns once a reader authenticates. |
+| 4–7 | `04…`–`07…` | User pages. |
 
 Either type the fields, or **read a real tag** into them: hold the tag to the CU and read its UID alone, or, with the
-tag's password in the field, read all eight pages into the fields. Review them, then write the tag to the slot. Reading
+tag's password in page 1, read all eight pages into the fields. Review them, then write the tag to the slot. Reading
 uses the firmware's Hitag 2 reader (it flips to reader mode for the read, then back to tag mode when the slot is
-written).
+written); a page it cannot read keeps its field's value.
 
 The page writes the fields to the active slot and saves them. Flashing keeps the slots; writing the tag overwrites the
 active slot's LF side.
