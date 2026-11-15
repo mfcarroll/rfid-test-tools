@@ -11,7 +11,6 @@
         grid-template-columns: auto auto auto 1fr;
         gap: 7px 20px;
         align-items: center;
-        max-width: 620px;
       }
       .pages .ph {
         color: var(--muted);
@@ -29,7 +28,7 @@
       .pages .pf {
         display: flex;
         gap: 6px;
-        width: 150px;
+        width: 130px;
       }
       .pages input {
         box-sizing: border-box;
@@ -38,7 +37,7 @@
         text-transform: uppercase;
       }
       .pages #p3config {
-        flex: 0 0 48px;
+        flex: 0 0 40px;
       }
       .pages #p3tagpw {
         flex: 1 1 auto;
@@ -50,6 +49,7 @@
       }
       .pages .pa {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 14px;
         color: var(--muted);
         white-space: pre;
         min-width: 4ch;
@@ -464,19 +464,25 @@
         }
       }
 
+      // The read status line, coloured by outcome: "ok" green, "warn" amber, "bad" red, "" neutral.
+      function setScan(msg, cls = "") {
+        $("scaninfo").className = "note" + (cls ? " " + cls : "");
+        $("scaninfo").textContent = msg;
+      }
+
       $("scan").onclick = () =>
         run("scan", async () => {
           need();
-          $("scaninfo").textContent = "Hold a tag to the CU…";
+          setScan("Hold a tag to the CU…");
           const r = await inReaderMode(() => cu.cmd(P.CMD.HITAG2_SCAN));
           if (r.status !== P.STATUS.LF_TAG_OK) {
-            $("scaninfo").textContent = "No Hitag 2 tag found.";
+            setScan("No Hitag 2 tag found.", "bad");
             return;
           }
           const uid = P.parseHitag2Scan(r.data);
           $("p0").value = uid;
           updateAscii();
-          $("scaninfo").textContent = `Read UID ${uid}. Put the tag's password in page 1 to read the pages, or write it to the slot.`;
+          setScan(`Tag UID read: ${uid}. Put the tag's password in page 1 to read the pages, or write it to the slot.`, "ok");
           log(`scanned a Hitag 2 tag, UID ${uid}`);
         });
 
@@ -485,18 +491,18 @@
           need();
           const pw = P.parseHex($("p1").value, 4);
           if (!pw) {
-            $("scaninfo").textContent = "Page 1 (the reader password) must be 8 hex digits to read a tag.";
+            setScan("Page 1 (the reader password) must be 8 hex digits to read a tag.", "bad");
             return;
           }
-          $("scaninfo").textContent = "Hold a tag to the CU…";
+          setScan("Hold a tag to the CU…");
           const r = await inReaderMode(() => cu.cmd(P.CMD.HITAG2_READ, P.reqHitag2Read(pw)));
           if (r.status === P.STATUS.MF_ERR_AUTH) {
-            $("scaninfo").textContent = "The tag did not accept the password.";
+            setScan("The tag did not accept the password.", "bad");
             return;
           }
           const read = (r.status === P.STATUS.LF_TAG_OK || r.status === P.STATUS.LF_TAG_NO_FOUND) && P.parseHitag2Read(r.data);
           if (!read) {
-            $("scaninfo").textContent = "No Hitag 2 tag found.";
+            setScan("No Hitag 2 tag found.", "bad");
             return;
           }
           const pages = P.pagesFromRead(read);
@@ -504,7 +510,10 @@
           const partial = r.status === P.STATUS.LF_TAG_NO_FOUND;
           const cfg = P.describeConfig(pages);
           const cfgNote = cfg.byte === 0x06 ? "" : ` Config is 0x${cfg.byte.toString(16).padStart(2, "0")} (${cfg.mode} mode); the emulation runs password mode regardless.`;
-          $("scaninfo").textContent = `Read ${read.count}/8 pages into the fields${partial ? " (some pages unread)" : ""}. Review, then write it to the slot.${cfgNote}`;
+          setScan(
+            `Read ${read.count}/8 pages into the fields${partial ? " (some pages unread)" : ""}. Review, then write it to the slot.${cfgNote}`,
+            partial ? "warn" : "ok",
+          );
           log(`read a Hitag 2 tag, ${read.count}/8 pages, UID ${P.uidOf(P.pagesFromRead(read))}`);
         });
 
