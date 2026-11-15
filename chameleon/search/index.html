@@ -76,8 +76,7 @@
               modulates the field shows clearly. A card that stays silent until
               it gets a command barely changes the level, because the CU's
               reader signal passes changes in the field and drops its steady
-              level, so a small change can't tell you whether such a card is
-              LF.
+              level, so a small change can't tell you whether such a card is LF.
             </p>
             <div class="row">
               <button id="baseline">Measure the empty field</button>
@@ -222,9 +221,9 @@
           The CU's HF reader only covers ISO 14443-A (MIFARE, NTAG, DESFire,
           most bank cards). An HF card of another kind, such as iCLASS, ISO
           15693 or FeliCa, doesn't show up. On LF, a card that only answers
-          commands (Hitag, EM4x50 and some others) shows no signal, and
-          usually no change in level either. The page sends the Hitag 2 start
-          command, but none for Hitag 1 or EM4x50.
+          commands (Hitag, EM4x50 and some others) shows no signal, and usually
+          no change in level either. The page sends the Hitag 2 start command,
+          but none for Hitag 1 or EM4x50.
         </p>
       </details>
       <details class="fold" id="logbox">
@@ -238,13 +237,13 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=ffca74e8e8",
           "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
-          "./framecheck.js": "./framecheck.js?v=6e19ab65f9",
+          "./framecheck.js": "./framecheck.js?v=41ad185e67",
           "./identify.js": "./identify.js?v=7ae8c66b46",
           "./lfdemod.js": "./lfdemod.js?v=5749888947",
           "../../common/page.js": "../../common/page.js?v=925f61259f"
         }
       }
     </script>
-    <script type="module" src="main.js?v=3212ea3904"></script>
+    <script type="module" src="main.js?v=168f7ef6c6"></script>
   </body>
 </html>

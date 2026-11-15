@@ -1,10 +1,6 @@
 // The FSK self-trim page (index.html): connecting the CU, setting up the slots, and reading the results.
 
-import {
-  SerialCU,
-  STATUS_SUCCESS,
-  STATUS_INVALID_CMD,
-} from "../common/cu.js";
+import { SerialCU, STATUS_SUCCESS, STATUS_INVALID_CMD } from "../common/cu.js";
 import { bindFlashButtons } from "../common/flash-ui.js";
 import {
   $,
@@ -165,9 +161,7 @@ function renderPlan() {
   src.textContent = "";
   const fsk = r.slots.filter((s) => X.EMU_ID[s.lfType]);
   for (const s of fsk)
-    src.append(
-      new Option(`slot ${s.slot + 1}: ${X.lfName(s.lfType)}`, s.slot),
-    );
+    src.append(new Option(`slot ${s.slot + 1}: ${X.lfName(s.lfType)}`, s.slot));
   if (!fsk.length)
     src.append(new Option("no HID Prox, Paradox or ioProx slot", ""));
   if ([...src.options].some((o) => o.value === prev)) src.value = prev;
@@ -191,9 +185,7 @@ function renderPlan() {
     td(String(s.slot + 1));
     const isSrc = from && s.slot === from.slot;
     const now = td(
-      isSrc
-        ? `${X.lfName(s.lfType)} (the card to copy)`
-        : X.lfName(s.lfType),
+      isSrc ? `${X.lfName(s.lfType)} (the card to copy)` : X.lfName(s.lfType),
     );
     if (!isSrc && plan.has(s.slot) && s.lfType) {
       now.className = "warn";
@@ -306,8 +298,7 @@ $("apply").onclick = () =>
       await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(targets[0][0]));
       await ok(X.CMD.SLOT_DATA_CONFIG_SAVE);
       log(`saved; slot ${targets[0][0] + 1} is active`);
-      $("planinfo").textContent =
-        `Done. Slot ${targets[0][0] + 1} is active.`;
+      $("planinfo").textContent = `Done. Slot ${targets[0][0] + 1} is active.`;
     } finally {
       card.fill(0);
       card = null;
@@ -585,8 +576,7 @@ async function readBackup() {
       card: null,
     };
     const n = await cu.cmd(X.CMD.GET_SLOT_TAG_NICK, X.reqSlotLf(s.slot));
-    if (n.status === STATUS_SUCCESS)
-      e.nick = new TextDecoder().decode(n.data);
+    if (n.status === STATUS_SUCCESS) e.nick = new TextDecoder().decode(n.data);
     const io = X.LF_CARD[s.lfType];
     if (io) {
       await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(s.slot));
@@ -650,14 +640,8 @@ $("restorefile").onchange = () =>
           throw new Error(
             `slot ${e.slot + 1}: this firmware can't write ${X.lfName(e.lfType)}`,
           );
-        await ok(
-          X.CMD.SET_SLOT_TAG_TYPE,
-          X.reqSlotType(e.slot, e.lfType),
-        );
-        await ok(
-          X.CMD.SET_SLOT_DATA_DEFAULT,
-          X.reqSlotType(e.slot, e.lfType),
-        );
+        await ok(X.CMD.SET_SLOT_TAG_TYPE, X.reqSlotType(e.slot, e.lfType));
+        await ok(X.CMD.SET_SLOT_DATA_DEFAULT, X.reqSlotType(e.slot, e.lfType));
         await ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(e.slot));
         let card = X.unhex(e.card);
         try {
@@ -665,10 +649,7 @@ $("restorefile").onchange = () =>
         } finally {
           card.fill(0);
         }
-        await ok(
-          X.CMD.SET_SLOT_ENABLE,
-          X.reqEnableLf(e.slot, e.lfEnabled),
-        );
+        await ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(e.slot, e.lfEnabled));
       }
       if (e.nick)
         await ok(X.CMD.SET_SLOT_TAG_NICK, X.reqNickLf(e.slot, e.nick));

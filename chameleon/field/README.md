@@ -77,14 +77,14 @@ reader in low-power card detection does.
 [`exp/field-measure`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/field-measure): the card search page's
 `lf-search` firmware with field measurement added. Commands 3160–3165:
 
-| command | request | reply |
-| --- | --- | --- |
-| 3160 mode | empty, or on (0/1) and the envelope load (0 off, 1 on, 2 tone) | on, load, log version, record size (BE16), log size (BE16) |
-| 3161 log | byte offset (BE16), optionally the most bytes to return (BE16) | up to that many bytes of the log, at most 4000 |
-| 3162 clear | – | – |
-| 3163 measure | – | one LF measurement record, also logged |
-| 3164 capture | load, rate in kHz, samples (BE16), analog input, gain divisor | samples taken (BE32) |
-| 3165 capture read | chunk | 4000 bytes of the capture, 16-bit little-endian |
+| command           | request                                                        | reply                                                      |
+| ----------------- | -------------------------------------------------------------- | ---------------------------------------------------------- |
+| 3160 mode         | empty, or on (0/1) and the envelope load (0 off, 1 on, 2 tone) | on, load, log version, record size (BE16), log size (BE16) |
+| 3161 log          | byte offset (BE16), optionally the most bytes to return (BE16) | up to that many bytes of the log, at most 4000             |
+| 3162 clear        | –                                                              | –                                                          |
+| 3163 measure      | –                                                              | one LF measurement record, also logged                     |
+| 3164 capture      | load, rate in kHz, samples (BE16), analog input, gain divisor  | samples taken (BE32)                                       |
+| 3165 capture read | chunk                                                          | 4000 bytes of the capture, 16-bit little-endian            |
 
 The log's layout is `fm_store_t` in `field_measure.h`, packed and little-endian. Version 2 adds the crash record, this
 boot's reset reason and a count of USB replies the CU dropped; version 3 adds the gated carrier, the field timing and

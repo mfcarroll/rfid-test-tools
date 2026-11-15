@@ -30,8 +30,8 @@
         <p>
           <b>While measuring, the CU doesn't emulate any card.</b> No slot
           answers a reader, and the buttons only wake the CU. The experimental
-          firmware starts with measurement on. Turn it off here when you're done,
-          or flash stock firmware.
+          firmware starts with measurement on. Turn it off here when you're
+          done, or flash stock firmware.
         </p>
       </div>
 
@@ -60,8 +60,8 @@
             <button id="reconnect">Reconnect</button>
           </div>
           <p class="note warn" id="fwneed" hidden>
-            This firmware has no field measurement. Flash the experimental firmware
-            below, then connect again.
+            This firmware has no field measurement. Flash the experimental
+            firmware below, then connect again.
           </p>
 
           <div class="gap-top">
@@ -86,15 +86,14 @@
               show an LF field being measured; green shows an HF field. A red
               flash means the reader's field dropped for a moment. Some readers
               switch their field off all the time, and some only weaken it. The
-              report says which. You can visit
-              more than one reader, but the log keeps only the last 12 LF
-              measurements, and each reader's field is easier to read on its
-              own.
+              report says which. You can visit more than one reader, but the log
+              keeps only the last 12 LF measurements, and each reader's field is
+              easier to read on its own.
             </p>
             <p class="note">
-              <b>Hitag readers: check which mode they use.</b> Clear the log in the
-              browser before you go. At the reader, hold the CU against it, then
-              bring your fob up next to it and keep both there for about 5
+              <b>Hitag readers: check which mode they use.</b> Clear the log in
+              the browser before you go. At the reader, hold the CU against it,
+              then bring your fob up next to it and keep both there for about 5
               seconds. Take them both away, wait until the CU's lights go off,
               and do it again, three times in all. Then read the log as usual.
             </p>
@@ -185,8 +184,9 @@
         <div class="aside">
           <div class="small"><b>Firmware</b></div>
           <p class="note">
-            Field measurement needs the experimental firmware: the card search page's
-            firmware (<code>lf-search</code>) with field measurement added (<a
+            Field measurement needs the experimental firmware: the card search
+            page's firmware (<code>lf-search</code>) with field measurement
+            added (<a
               href="https://github.com/mfcarroll/ChameleonUltra/tree/exp/field-measure"
               >source</a
             >). Flashing replaces the CU's firmware and keeps the current slots.
@@ -221,8 +221,7 @@
         <div class="callout caution">
           <p>
             A reader's commands, decoded to bits, and the first bytes of HF
-            frames. May include sensitive info, so don't post
-            these publicly.
+            frames. May include sensitive info, so don't post these publicly.
           </p>
         </div>
         <details class="options">
@@ -240,9 +239,9 @@
           <li>
             The experimental firmware starts with measurement on, and
             <b>Turn measuring on</b> sets the CU to tag mode and switches it on
-            again. While measuring, the CU senses LF and HF fields
-            whatever its slots hold, never answers, and ignores its buttons
-            except to wake up.
+            again. While measuring, the CU senses LF and HF fields whatever its
+            slots hold, never answers, and ignores its buttons except to wake
+            up.
           </li>
           <li>
             When an <b>LF field</b> appears, the CU measures it at the start,
@@ -284,11 +283,11 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=ffca74e8e8",
           "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
-          "./measure.js": "./measure.js?v=ae176bf426",
+          "./measure.js": "./measure.js?v=309d3d050e",
           "../../common/page.js": "../../common/page.js?v=925f61259f"
         }
       }
     </script>
-    <script type="module" src="main.js?v=66022a11c8"></script>
+    <script type="module" src="main.js?v=3cea3450dc"></script>
   </body>
 </html>

@@ -143,8 +143,7 @@ bindFlashButtons({
 // Field measurement works in tag mode only.
 async function tagMode() {
   const m = await cu.cmd(P.CMD.GET_DEVICE_MODE, undefined, 8);
-  if (m.data[0] !== 0)
-    await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, P.reqMode(false));
+  if (m.data[0] !== 0) await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, P.reqMode(false));
 }
 async function setMeasure(on, envMode) {
   need();
@@ -183,9 +182,7 @@ async function logPiece(offset, max) {
         `reading the log at byte ${offset}: ${e.message}${tries < 2 ? ", trying again" : ""}`,
       );
       if (tries >= 2)
-        throw new Error(
-          `the log stopped at byte ${offset} of ${P.LOG_SIZE}`,
-        );
+        throw new Error(`the log stopped at byte ${offset} of ${P.LOG_SIZE}`);
     }
   }
 }
@@ -272,12 +269,9 @@ function plot(samples) {
   g.clearRect(0, 0, w, h);
   let mn = Infinity,
     mx = -Infinity;
-  for (const s of samples)
-    ((mn = Math.min(mn, s)), (mx = Math.max(mx, s)));
+  for (const s of samples) ((mn = Math.min(mn, s)), (mx = Math.max(mx, s)));
   const span = mx - mn || 1;
-  g.strokeStyle = getComputedStyle(document.body).getPropertyValue(
-    "--accent",
-  );
+  g.strokeStyle = getComputedStyle(document.body).getPropertyValue("--accent");
   g.beginPath();
   // one column per pixel: its minimum to its maximum, so a gap a sample wide still shows
   const per = samples.length / w;
@@ -334,11 +328,7 @@ $("capture").onclick = () =>
     log(`capture: ${$("capinfo").textContent}`);
   });
 $("capdownload").onclick = () => {
-  if (
-    !confirm(
-      "A raw capture can include sensitive info. Download it anyway?",
-    )
-  )
+  if (!confirm("A raw capture can include sensitive info. Download it anyway?"))
     return;
   saveJson(`cu-field-capture-${Date.now()}.json`, {
     firmware,
@@ -347,11 +337,7 @@ $("capdownload").onclick = () => {
 };
 
 $("download").onclick = () => {
-  if (
-    !confirm(
-      "The log can include sensitive info. Download it anyway?",
-    )
-  )
+  if (!confirm("The log can include sensitive info. Download it anyway?"))
     return;
   let s = "";
   for (const b of rawLog) s += String.fromCharCode(b);

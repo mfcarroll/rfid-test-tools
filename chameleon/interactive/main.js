@@ -64,7 +64,9 @@ const need = () => {
 };
 const ok = (r) => {
   if (r.status !== P.STATUS.SUCCESS)
-    throw new Error(`command ${r.cmd} returned status 0x${r.status.toString(16)}`);
+    throw new Error(
+      `command ${r.cmd} returned status 0x${r.status.toString(16)}`,
+    );
   return r;
 };
 
@@ -167,7 +169,17 @@ function updateAscii() {
 }
 // Each field holds hex of a fixed length: 8 digits (4 bytes) per page, 2 for the config byte, 6 for the tag
 // password. Cap the length and drop any non-hex character as it is typed or pasted.
-const HEX_LEN = { p0: 8, p1: 8, p2: 8, p3config: 2, p3tagpw: 6, p4: 8, p5: 8, p6: 8, p7: 8 };
+const HEX_LEN = {
+  p0: 8,
+  p1: 8,
+  p2: 8,
+  p3config: 2,
+  p3tagpw: 6,
+  p4: 8,
+  p5: 8,
+  p6: 8,
+  p7: 8,
+};
 for (const id in HEX_LEN) {
   const el = $(id);
   el.maxLength = HEX_LEN[id];
@@ -209,7 +221,10 @@ $("scan").onclick = () =>
     const uid = P.parseHitag2Scan(r.data);
     $("p0").value = uid;
     updateAscii();
-    setScan(`Tag UID read: ${uid}. Put the tag's password in page 1 to read the pages, or write it to the slot.`, "ok");
+    setScan(
+      `Tag UID read: ${uid}. Put the tag's password in page 1 to read the pages, or write it to the slot.`,
+      "ok",
+    );
     log(`scanned a Hitag 2 tag, UID ${uid}`);
   });
 
@@ -218,16 +233,24 @@ $("readtag").onclick = () =>
     need();
     const pw = P.parseHex($("p1").value, 4);
     if (!pw) {
-      setScan("Page 1 (the reader password) must be 8 hex digits to read a tag.", "bad");
+      setScan(
+        "Page 1 (the reader password) must be 8 hex digits to read a tag.",
+        "bad",
+      );
       return;
     }
     setScan("Hold a tag to the CU…");
-    const r = await inReaderMode(() => cu.cmd(P.CMD.HITAG2_READ, P.reqHitag2Read(pw)));
+    const r = await inReaderMode(() =>
+      cu.cmd(P.CMD.HITAG2_READ, P.reqHitag2Read(pw)),
+    );
     if (r.status === P.STATUS.MF_ERR_AUTH) {
       setScan("The tag did not accept the password.", "bad");
       return;
     }
-    const read = (r.status === P.STATUS.LF_TAG_OK || r.status === P.STATUS.LF_TAG_NO_FOUND) && P.parseHitag2Read(r.data);
+    const read =
+      (r.status === P.STATUS.LF_TAG_OK ||
+        r.status === P.STATUS.LF_TAG_NO_FOUND) &&
+      P.parseHitag2Read(r.data);
     if (!read) {
       setScan("No Hitag 2 tag found.", "bad");
       return;
@@ -236,12 +259,17 @@ $("readtag").onclick = () =>
     fillFields(P.fieldsFromPages(pages));
     const partial = r.status === P.STATUS.LF_TAG_NO_FOUND;
     const cfg = P.describeConfig(pages);
-    const cfgNote = cfg.byte === 0x06 ? "" : ` Config is 0x${cfg.byte.toString(16).padStart(2, "0")} (${cfg.mode} mode); the emulation runs password mode regardless.`;
+    const cfgNote =
+      cfg.byte === 0x06
+        ? ""
+        : ` Config is 0x${cfg.byte.toString(16).padStart(2, "0")} (${cfg.mode} mode); the emulation runs password mode regardless.`;
     setScan(
       `Read ${read.count}/8 pages into the fields${partial ? " (some pages unread)" : ""}. Review, then write it to the slot.${cfgNote}`,
       partial ? "warn" : "ok",
     );
-    log(`read a Hitag 2 tag, ${read.count}/8 pages, UID ${P.uidOf(P.pagesFromRead(read))}`);
+    log(
+      `read a Hitag 2 tag, ${read.count}/8 pages, UID ${P.uidOf(P.pagesFromRead(read))}`,
+    );
   });
 
 // ---------------------------------------------------------------- write the tag to the slot
@@ -250,18 +278,30 @@ $("setup").onclick = () =>
     need();
     const pages = P.pagesFromFields(readFields());
     if (!pages) {
-      $("setupinfo").textContent = "Each page must be hex: 8 digits, or 6 for the tag password.";
+      $("setupinfo").textContent =
+        "Each page must be hex: 8 digits, or 6 for the tag password.";
       return;
     }
     const uid = P.uidOf(pages);
     const slotFw = Number($("slot").value);
     ok(await cu.cmd(P.CMD.SET_ACTIVE_SLOT, P.reqActiveSlot(slotFw)));
-    ok(await cu.cmd(P.CMD.SET_SLOT_TAG_TYPE, P.reqSetType(slotFw, P.TAG_TYPE_HITAG2)));
+    ok(
+      await cu.cmd(
+        P.CMD.SET_SLOT_TAG_TYPE,
+        P.reqSetType(slotFw, P.TAG_TYPE_HITAG2),
+      ),
+    );
     ok(await cu.cmd(P.CMD.HITAG2_SET_EMU_DATA, pages));
-    ok(await cu.cmd(P.CMD.SET_SLOT_ENABLE, P.reqSetEnable(slotFw, P.SENSE_LF, true)));
+    ok(
+      await cu.cmd(
+        P.CMD.SET_SLOT_ENABLE,
+        P.reqSetEnable(slotFw, P.SENSE_LF, true),
+      ),
+    );
     ok(await cu.cmd(P.CMD.CHANGE_DEVICE_MODE, Uint8Array.of(0)));
     ok(await cu.cmd(P.CMD.SLOT_DATA_CONFIG_SAVE));
-    $("setupinfo").textContent = `Slot ${slotFw + 1}: Hitag 2, UID ${uid}, saved. Clear the trace, then go to the reader.`;
+    $("setupinfo").textContent =
+      `Slot ${slotFw + 1}: Hitag 2, UID ${uid}, saved. Clear the trace, then go to the reader.`;
     log(`set up Hitag 2 on slot ${slotFw + 1}, UID ${uid}`);
   });
 
@@ -269,7 +309,8 @@ $("clear").onclick = () =>
   run("clear", async () => {
     need();
     ok(await cu.cmd(P.CMD.LF_IA_TRACE_CLEAR));
-    $("clearinfo").textContent = "Trace cleared. Unplug the CU and hold it to the reader.";
+    $("clearinfo").textContent =
+      "Trace cleared. Unplug the CU and hold it to the reader.";
     $("resultbox").hidden = true;
     log("trace cleared");
   });
@@ -313,7 +354,10 @@ $("read").onclick = () =>
     need();
     const counters = P.parseCounters(ok(await cu.cmd(P.CMD.LF_IA_TUNING)).data);
     const emuR = await cu.cmd(P.CMD.HITAG2_GET_EMU_DATA);
-    const emu = emuR.status === P.STATUS.SUCCESS ? emuR.data.slice(0, P.HITAG2_DATA_SIZE) : null;
+    const emu =
+      emuR.status === P.STATUS.SUCCESS
+        ? emuR.data.slice(0, P.HITAG2_DATA_SIZE)
+        : null;
     const t = await readTrace();
     report = { firmware, counters, emu, ...t };
     $("safe").textContent = P.safeMarkdown(report);
@@ -328,8 +372,12 @@ $("read").onclick = () =>
     }
     $("readinfo").textContent =
       `${t.recs.length} record(s) over ${counters.sessions} session(s).` +
-      (pw ? ` Reader password ${pw.hex} recovered into page 1 — write it to the slot to authenticate.` : "");
-    log(`read the trace: ${t.recs.length} records, boot ${t.boot}${pw ? `, recovered reader password into page 1` : ""}`);
+      (pw
+        ? ` Reader password ${pw.hex} recovered into page 1 — write it to the slot to authenticate.`
+        : "");
+    log(
+      `read the trace: ${t.recs.length} records, boot ${t.boot}${pw ? `, recovered reader password into page 1` : ""}`,
+    );
     $("resultbox").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
@@ -348,8 +396,7 @@ bindFlashButtons({
   busy: () => (busy ? "busy, try again in a moment" : null),
   done: () => {
     setState("connect");
-    $("connectinfo").textContent =
-      "Flashed. Connect the CU again to continue.";
+    $("connectinfo").textContent = "Flashed. Connect the CU again to continue.";
   },
 });
 

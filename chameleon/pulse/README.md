@@ -14,19 +14,19 @@ frame is about 38 ms, so a 50 ms pulse holds one whole frame only if it starts w
 
 On a Proxmark3 switching its field on for 50 ms and off for 100 ms or more (40 pulses each):
 
-| | whole frame inside the pulse |
-|---|---|
-| stock | 11 of 40 |
-| pulse timing | 40 of 40 |
-| T5577 | 40 of 40 |
+|              | whole frame inside the pulse |
+| ------------ | ---------------------------- |
+| stock        | 11 of 40                     |
+| pulse timing | 40 of 40                     |
+| T5577        | 40 of 40                     |
 
 The current firmware (`2ca24315`), with a Paradox card, on a Proxmark3 switching its field on for 77 ms or 49 ms and off
 for 173 ms (a Paradox door reader's timing):
 
-| | 77 ms pulses | 49 ms pulses |
-|---|---|---|
-| stock | 40 of 40 | 16 of 40 |
-| pulse timing, with or without exact bits | 40 of 40 | 40 of 40 |
+|                                          | 77 ms pulses | 49 ms pulses |
+| ---------------------------------------- | ------------ | ------------ |
+| stock                                    | 40 of 40     | 16 of 40     |
+| pulse timing, with or without exact bits | 40 of 40     | 40 of 40     |
 
 A 77 ms pulse always holds one of stock's back-to-back frames, at a random point. The pulse slots start theirs at
 2.1 ms, and the next frame follows straight after it. The first version of this firmware (`9e043062`) checked the

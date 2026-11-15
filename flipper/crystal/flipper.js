@@ -107,7 +107,7 @@ export class SerialFlipper {
   }
 
   // Runs one `rfid read <mode>` ("indala" reads PSK only) and times it. The command holds the CLI until it decodes a
-// card or gets Ctrl-C, and this method sends Ctrl-C after timeoutS. Returns { s, protocol, data, info }: s is the seconds from sending the command
+  // card or gets Ctrl-C, and this method sends Ctrl-C after timeoutS. Returns { s, protocol, data, info }: s is the seconds from sending the command
   // to the decode line, data the hex the CLI prints, info its rendered lines. Returns { s: null } after a timeout.
   async rfidRead(mode, timeoutS) {
     this.text = "";
@@ -134,7 +134,12 @@ export class SerialFlipper {
     const at = lines.findIndex((l) => /^\w+ (?:[0-9A-F]{2})+$/.test(l));
     const [protocol, data] = lines[at].split(" ");
     const end = lines.indexOf("Reading stopped");
-    return { s, protocol, data, info: lines.slice(at + 1, end).filter(Boolean) };
+    return {
+      s,
+      protocol,
+      data,
+      info: lines.slice(at + 1, end).filter(Boolean),
+    };
   }
 
   // Replace a file with `bytes` through `storage write_chunk`, which prints "Ready" and then reads exactly that

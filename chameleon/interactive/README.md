@@ -14,13 +14,13 @@ The page shows all eight Hitag 2 pages as fields, in order, each hex, with an AS
 bytes as printable characters, a dot for each non-printable one, like a Proxmark dump). Most defaults are greyed
 placeholders — leave a field blank to use its default, or type over it:
 
-| page | default | holds |
-| --- | --- | --- |
-| 0 | `12345678` | **UID.** Yours to set; set it to your fob's for the reader to see that number. It appears in the safe report, since a reader broadcasts it over the air anyway. |
-| 1 | empty (placeholder `4D494B52` / `MIKR`) | **Reader password.** The password the tag expects. It starts empty — the placeholder is the Hitag 2 manufacturer default; blank falls back to it. Set it to the reader's own password to authenticate, or leave it and let a reader's failed attempts reveal it (see below), which fills this field. It stays on the page and in the private details, never the safe report. |
-| 2 | `22222222` | Crypto key, high bytes. Unused in password mode. |
-| 3 | `06` + `AABBCC` | **Config + tag password.** The config byte box is read-only, `06` (Hitag 2, password mode) by default; reading a tag shows that tag's real config byte instead, flagged when it isn't `06`. The three bytes after it are what the tag returns once a reader authenticates. The emulation ignores the config byte and always runs password mode, so a non-`06` value is informational. |
-| 4–7 | `44444444`–`77777777` | User pages. |
+| page | default                                 | holds                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | `12345678`                              | **UID.** Yours to set; set it to your fob's for the reader to see that number. It appears in the safe report, since a reader broadcasts it over the air anyway.                                                                                                                                                                                                                       |
+| 1    | empty (placeholder `4D494B52` / `MIKR`) | **Reader password.** The password the tag expects. It starts empty — the placeholder is the Hitag 2 manufacturer default; blank falls back to it. Set it to the reader's own password to authenticate, or leave it and let a reader's failed attempts reveal it (see below), which fills this field. It stays on the page and in the private details, never the safe report.          |
+| 2    | `22222222`                              | Crypto key, high bytes. Unused in password mode.                                                                                                                                                                                                                                                                                                                                      |
+| 3    | `06` + `AABBCC`                         | **Config + tag password.** The config byte box is read-only, `06` (Hitag 2, password mode) by default; reading a tag shows that tag's real config byte instead, flagged when it isn't `06`. The three bytes after it are what the tag returns once a reader authenticates. The emulation ignores the config byte and always runs password mode, so a non-`06` value is informational. |
+| 4–7  | `44444444`–`77777777`                   | User pages.                                                                                                                                                                                                                                                                                                                                                                           |
 
 Either type the fields, or **read a real tag** into them: hold the tag to the CU and read its UID alone, or, with the
 tag's password in page 1, read all eight pages into the fields. Review them, then write the tag to the slot. Reading
@@ -82,18 +82,18 @@ without reading any secret.
 engine (a protocol-agnostic listen-and-respond loop), the Hitag 2 password-mode module, a Hitag 2 reader, and the
 retained exchange trace, on top of upstream `main`. Commands the page uses:
 
-| command | request | reply |
-| --- | --- | --- |
-| 1003 set active slot | slot (u8) | – |
-| 1004 set slot type | slot (u8), tag type (BE16) | – |
-| 1018 get active slot | – | the active slot (u8) |
-| 3036 Hitag 2 scan | – | the tag's UID, 4 bytes (status `LF_TAG_OK`, else `LF_TAG_NO_FOUND`) |
-| 3037 Hitag 2 read | the reader password, 4 bytes | 32 page bytes, then a u8 mask of which pages read (status `LF_TAG_OK`, `LF_TAG_NO_FOUND` if partial, `MF_ERR_AUTH` on a wrong password) |
-| 5040 set Hitag 2 data | 32 bytes: eight pages, page 0 first, MSB first | – |
-| 5041 get Hitag 2 data | – | the active slot's 32 bytes, if its LF type is Hitag 2 |
-| 3180 trace read | first record index (BE16) | total (u32 LE), record size (u16 LE), count (u8), first kept (u8), boot (u16 LE), then the records |
-| 3181 trace clear | – | – |
-| 3184 counters | – | the 14-byte tuning struct, then seven u32 counters (sessions, commands, answers, late, ADC ticks, slips, longest tick) |
+| command               | request                                        | reply                                                                                                                                   |
+| --------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 1003 set active slot  | slot (u8)                                      | –                                                                                                                                       |
+| 1004 set slot type    | slot (u8), tag type (BE16)                     | –                                                                                                                                       |
+| 1018 get active slot  | –                                              | the active slot (u8)                                                                                                                    |
+| 3036 Hitag 2 scan     | –                                              | the tag's UID, 4 bytes (status `LF_TAG_OK`, else `LF_TAG_NO_FOUND`)                                                                     |
+| 3037 Hitag 2 read     | the reader password, 4 bytes                   | 32 page bytes, then a u8 mask of which pages read (status `LF_TAG_OK`, `LF_TAG_NO_FOUND` if partial, `MF_ERR_AUTH` on a wrong password) |
+| 5040 set Hitag 2 data | 32 bytes: eight pages, page 0 first, MSB first | –                                                                                                                                       |
+| 5041 get Hitag 2 data | –                                              | the active slot's 32 bytes, if its LF type is Hitag 2                                                                                   |
+| 3180 trace read       | first record index (BE16)                      | total (u32 LE), record size (u16 LE), count (u8), first kept (u8), boot (u16 LE), then the records                                      |
+| 3181 trace clear      | –                                              | –                                                                                                                                       |
+| 3184 counters         | –                                              | the 14-byte tuning struct, then seven u32 counters (sessions, commands, answers, late, ADC ticks, slips, longest tick)                  |
 
 3036 and 3037 are reader commands: the firmware rejects them unless the CU is already in reader mode (command 1001,
 argument 1), returning a device-mode error. The page switches to reader mode around each read and back to tag mode

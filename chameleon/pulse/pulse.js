@@ -162,9 +162,9 @@ export function report(r, firmware, p) {
     if (!FSK_TYPES.has(s.lfType) && !s.fields) continue;
     let l = `slot ${s.slot + 1}: ${lfName(s.lfType)}, ${presetName(s.preset)}, fields seen ${s.fields}`;
     const q = p?.slots[s.slot];
-    if (q && (s.preset & PULSE)) l += `, short fields ${q.shortFields}`;
+    if (q && s.preset & PULSE) l += `, short fields ${q.shortFields}`;
     if (s.preset & (TRIM_LEARN | TRIM_FIXED)) l += `, trim ${trimText(p, s)}`;
-    if (q && (s.preset & TRIM_LEARN))
+    if (q && s.preset & TRIM_LEARN)
       l += ` (${q.measures} measurement(s), ${q.fails} without a line${q.haveLast ? `, last ${q.lastSnr.toFixed(0)} dB` : ""})`;
     lines.push(l);
   }

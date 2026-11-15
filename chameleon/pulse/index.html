@@ -112,8 +112,8 @@
           <h2>Test at a reader</h2>
           <ol class="note">
             <li>
-              Unplug the CU and take it to the reader. Start on slot 1 and go
-              in order to slot 7.
+              Unplug the CU and take it to the reader. Start on slot 1 and go in
+              order to slot 7.
             </li>
             <li>
               On each slot, hold the CU to the reader for about 5 seconds, then
@@ -223,8 +223,8 @@
           </li>
           <li>
             <b>pulse timing</b>: a card loses power between a reader's pulses
-            and starts its frame again at each one. In this mode the CU does
-            the same. It starts a fresh frame 2.1 ms into each field, as a T5577
+            and starts its frame again at each one. In this mode the CU does the
+            same. It starts a fresh frame 2.1 ms into each field, as a T5577
             does, sends a second frame straight after it, then checks the field.
             It does that for a field's first 3 pairs of frames. A field that
             stays on gets the usual 10-frame bursts after that.
@@ -282,14 +282,13 @@
         <summary><h2>For developers</h2></summary>
         <ul class="note">
           <li>
-            Command 3120 reports each slot's mode and the fields seen.
-            Command 3130 reports what each slot learned from the reader's pulses
-            and the short fields. <code>0xC1</code> to either clears the
-            results.
+            Command 3120 reports each slot's mode and the fields seen. Command
+            3130 reports what each slot learned from the reader's pulses and the
+            short fields. <code>0xC1</code> to either clears the results.
           </li>
           <li>
-            Command 3100 at offset <code>0xFFFE</code> reads the event
-            log: the last 32 events, kept while the CU sleeps. Offset
+            Command 3100 at offset <code>0xFFFE</code> reads the event log: the
+            last 32 events, kept while the CU sleeps. Offset
             <code>0xFFFC</code> clears it.
           </li>
           <li>
@@ -314,11 +313,11 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=ffca74e8e8",
           "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
-          "./pulse.js": "./pulse.js?v=3607f9c018",
+          "./pulse.js": "./pulse.js?v=bcf90b7ad3",
           "../../common/page.js": "../../common/page.js?v=925f61259f"
         }
       }
     </script>
-    <script type="module" src="main.js?v=6976cb38b2"></script>
+    <script type="module" src="main.js?v=f7c512986e"></script>
   </body>
 </html>

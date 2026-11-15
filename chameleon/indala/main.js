@@ -1,10 +1,6 @@
 // The Indala test page (index.html): connecting the CU, loading the test card, and timing the reads.
 
-import {
-  SerialCU,
-  STATUS_SUCCESS,
-  STATUS_INVALID_CMD,
-} from "../common/cu.js";
+import { SerialCU, STATUS_SUCCESS, STATUS_INVALID_CMD } from "../common/cu.js";
 import { bindFlashButtons } from "../common/flash-ui.js";
 import { SerialFlipper } from "../../flipper/crystal/flipper.js";
 import {
@@ -58,8 +54,7 @@ const CONTROLS = [
 function setRunning(on) {
   $("runbox").hidden = !on;
   for (const id of CONTROLS) $(id).disabled = on;
-  for (const b of document.querySelectorAll(".connectFlipper"))
-    b.disabled = on;
+  for (const b of document.querySelectorAll(".connectFlipper")) b.disabled = on;
   if (!on) showReady();
 }
 
@@ -168,10 +163,7 @@ async function showSlots() {
   const slots = X.parseSlotInfo(r.data);
   const keep = $("slot").value;
   $("slot").innerHTML = slots
-    .map(
-      (s, i) =>
-        `<option value="${i}">${i + 1}: ${X.lfName(s.lf)}</option>`,
-    )
+    .map((s, i) => `<option value="${i}">${i + 1}: ${X.lfName(s.lf)}</option>`)
     .join("");
   // default: a slot that already holds the test card's type, else the last slot
   const p = profile();
@@ -275,9 +267,7 @@ $("readTest").onclick = () =>
           t.s = a.ta - a.tb;
           t.fp = await X.fingerprint(a.data);
         } else if (a.status !== X.STATUS_LF_TAG_NO_FOUND)
-          throw new Error(
-            `scan returned status 0x${a.status.toString(16)}`,
-          );
+          throw new Error(`scan returned status 0x${a.status.toString(16)}`);
         r.tries.push(t);
         const line = t.fp
           ? `read ${i + 1}: ${t.s.toFixed(2)} s, fingerprint ${t.fp}`

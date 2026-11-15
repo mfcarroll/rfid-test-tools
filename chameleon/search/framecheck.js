@@ -538,7 +538,11 @@ export function hitag2Answer(bytes) {
   }
   // The longest stretch of runs one or two half bits long.
   const halves = (n) =>
-    n >= 0.6 * HT_HALF && n <= 1.4 * HT_HALF ? 1 : n >= 1.6 * HT_HALF && n <= 2.4 * HT_HALF ? 2 : 0;
+    n >= 0.6 * HT_HALF && n <= 1.4 * HT_HALF
+      ? 1
+      : n >= 1.6 * HT_HALF && n <= 2.4 * HT_HALF
+        ? 2
+        : 0;
   let best = [0, 0];
   for (let i = 0, start = 0; i <= runs.length; i++)
     if (i === runs.length || runs[i][0] === 0 || !halves(runs[i][1])) {
@@ -546,7 +550,8 @@ export function hitag2Answer(bytes) {
       start = i + 1;
     }
   let hs = "";
-  for (const [lv, n] of runs.slice(best[0], best[1])) hs += (lv > 0 ? "H" : "L").repeat(halves(n));
+  for (const [lv, n] of runs.slice(best[0], best[1]))
+    hs += (lv > 0 ? "H" : "L").repeat(halves(n));
   if (hs.length < 2 * 37) return null;
   for (const polarity of ["HL", "LH"])
     for (const phase of [0, 1]) {
@@ -561,7 +566,11 @@ export function hitag2Answer(bytes) {
       const header = Math.min(lead, bits.length - 32);
       if (header < 5) continue;
       const serial = bits.slice(header, header + 32);
-      return { header, serial: parseInt(serial, 2).toString(16).padStart(8, "0"), bits: bits.length };
+      return {
+        header,
+        serial: parseInt(serial, 2).toString(16).padStart(8, "0"),
+        bits: bits.length,
+      };
     }
   return null;
 }

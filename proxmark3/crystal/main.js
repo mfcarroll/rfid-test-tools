@@ -121,10 +121,7 @@ const device = {
 setInterval(() => {
   const run = currentRun();
   if (!running || !run) return;
-  const done = Math.min(
-    100,
-    ((nowS() - run.t0) / (run.minutes * 60)) * 100,
-  );
+  const done = Math.min(100, ((nowS() - run.t0) / (run.minutes * 60)) * 100);
   $("progress").style.width = `${done}%`;
   document
     .querySelector(".bar")
@@ -153,8 +150,7 @@ $("start").onclick = async () => {
   const r = await measure(device);
   running = false;
   if (!r) {
-    $("notice").textContent =
-      stopNotice();
+    $("notice").textContent = stopNotice();
     setState("ready");
     return;
   }

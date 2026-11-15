@@ -13,9 +13,9 @@
       <h1>Chameleon Ultra interactive LF emulation (experimental)</h1>
       <p class="sub">
         Emulate an interactive LF tag — one that answers a reader's commands,
-        not just a fixed card number. The first one is Hitag 2 in password
-        mode. Set up a test tag, take the CU to your reader, and the page tells
-        you whether the reader engaged with it and how far the exchange got.
+        not just a fixed card number. The first one is Hitag 2 in password mode.
+        Set up a test tag, take the CU to your reader, and the page tells you
+        whether the reader engaged with it and how far the exchange got.
       </p>
 
       <div class="callout">
@@ -29,9 +29,9 @@
         <p>
           <b>The tag's details are yours to set.</b> The fields start from a
           made-up tag; change them, or read a real tag over them. A password you
-          type or read stays on this page — it goes into the slot and the private
-          details, never the safe report. The UID does appear in the safe report,
-          since a reader broadcasts it over the air anyway.
+          type or read stays on this page — it goes into the slot and the
+          private details, never the safe report. The UID does appear in the
+          safe report, since a reader broadcasts it over the air anyway.
         </p>
       </div>
 
@@ -69,30 +69,118 @@
             <div class="title">1. Set up a Hitag 2 tag</div>
             <p class="note">
               Enter the tag's eight pages, or read a real tag into the fields,
-              then write it to the active slot. Each field is hex. For a reader to
-              authenticate, the reader password (page 1) must match the one the
-              reader sends. The config byte is fixed at <code>06</code> — Hitag 2,
-              password mode, the only mode supported.
+              then write it to the active slot. Each field is hex. For a reader
+              to authenticate, the reader password (page 1) must match the one
+              the reader sends. The config byte is fixed at <code>06</code> —
+              Hitag 2, password mode, the only mode supported.
             </p>
             <div class="pages gap-top">
-              <span class="ph">#</span><span class="ph">data</span><span class="ph">ascii</span><span class="ph">Info</span>
-              <span class="pn">0</span><div class="pf"><input id="p0" placeholder="12345678" spellcheck="false" aria-label="page 0, UID" /></div><span class="pa" id="a0"></span><span class="pl">UID</span>
-              <span class="pn">1</span><div class="pf"><input id="p1" placeholder="4D494B52" spellcheck="false" aria-label="page 1, reader password" /></div><span class="pa" id="a1"></span><span class="pl">Reader password (manufacturer default: 4D494B52 / MIKR)</span>
-              <span class="pn">2</span><div class="pf"><input id="p2" placeholder="22222222" spellcheck="false" aria-label="page 2, crypto key high bytes" /></div><span class="pa" id="a2"></span><span class="pl">Key, high bytes (crypto mode only, not supported yet)</span>
-              <span class="pn">3</span><div class="pf"><input id="p3config" value="06" readonly aria-label="page 3, config byte" /><input id="p3tagpw" placeholder="AABBCC" spellcheck="false" aria-label="page 3, tag password" /></div><span class="pa" id="a3"></span><span class="pl">Config + tag password</span>
-              <span class="pn">4</span><div class="pf"><input id="p4" placeholder="44444444" spellcheck="false" aria-label="page 4, user" /></div><span class="pa" id="a4"></span><span class="pl">User</span>
-              <span class="pn">5</span><div class="pf"><input id="p5" placeholder="55555555" spellcheck="false" aria-label="page 5, user" /></div><span class="pa" id="a5"></span><span class="pl">User</span>
-              <span class="pn">6</span><div class="pf"><input id="p6" placeholder="66666666" spellcheck="false" aria-label="page 6, user" /></div><span class="pa" id="a6"></span><span class="pl">User</span>
-              <span class="pn">7</span><div class="pf"><input id="p7" placeholder="77777777" spellcheck="false" aria-label="page 7, user" /></div><span class="pa" id="a7"></span><span class="pl">User</span>
+              <span class="ph">#</span><span class="ph">data</span
+              ><span class="ph">ascii</span><span class="ph">Info</span>
+              <span class="pn">0</span>
+              <div class="pf">
+                <input
+                  id="p0"
+                  placeholder="12345678"
+                  spellcheck="false"
+                  aria-label="page 0, UID"
+                />
+              </div>
+              <span class="pa" id="a0"></span><span class="pl">UID</span>
+              <span class="pn">1</span>
+              <div class="pf">
+                <input
+                  id="p1"
+                  placeholder="4D494B52"
+                  spellcheck="false"
+                  aria-label="page 1, reader password"
+                />
+              </div>
+              <span class="pa" id="a1"></span
+              ><span class="pl"
+                >Reader password (manufacturer default: 4D494B52 / MIKR)</span
+              >
+              <span class="pn">2</span>
+              <div class="pf">
+                <input
+                  id="p2"
+                  placeholder="22222222"
+                  spellcheck="false"
+                  aria-label="page 2, crypto key high bytes"
+                />
+              </div>
+              <span class="pa" id="a2"></span
+              ><span class="pl"
+                >Key, high bytes (crypto mode only, not supported yet)</span
+              >
+              <span class="pn">3</span>
+              <div class="pf">
+                <input
+                  id="p3config"
+                  value="06"
+                  readonly
+                  aria-label="page 3, config byte"
+                /><input
+                  id="p3tagpw"
+                  placeholder="AABBCC"
+                  spellcheck="false"
+                  aria-label="page 3, tag password"
+                />
+              </div>
+              <span class="pa" id="a3"></span
+              ><span class="pl">Config + tag password</span>
+              <span class="pn">4</span>
+              <div class="pf">
+                <input
+                  id="p4"
+                  placeholder="44444444"
+                  spellcheck="false"
+                  aria-label="page 4, user"
+                />
+              </div>
+              <span class="pa" id="a4"></span><span class="pl">User</span>
+              <span class="pn">5</span>
+              <div class="pf">
+                <input
+                  id="p5"
+                  placeholder="55555555"
+                  spellcheck="false"
+                  aria-label="page 5, user"
+                />
+              </div>
+              <span class="pa" id="a5"></span><span class="pl">User</span>
+              <span class="pn">6</span>
+              <div class="pf">
+                <input
+                  id="p6"
+                  placeholder="66666666"
+                  spellcheck="false"
+                  aria-label="page 6, user"
+                />
+              </div>
+              <span class="pa" id="a6"></span><span class="pl">User</span>
+              <span class="pn">7</span>
+              <div class="pf">
+                <input
+                  id="p7"
+                  placeholder="77777777"
+                  spellcheck="false"
+                  aria-label="page 7, user"
+                />
+              </div>
+              <span class="pa" id="a7"></span><span class="pl">User</span>
             </div>
             <div class="row gap-top">
-              <label>Slot <select id="slot"></select></label>
+              <label
+                >Slot
+                <select id="slot"></select
+              ></label>
               <button id="setup" class="primary">Write it to the slot</button>
               <span class="note" id="setupinfo"></span>
             </div>
             <p class="note gap-top">
-              Or read a real tag: hold it to the CU and read its UID, or, with the
-              tag's password in page 1, read all its pages into the fields.
+              Or read a real tag: hold it to the CU and read its UID, or, with
+              the tag's password in page 1, read all its pages into the fields.
             </p>
             <div class="row gap-top">
               <button id="scan">Read a tag's UID</button>
@@ -214,11 +302,11 @@
         "imports": {
           "../common/cu.js": "../common/cu.js?v=ffca74e8e8",
           "../common/flash-ui.js": "../common/flash-ui.js?v=911045fc52",
-          "./interactive.js": "./interactive.js?v=73d6e739a0",
+          "./interactive.js": "./interactive.js?v=4ba0f8c23f",
           "../../common/page.js": "../../common/page.js?v=925f61259f"
         }
       }
     </script>
-    <script type="module" src="main.js?v=02b877038d"></script>
+    <script type="module" src="main.js?v=c556e70eaa"></script>
   </body>
 </html>

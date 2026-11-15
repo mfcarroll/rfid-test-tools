@@ -38,7 +38,9 @@ const FIELD_LEVEL = 200;
 // ---------------------------------------------------------------- requests
 
 export const reqMode = (on, envMode) =>
-  envMode == null ? Uint8Array.of(on ? 1 : 0) : Uint8Array.of(on ? 1 : 0, envMode);
+  envMode == null
+    ? Uint8Array.of(on ? 1 : 0)
+    : Uint8Array.of(on ? 1 : 0, envMode);
 // The log from a byte offset, at most max bytes (the firmware sends up to 4000 if max is left out).
 export const reqLog = (offset, max) =>
   max == null
@@ -81,12 +83,22 @@ const CAP = 22,
 // field at fractions of its swing, not at an absolute level. levelOf re-reads them.
 const REC_OF = { 3: AUTH, 4: LEVEL, 5: REC };
 export const recSizeOf = (version) => REC_OF[version];
-export const logSize = (version) => HEADER + LF_RECS * REC_OF[version] + LF_FIELDS * LF_FIELD + HF_FIELDS * HF_FIELD;
+export const logSize = (version) =>
+  HEADER +
+  LF_RECS * REC_OF[version] +
+  LF_FIELDS * LF_FIELD +
+  HF_FIELDS * HF_FIELD;
 export const LOG_SIZE = logSize(LOG_VERSION);
 export const REC_SIZE = REC;
 const MAGIC = 0x31425046;
 
-const FLAGS = { manual: 0x01, ended: 0x02, railed: 0x04, ambiguous: 0x08, switched: 0x10 };
+const FLAGS = {
+  manual: 0x01,
+  ended: 0x02,
+  railed: 0x04,
+  ambiguous: 0x08,
+  switched: 0x10,
+};
 export const CARRIER_HOW = [
   "none",
   "the load tone at two sample rates",
@@ -166,9 +178,19 @@ function parseLevel(v, o) {
   for (let i = 0; i < n; i++) {
     const p = o + 7 + 6 * i;
     const depth = v.getUint16(p + 4, true);
-    dips.push({ start: v.getUint16(p, true), ms: v.getUint16(p + 2, true), depth: depth & 0x7fff, open: (depth & 0x8000) !== 0 });
+    dips.push({
+      start: v.getUint16(p, true),
+      ms: v.getUint16(p + 2, true),
+      depth: depth & 0x7fff,
+      open: (depth & 0x8000) !== 0,
+    });
   }
-  return { timingFull: v.getInt16(o, true), timingOffAt: v.getInt16(o + 2, true), levelDipsTotal: v.getUint16(o + 5, true), levelDips: dips };
+  return {
+    timingFull: v.getInt16(o, true),
+    timingOffAt: v.getInt16(o + 2, true),
+    levelDipsTotal: v.getUint16(o + 5, true),
+    levelDips: dips,
+  };
 }
 
 // The timing capture (1.79 s, LF_MOD off, 1 ms means): the field's stretches, alternately on and off.
@@ -176,8 +198,17 @@ function parseTiming(v, o) {
   const n = Math.min(v.getUint8(o + 5), RUNS);
   const firstOn = v.getUint8(o + 4) === 1;
   const runs = [];
-  for (let i = 0; i < n; i++) runs.push({ on: (i % 2 === 0) === firstOn, ms: v.getUint16(o + 8 + 2 * i, true) });
-  return { low: v.getInt16(o, true), high: v.getInt16(o + 2, true), total: v.getUint16(o + 6, true), runs };
+  for (let i = 0; i < n; i++)
+    runs.push({
+      on: (i % 2 === 0) === firstOn,
+      ms: v.getUint16(o + 8 + 2 * i, true),
+    });
+  return {
+    low: v.getInt16(o, true),
+    high: v.getInt16(o + 2, true),
+    total: v.getUint16(o + 6, true),
+    runs,
+  };
 }
 
 // What the timing capture says: a steady field, or a pulsing one with its on and off times. The first and last
@@ -186,11 +217,26 @@ export function describeTiming(t) {
   if (!t || !t.total) return null;
   if (t.total === 1) return t.runs[0]?.on ? { steady: true } : null;
   // One switch is a field that came or went during the capture, not a pulse.
-  if (t.total === 2) return { steady: false, edge: true, on: [], off: [], onMs: null, offMs: null };
+  if (t.total === 2)
+    return {
+      steady: false,
+      edge: true,
+      on: [],
+      off: [],
+      onMs: null,
+      offMs: null,
+    };
   const inner = t.runs.slice(1, t.total === t.runs.length ? -1 : undefined);
   const on = inner.filter((r) => r.on).map((r) => r.ms);
   const off = inner.filter((r) => !r.on).map((r) => r.ms);
-  return { steady: false, on, off, onMs: median(on), offMs: median(off), cut: t.total > t.runs.length };
+  return {
+    steady: false,
+    on,
+    off,
+    onMs: median(on),
+    offMs: median(off),
+    cut: t.total > t.runs.length,
+  };
 }
 
 // A short off looks like a dip in the timing capture. With the load off, the CU's level falls with a time constant
@@ -199,7 +245,8 @@ export function describeTiming(t) {
 // the ADC's rail, the fall shows later: 4 and 8 ms went to 63 and 25 %. So an off of t ms leaves at most e^(-t/10) of
 // the full level. A drop that stays well above that for its length is a dip.
 export const offLikeAt = (ms) => Math.exp(-ms / 10) + 0.05;
-const offLike = (frac, ms) => (frac == null || ms == null ? null : frac <= offLikeAt(ms));
+const offLike = (frac, ms) =>
+  frac == null || ms == null ? null : frac <= offLikeAt(ms);
 
 // The loaded envelope (the load on, 10 µs samples) times a gap to within 0.1 ms. A bench CU timed PM3 offs of 2 to
 // 32 ms. Its depth can't separate a dip from an off. A door reader's dips to 70 % took it to the no-field level.
@@ -208,7 +255,13 @@ function envelopeGapMs(rec) {
   if (!envelopeReadable(rec)) return null;
   const env = rec.caps[1];
   const usPer = env.rateKhz ? 1000 / env.rateKhz : 10;
-  const w = rec.dips.filter((d) => !d.open && d.start > 0 && d.width * usPer >= 1000 && d.depth >= 0.5 * env.p90);
+  const w = rec.dips.filter(
+    (d) =>
+      !d.open &&
+      d.start > 0 &&
+      d.width * usPer >= 1000 &&
+      d.depth >= 0.5 * env.p90,
+  );
   return w.length ? median(w.map((d) => (d.width * usPer) / 1000)) : null;
 }
 
@@ -229,12 +282,37 @@ export function levelOf(rec) {
     const full = rec.timingFull;
     const dips = rec.levelDips.map((d) => {
       const frac = full ? (full - d.depth) / full : null;
-      return { start: d.start, ms: d.ms, frac, open: d.open, shortOff: offLike(frac, d.ms) };
+      return {
+        start: d.start,
+        ms: d.ms,
+        frac,
+        open: d.open,
+        shortOff: offLike(frac, d.ms),
+      };
     });
-    return { estimate: false, full, offAt: rec.timingOffAt, timing: describeTiming(t), dips, dipsTotal: rec.levelDipsTotal };
+    return {
+      estimate: false,
+      full,
+      offAt: rec.timingOffAt,
+      timing: describeTiming(t),
+      dips,
+      dipsTotal: rec.levelDipsTotal,
+    };
   }
-  const old = { estimate: true, full: t.high, offAt: FIELD_LEVEL, version: rec.version ?? 4 };
-  if (t.low < FIELD_LEVEL) return { ...old, timing: describeTiming(t), dips: [], dipsTotal: 0, reachedOff: true };
+  const old = {
+    estimate: true,
+    full: t.high,
+    offAt: FIELD_LEVEL,
+    version: rec.version ?? 4,
+  };
+  if (t.low < FIELD_LEVEL)
+    return {
+      ...old,
+      timing: describeTiming(t),
+      dips: [],
+      dipsTotal: 0,
+      reachedOff: true,
+    };
   const deepest = t.high ? t.low / t.high : null;
   const gapMs = envelopeGapMs(rec);
   const shortOff = offLike(deepest, gapMs);
@@ -242,13 +320,38 @@ export function levelOf(rec) {
   const whole = t.total === t.runs.length;
   let at = 0;
   t.runs.forEach((r, i) => {
-    if (!r.on) dips.push({ start: at, ms: r.ms, frac: null, open: i === 0 || (whole && i === t.runs.length - 1), shortOff });
+    if (!r.on)
+      dips.push({
+        start: at,
+        ms: r.ms,
+        frac: null,
+        open: i === 0 || (whole && i === t.runs.length - 1),
+        shortOff,
+      });
     at += r.ms;
   });
   // A drop as deep as an off of its length may be one: then the old runs stand.
-  if (shortOff) return { ...old, timing: describeTiming(t), dips: [], dipsTotal: 0, deepest, gapMs, shortOffRuns: true };
-  const offRuns = t.runs[0]?.on ? Math.floor(t.total / 2) : Math.ceil(t.total / 2);
-  return { ...old, timing: { steady: true }, dips, dipsTotal: offRuns, deepest, gapMs };
+  if (shortOff)
+    return {
+      ...old,
+      timing: describeTiming(t),
+      dips: [],
+      dipsTotal: 0,
+      deepest,
+      gapMs,
+      shortOffRuns: true,
+    };
+  const offRuns = t.runs[0]?.on
+    ? Math.floor(t.total / 2)
+    : Math.ceil(t.total / 2);
+  return {
+    ...old,
+    timing: { steady: true },
+    dips,
+    dipsTotal: offRuns,
+    deepest,
+    gapMs,
+  };
 }
 
 // levelOf for every round of a log. An old log's round whose loaded envelope held no whole gap can't be judged on
@@ -256,10 +359,20 @@ export function levelOf(rec) {
 export function levelsOf(rounds) {
   const ls = rounds.map(levelOf);
   const open = (l) => l?.estimate && !l.reachedOff && l.gapMs == null;
-  const known = ls.filter((l) => l?.estimate && !l.reachedOff && l.gapMs != null);
+  const known = ls.filter(
+    (l) => l?.estimate && !l.reachedOff && l.gapMs != null,
+  );
   if (!known.length || !known.every((l) => l.shortOffRuns)) return ls;
   return ls.map((l, i) =>
-    open(l) ? { ...l, timing: describeTiming(rounds[i].timing), dips: [], dipsTotal: 0, shortOffRuns: true } : l,
+    open(l)
+      ? {
+          ...l,
+          timing: describeTiming(rounds[i].timing),
+          dips: [],
+          dipsTotal: 0,
+          shortOffRuns: true,
+        }
+      : l,
   );
 }
 
@@ -267,23 +380,36 @@ export function levelsOf(rounds) {
 // the ones not known either way too) or the ones as deep as an off of their length ("short-off"). Intervals are
 // between the starts of dips in one capture.
 export function dipSummary(levels, kind = "dip") {
-  const pick = (d) => (kind === "short-off" ? d.shortOff === true : d.shortOff !== true);
+  const pick = (d) =>
+    kind === "short-off" ? d.shortOff === true : d.shortOff !== true;
   const with_ = levels.filter((l) => l && l.dips.some(pick));
   if (!with_.length) return null;
   const all = with_.flatMap((l) => l.dips.filter(pick));
   const whole = all.filter((d) => !d.open);
   const every = with_.flatMap((l) => {
-    const starts = l.dips.filter((d) => pick(d) && !(d.open && d.start === 0)).map((d) => d.start);
+    const starts = l.dips
+      .filter((d) => pick(d) && !(d.open && d.start === 0))
+      .map((d) => d.start);
     return starts.slice(1).map((x, i) => x - starts[i]);
   });
-  const pct = whole.map((d) => d.frac).filter((x) => x != null).map((x) => Math.round(x * 100));
+  const pct = whole
+    .map((d) => d.frac)
+    .filter((x) => x != null)
+    .map((x) => Math.round(x * 100));
   const deepest = with_.map((l) => l.deepest).filter((x) => x != null);
   const gap = with_.map((l) => l.gapMs).filter((x) => x != null);
   const ms = whole.map((d) => d.ms);
   if (!whole.length && !with_.some((l) => l.estimate)) return null; // only drops cut by the capture's ends
   return {
     kind,
-    count: with_.reduce((n, l) => n + (l.estimate ? l.dipsTotal : l.dips.filter((d) => pick(d) && !d.open).length), 0),
+    count: with_.reduce(
+      (n, l) =>
+        n +
+        (l.estimate
+          ? l.dipsTotal
+          : l.dips.filter((d) => pick(d) && !d.open).length),
+      0,
+    ),
     pct: median(pct),
     pctRange: range(pct),
     deepestPct: deepest.length ? Math.round(Math.min(...deepest) * 100) : null,
@@ -293,14 +419,17 @@ export function dipSummary(levels, kind = "dip") {
     everyMs: median(every),
     everyRange: range(every),
     estimate: with_.some((l) => l.estimate),
-    versions: [...new Set(with_.filter((l) => l.estimate).map((l) => l.version))],
+    versions: [
+      ...new Set(with_.filter((l) => l.estimate).map((l) => l.version)),
+    ],
   };
 }
 
 // The oldest first of the last min(count, max) entries of a ring.
 function ring(count, max, read) {
   const out = [];
-  for (let i = Math.max(0, count - max); i < count; i++) out.push(read(i % max));
+  for (let i = Math.max(0, count - max); i < count; i++)
+    out.push(read(i % max));
   return out;
 }
 
@@ -308,13 +437,19 @@ const CRASH_KINDS = ["none", "the watchdog", "a lockup", "a firmware error"];
 
 // The log's header on its own: the page reads it first, so a reset or an empty log shows before the rest arrives.
 export function parseHeader(bytes) {
-  if (bytes.length < HEADER) return { error: `the log's header is ${bytes.length} bytes, expected ${HEADER}` };
+  if (bytes.length < HEADER)
+    return {
+      error: `the log's header is ${bytes.length} bytes, expected ${HEADER}`,
+    };
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (v.getUint32(0, true) !== MAGIC) return { error: "the log is empty or unreadable (no valid header)" };
+  if (v.getUint32(0, true) !== MAGIC)
+    return { error: "the log is empty or unreadable (no valid header)" };
   const version = v.getUint8(4);
   const recSize = v.getUint16(8, true);
   if (REC_OF[version] === undefined || recSize !== REC_OF[version])
-    return { error: `log version ${version}, record ${recSize} bytes: this page reads versions 3 to ${LOG_VERSION}` };
+    return {
+      error: `log version ${version}, record ${recSize} bytes: this page reads versions 3 to ${LOG_VERSION}`,
+    };
   return {
     version,
     recSize,
@@ -322,10 +457,15 @@ export function parseHeader(bytes) {
     on: v.getUint8(5) === 1,
     envMode: v.getUint8(6),
     wake: v.getUint16(10, true),
-    counts: { lfRecs: v.getUint16(12, true), lfFields: v.getUint16(14, true), hfFields: v.getUint16(16, true) },
+    counts: {
+      lfRecs: v.getUint16(12, true),
+      lfFields: v.getUint16(14, true),
+      hfFields: v.getUint16(16, true),
+    },
     crash: {
       count: v.getUint8(7),
-      kind: CRASH_KINDS[v.getUint16(18, true)] ?? `kind ${v.getUint16(18, true)}`,
+      kind:
+        CRASH_KINDS[v.getUint16(18, true)] ?? `kind ${v.getUint16(18, true)}`,
       err: v.getUint32(20, true),
       where: v.getUint32(24, true),
       wake: v.getUint16(28, true),
@@ -339,15 +479,18 @@ export function parseHeader(bytes) {
 export function headerLine(h) {
   const c = h.counts;
   let t = `measurement ${h.on ? "on" : "off"}, wake ${h.wake}, ${c.lfFields} LF field(s), ${c.lfRecs} LF round(s), ${c.hfFields} HF field(s)`;
-  if (h.crash.count) t += `; ${h.crash.count} reset(s) by a crash, the last by ${h.crash.kind} in wake ${h.crash.wake}`;
-  if (h.usb.dropped) t += `; ${h.usb.dropped} USB repl(ies) dropped, last error ${h.usb.err}`;
+  if (h.crash.count)
+    t += `; ${h.crash.count} reset(s) by a crash, the last by ${h.crash.kind} in wake ${h.crash.wake}`;
+  if (h.usb.dropped)
+    t += `; ${h.usb.dropped} USB repl(ies) dropped, last error ${h.usb.err}`;
   return t;
 }
 
 export function parseLog(bytes) {
   const h = parseHeader(bytes);
   if (h.error) return h;
-  if (bytes.length < h.logSize) return { error: `the log is ${bytes.length} bytes, expected ${h.logSize}` };
+  if (bytes.length < h.logSize)
+    return { error: `the log is ${bytes.length} bytes, expected ${h.logSize}` };
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const { lfRecs, lfFields, hfFields } = h.counts;
   const lfBase = HEADER,
@@ -356,7 +499,9 @@ export function parseLog(bytes) {
   const dur = (x) => (x === 0xffffffff ? null : x);
   return {
     ...h,
-    rounds: ring(lfRecs, LF_RECS, (i) => parseRec(v, lfBase + i * h.recSize, h.version)),
+    rounds: ring(lfRecs, LF_RECS, (i) =>
+      parseRec(v, lfBase + i * h.recSize, h.version),
+    ),
     lfFields: ring(lfFields, LF_FIELDS, (i) => {
       const o = fieldBase + i * LF_FIELD;
       return {
@@ -379,7 +524,13 @@ export function parseLog(bytes) {
         other: v.getUint16(o + 16, true),
         rxErrors: v.getUint16(o + 18, true),
         otherBits: bits,
-        otherData: Array.from(new Uint8Array(bytes.buffer, bytes.byteOffset + o + 22, Math.min(4, (bits + 7) >> 3))),
+        otherData: Array.from(
+          new Uint8Array(
+            bytes.buffer,
+            bytes.byteOffset + o + 22,
+            Math.min(4, (bits + 7) >> 3),
+          ),
+        ),
       };
     }),
   };
@@ -407,8 +558,18 @@ const median = (a) => {
 // T55xx: the T5577 datasheet's 24 and 56 field clocks for a 0 and a 1. Used only to name a likely family, and only
 // when a burst has both a short and a long interval.
 const FAMILIES = [
-  { name: "Hitag (1, 2, S)", gap: [20, 120], zero: [130, 205], one: [205, 280] },
-  { name: "T55xx / EM4x05 style downlink", gap: [50, 400], zero: [120, 260], one: [380, 520] },
+  {
+    name: "Hitag (1, 2, S)",
+    gap: [20, 120],
+    zero: [130, 205],
+    one: [205, 280],
+  },
+  {
+    name: "T55xx / EM4x05 style downlink",
+    gap: [50, 400],
+    zero: [120, 260],
+    one: [380, 520],
+  },
 ];
 const HITAG_COMMANDS = [
   { bits: "11000", name: "Hitag 2 / S start (START_AUTH)" },
@@ -420,13 +581,19 @@ const HITAG_COMMANDS = [
 // Whether the envelope capture can show a reader's gaps: only with the load on (the default), and only if the
 // envelope stands above the no-field level. With the load off the detector holds through short gaps. With the tone,
 // or at the no-field level, noise passes the depth test below and read as commands on the bench.
-export const envelopeReadable = (rec) => rec.caps[1].mode === MOD.HIGH && rec.caps[1].p90 >= FIELD_LEVEL;
+export const envelopeReadable = (rec) =>
+  rec.caps[1].mode === MOD.HIGH && rec.caps[1].p90 >= FIELD_LEVEL;
 
 export function analyseDips(rec) {
   const env = rec.caps[1];
   const usPer = env.rateKhz ? 1000 / env.rateKhz : 10;
-  if (!envelopeReadable(rec)) return { usPer, long: [], bursts: [], open: false, readable: false };
-  const ds = rec.dips.map((d) => ({ ...d, startUs: d.start * usPer, widthUs: d.width * usPer }));
+  if (!envelopeReadable(rec))
+    return { usPer, long: [], bursts: [], open: false, readable: false };
+  const ds = rec.dips.map((d) => ({
+    ...d,
+    startUs: d.start * usPer,
+    widthUs: d.width * usPer,
+  }));
   // A long gap with the load on can be a dip or an off. On a door reader, dips to 70 % (with the load off) took the
   // loaded envelope down to the no-field level. levelOf tells them apart.
   const long = ds.filter((d) => d.widthUs >= 2000);
@@ -436,7 +603,8 @@ export function analyseDips(rec) {
   const bursts = [];
   for (const d of short) {
     const b = bursts.at(-1);
-    if (b && d.startUs - (b.at(-1).startUs + b.at(-1).widthUs) < 3000) b.push(d);
+    if (b && d.startUs - (b.at(-1).startUs + b.at(-1).widthUs) < 3000)
+      b.push(d);
     else bursts.push([d]);
   }
   const out = bursts.map((b) => {
@@ -470,11 +638,27 @@ export function analyseDips(rec) {
     // A reader may end a command with one more gap, or not: then the bits are one short, so match on the prefix.
     const command =
       family?.name.startsWith("Hitag") && bits
-        ? HITAG_COMMANDS.find((c) => c.bits.startsWith(bits) && bits.length >= 4)
+        ? HITAG_COMMANDS.find(
+            (c) => c.bits.startsWith(bits) && bits.length >= 4,
+          )
         : null;
-    return { gaps: b.length, gapUs: gap, shortUs: lo, longUs: hi, bits, family: family?.name ?? null, command: command?.name ?? null };
+    return {
+      gaps: b.length,
+      gapUs: gap,
+      shortUs: lo,
+      longUs: hi,
+      bits,
+      family: family?.name ?? null,
+      command: command?.name ?? null,
+    };
   });
-  return { usPer, long, bursts: out, open: ds.some((d) => d.open), readable: true };
+  return {
+    usPer,
+    long,
+    bursts: out,
+    open: ds.some((d) => d.open),
+    readable: true,
+  };
 }
 
 export function describeRound(rec) {
@@ -525,7 +709,8 @@ export function describeRound(rec) {
 // count, for the private details. ms is the command's span. A round with no field gives null: its envelope is noise,
 // and the firmware's scan anchors START_AUTH in it.
 export function authOf(rec) {
-  if (!rec.authMode || !describeRound(rec).field || !envelopeReadable(rec)) return null;
+  if (!rec.authMode || !describeRound(rec).field || !envelopeReadable(rec))
+    return null;
   const env = rec.caps[1];
   const usPer = env.rateKhz ? 1000 / env.rateKhz : 10;
   return {
@@ -542,11 +727,16 @@ export function authOf(rec) {
 // The Hitag 2 auth mode across the rounds. A transaction is caught in at most one round; a decisive verdict
 // is preferred over ambiguous, and an anchored one (START_AUTH seen) over not.
 export function authVerdict(all) {
-  const rounds = all.filter((rec) => describeRound(rec).field && envelopeReadable(rec));
+  const rounds = all.filter(
+    (rec) => describeRound(rec).field && envelopeReadable(rec),
+  );
   const got = rounds.map((rec) => authOf(rec)).filter(Boolean);
-  if (!got.length) return { mode: null, sawStart: rounds.some((r) => r.authStartGaps > 0) };
+  if (!got.length)
+    return { mode: null, sawStart: rounds.some((r) => r.authStartGaps > 0) };
   const rank = { 1: 2, 2: 2, 3: 1 };
-  const best = [...got].sort((a, b) => rank[b.modeId] - rank[a.modeId] || b.startGaps - a.startGaps)[0];
+  const best = [...got].sort(
+    (a, b) => rank[b.modeId] - rank[a.modeId] || b.startGaps - a.startGaps,
+  )[0];
   const counts = { pass: 0, key: 0, ambiguous: 0 };
   for (const a of got) counts[a.mode] = (counts[a.mode] ?? 0) + 1;
   return { ...best, counts, n: got.length, sawStart: true };
@@ -558,7 +748,10 @@ export function lfVerdict(rounds) {
   if (!seen.length) return { field: false, text: "No LF field measured." };
   const carriers = seen.map((d) => d.carrier).filter(Boolean);
   const bySnr = (a, b) => b.snr - a.snr;
-  const best = carriers.filter((c) => c.sure).sort(bySnr)[0] ?? carriers.filter((c) => c.tone).sort(bySnr)[0] ?? null;
+  const best =
+    carriers.filter((c) => c.sure).sort(bySnr)[0] ??
+    carriers.filter((c) => c.tone).sort(bySnr)[0] ??
+    null;
   const bursts = seen.flatMap((d) => d.dips.bursts);
   const commands = bursts.filter((b) => b.gaps >= 3);
   const levels = levelsOf(rounds).filter(Boolean);
@@ -599,9 +792,11 @@ export function lfVerdict(rounds) {
           : "The field stays on.";
     talk = `${field} The CU couldn't look for a reader's command gaps: its envelope capture had the load off or the tone, or the field was too weak for it.`;
   } else if (pulsing.length || shortOffs) {
-    talk = "The field switches off for milliseconds at a time, with no command-like gaps: a reader that pulses its field.";
+    talk =
+      "The field switches off for milliseconds at a time, with no command-like gaps: a reader that pulses its field.";
   } else if (dips) {
-    talk = "The field stays on, with no command-like gaps, but its level dips regularly (below).";
+    talk =
+      "The field stays on, with no command-like gaps, but its level dips regularly (below).";
   } else {
     talk =
       "The field is a steady carrier with no gaps: the reader waits for a tag to talk first (EM4100, HID Prox, Indala, Paradox and most 125 kHz access cards).";
@@ -609,8 +804,20 @@ export function lfVerdict(rounds) {
   // An edge (the field came or went once) is neither steady nor pulsing.
   const steady = timings.filter((t) => t.steady).length;
   // With the envelope's load off or the tone, only the load tone places a carrier, and only on a steady field.
-  const carrierDropped = !best && seen.some((d) => d.carrierDropped || d.envMode !== MOD.HIGH);
-  return { field: true, best, talk, commands: commands.length, pulse, dips, shortOffs, shortOffRuns, steady, carrierDropped };
+  const carrierDropped =
+    !best && seen.some((d) => d.carrierDropped || d.envMode !== MOD.HIGH);
+  return {
+    field: true,
+    best,
+    talk,
+    commands: commands.length,
+    pulse,
+    dips,
+    shortOffs,
+    shortOffRuns,
+    steady,
+    carrierDropped,
+  };
 }
 
 // The HF side: the fields the CU saw and the 14443-A frames in them.
@@ -622,13 +829,17 @@ export function hfVerdict(fields) {
   const starts = fields.map((f) => [f.wake, f.tMs]);
   const gaps = [];
   for (let i = 1; i < starts.length; i++)
-    if (starts[i][0] === starts[i - 1][0]) gaps.push(starts[i][1] - starts[i - 1][1]);
+    if (starts[i][0] === starts[i - 1][0])
+      gaps.push(starts[i][1] - starts[i - 1][1]);
   const medDur = median(durs),
     medGap = median(gaps);
   let text;
-  if (polls) text = "The reader polls for ISO 14443-A cards (REQA / WUPA): MIFARE, NTAG, DESFire and similar.";
+  if (polls)
+    text =
+      "The reader polls for ISO 14443-A cards (REQA / WUPA): MIFARE, NTAG, DESFire and similar.";
   else if (frames)
-    text = "The reader sends frames, but no 14443-A poll: it may speak another HF protocol the CU can't decode.";
+    text =
+      "The reader sends frames, but no 14443-A poll: it may speak another HF protocol the CU can't decode.";
   else
     text =
       "The CU saw the HF field but no 14443-A frame: the reader polls another HF type (ISO 14443-B, ISO 15693, FeliCa, iCLASS), or sends nothing until a card loads its field.";
@@ -641,7 +852,15 @@ export function hfVerdict(fields) {
         ? ` Its field comes in short pulses (${timing}), as a reader in low-power card detection does.`
         : ` Its field switches on and off (${timing}).`;
   }
-  return { field: true, text, frames, polls, medDur, medGap, count: fields.length };
+  return {
+    field: true,
+    text,
+    frames,
+    polls,
+    medDur,
+    medGap,
+    count: fields.length,
+  };
 }
 
 // ---------------------------------------------------------------- reports (markdown)
@@ -666,10 +885,15 @@ function authLineSafe(av) {
 // The safe report's line for the dips (kind "dip") or the short offs (kind "short-off"): "to N % for X ms every
 // Y ms", and why the page calls them what it does.
 function dipLine(ds) {
-  const rg = (x, u = "") => (x && x[0] !== x[1] ? ` (${x[0]}–${x[1]}${u})` : "");
+  const rg = (x, u = "") =>
+    x && x[0] !== x[1] ? ` (${x[0]}–${x[1]}${u})` : "";
   const len = ds.ms != null ? ` for about ${ds.ms} ms${rg(ds.msRange)}` : "";
-  const every = ds.everyMs != null ? ` every ${ds.everyMs} ms${rg(ds.everyRange)}` : "";
-  const to = ds.pct != null ? ` to about ${ds.pct} % of full${rg(ds.pctRange, " %")}` : "";
+  const every =
+    ds.everyMs != null ? ` every ${ds.everyMs} ms${rg(ds.everyRange)}` : "";
+  const to =
+    ds.pct != null
+      ? ` to about ${ds.pct} % of full${rg(ds.pctRange, " %")}`
+      : "";
   if (ds.kind === "short-off")
     return (
       `Short offs${len}${every}, from ${ds.count} drop(s) in 1.8 s captures. ` +
@@ -678,8 +902,14 @@ function dipLine(ds) {
     );
   if (ds.estimate) {
     const v = ds.versions.join(" and ");
-    const deep = ds.deepestPct != null ? `, the deepest to ${ds.deepestPct} % of full` : "";
-    const gap = ds.gapMs != null ? ` Each lasts about ${ds.gapMs.toFixed(1)} ms in the loaded envelope, and an off that long would take the level below ${Math.round(offLikeAt(ds.gapMs) * 100)} %.` : "";
+    const deep =
+      ds.deepestPct != null
+        ? `, the deepest to ${ds.deepestPct} % of full`
+        : "";
+    const gap =
+      ds.gapMs != null
+        ? ` Each lasts about ${ds.gapMs.toFixed(1)} ms in the loaded envelope, and an off that long would take the level below ${Math.round(offLikeAt(ds.gapMs) * 100)} %.`
+        : "";
     return (
       `Field dips (estimate)${every}${deep}, from ${ds.count} dip(s) in 1.8 s captures. The field stayed on throughout.${gap} ` +
       `Log version ${v} called these stretches off. The page re-read them from the lowest and highest levels stored.`
@@ -692,13 +922,23 @@ export function safeMarkdown(r) {
   const L = [];
   L.push("**Chameleon Ultra field measurement report** (safe to share)", "");
   L.push(`- Firmware: ${r.firmware}`);
-  L.push(`- Log: ${r.log.counts.lfFields} LF field(s), ${r.log.counts.lfRecs} LF round(s), ${r.log.counts.hfFields} HF field(s); envelope LF_MOD ${MOD_NAMES[r.log.envMode] ?? r.log.envMode}`);
+  L.push(
+    `- Log: ${r.log.counts.lfFields} LF field(s), ${r.log.counts.lfRecs} LF round(s), ${r.log.counts.hfFields} HF field(s); envelope LF_MOD ${MOD_NAMES[r.log.envMode] ?? r.log.envMode}`,
+  );
   const cr = r.log.crash;
   if (cr?.count) {
-    const err = cr.kind === CRASH_KINDS[3] ? ` (error 0x${cr.err.toString(16)}, at 0x${cr.where.toString(16)})` : "";
-    L.push(`- ⚠ The CU reset ${cr.count} time(s) during the run. The last reset was by ${cr.kind}${err}, in wake ${cr.wake}.`);
+    const err =
+      cr.kind === CRASH_KINDS[3]
+        ? ` (error 0x${cr.err.toString(16)}, at 0x${cr.where.toString(16)})`
+        : "";
+    L.push(
+      `- ⚠ The CU reset ${cr.count} time(s) during the run. The last reset was by ${cr.kind}${err}, in wake ${cr.wake}.`,
+    );
   }
-  if (r.log.usb?.dropped) L.push(`- ⚠ The CU dropped ${r.log.usb.dropped} USB repl(ies), the last with error ${r.log.usb.err}.`);
+  if (r.log.usb?.dropped)
+    L.push(
+      `- ⚠ The CU dropped ${r.log.usb.dropped} USB repl(ies), the last with error ${r.log.usb.err}.`,
+    );
   L.push("", "**LF (125 kHz band)**");
   const lf = lfVerdict(r.log.rounds);
   if (!lf.field) L.push(`- ${lf.text}`);
@@ -718,16 +958,27 @@ export function safeMarkdown(r) {
     L.push(`- ${lf.talk}`);
     if (lf.pulse) {
       const rg = (x) => (x && x[0] !== x[1] ? ` (${x[0]}–${x[1]})` : "");
-      const on = lf.pulse.onMs != null ? `on about ${lf.pulse.onMs} ms${rg(lf.pulse.onRange)}` : "on for less than the capture";
-      const off = lf.pulse.offMs != null ? `off about ${lf.pulse.offMs} ms${rg(lf.pulse.offRange)}` : null;
+      const on =
+        lf.pulse.onMs != null
+          ? `on about ${lf.pulse.onMs} ms${rg(lf.pulse.onRange)}`
+          : "on for less than the capture";
+      const off =
+        lf.pulse.offMs != null
+          ? `off about ${lf.pulse.offMs} ms${rg(lf.pulse.offRange)}`
+          : null;
       // Log versions 3 and 4 timed the stretches at 35 % of the swing. The page checked that they were offs.
       const est = !lf.pulse.estimate
         ? ""
         : lf.shortOffRuns
           ? " Estimate: this CU's firmware timed these at 35 % of the swing. They are as deep as offs of their length in the loaded envelope, so the page keeps them as offs."
           : " Estimate: this CU's firmware timed these at 35 % of the swing. The level reached the no-field level, so the field does go off.";
-      L.push(`- Field timing: ${[on, off].filter(Boolean).join(", ")}, from ${lf.pulse.count} whole pulse(s) in 1.8 s captures.${est}`);
-    } else if (lf.steady && !lf.shortOffs) L.push("- Field timing: on for the whole 1.8 s capture, never down to the no-field level.");
+      L.push(
+        `- Field timing: ${[on, off].filter(Boolean).join(", ")}, from ${lf.pulse.count} whole pulse(s) in 1.8 s captures.${est}`,
+      );
+    } else if (lf.steady && !lf.shortOffs)
+      L.push(
+        "- Field timing: on for the whole 1.8 s capture, never down to the no-field level.",
+      );
     if (lf.shortOffs) L.push(`- ${dipLine(lf.shortOffs)}`);
     if (lf.dips) L.push(`- ${dipLine(lf.dips)}`);
     const av = authVerdict(r.log.rounds);
@@ -741,7 +992,9 @@ export function safeMarkdown(r) {
   for (const [ri, rec] of r.log.rounds.entries()) {
     const d = { ...describeRound(rec), levels: roundLevels[ri] };
     d.timing = d.levels?.timing ?? null;
-    const where = rec.manual ? "measured by command" : `field ${rec.field} round ${rec.round}`;
+    const where = rec.manual
+      ? "measured by command"
+      : `field ${rec.field} round ${rec.round}`;
     const parts = [
       `wake ${rec.wake} +${(rec.tMs / 1000).toFixed(1)} s, ${where}`,
       d.field ? `level ${d.level}${d.railed ? " (railed)" : ""}` : "no field",
@@ -750,7 +1003,12 @@ export function safeMarkdown(r) {
       parts.push(
         `carrier ${kHz(d.carrier.hz)} ${d.carrier.snr.toFixed(0)} dB${d.carrier.gatedMs ? ` (from ${d.carrier.gatedMs.toFixed(0)} ms with the field on)` : ""}${d.carrier.sure ? "" : d.carrier.tone ? " (from the load tone)" : " (uncertain: the field switched)"}`,
       );
-    if (d.field) parts.push(d.dips.readable ? `${rec.dipsTotal} envelope dip(s)` : "envelope not read");
+    if (d.field)
+      parts.push(
+        d.dips.readable
+          ? `${rec.dipsTotal} envelope dip(s)`
+          : "envelope not read",
+      );
     // A reader that repeats a command gives the same burst several times: one entry each, with a count.
     // The gap width varies by a sample or so between repeats, so it stays out of the comparison.
     const seen = new Map();
@@ -765,27 +1023,42 @@ export function safeMarkdown(r) {
       const text = `burst of ${b.gaps} gaps ~${b.gapUs?.toFixed(0)} µs, intervals ${b.shortUs?.toFixed(0) ?? "-"}/${b.longUs?.toFixed(0) ?? "-"} µs${b.family ? ` (${b.family})` : ""}${b.command ? `: ${b.command}` : ""}`;
       parts.push(count > 1 ? `${count} × ${text}` : text);
     }
-    if (d.field && d.dips.long.length) parts.push(`${d.dips.long.length} gap(s) ≥ 2 ms with the load on`);
+    if (d.field && d.dips.long.length)
+      parts.push(`${d.dips.long.length} gap(s) ≥ 2 ms with the load on`);
     if (rec.ended) parts.push("field gone by the end");
     const lv = d.levels;
-    if (d.timing?.steady) parts.push(`timing: never off${lv?.estimate ? " (re-read)" : ""}`);
+    if (d.timing?.steady)
+      parts.push(`timing: never off${lv?.estimate ? " (re-read)" : ""}`);
     else if (d.timing) {
-      const seq = rec.timing.runs.map((x) => `${x.on ? "on" : "off"} ${x.ms}`).join(", ");
+      const seq = rec.timing.runs
+        .map((x) => `${x.on ? "on" : "off"} ${x.ms}`)
+        .join(", ");
       const how = lv?.estimate ? ", split at 35 % of the swing" : "";
       parts.push(`timing (ms${how}): ${seq}${d.timing.cut ? ", …" : ""}`);
     }
     for (const kind of ["short-off", "dip"]) {
       const one = lv && dipSummary([lv], kind);
       if (!one) continue;
-      const to = one.pct != null ? ` to ${one.pct} %` : one.deepestPct != null ? `, the deepest to ${one.deepestPct} %` : "";
+      const to =
+        one.pct != null
+          ? ` to ${one.pct} %`
+          : one.deepestPct != null
+            ? `, the deepest to ${one.deepestPct} %`
+            : "";
       const what = kind === "dip" ? "level dip(s)" : "short off(s)";
-      parts.push(`${one.count} ${what}${to}${one.ms != null ? `, ${one.ms} ms` : ""}${one.everyMs != null ? ` every ${one.everyMs} ms` : ""}`);
+      parts.push(
+        `${one.count} ${what}${to}${one.ms != null ? `, ${one.ms} ms` : ""}${one.everyMs != null ? ` every ${one.everyMs} ms` : ""}`,
+      );
     }
     L.push(`  - ${parts.join("; ")}`);
   }
   if (r.log.lfFields.length) {
-    const durs = r.log.lfFields.map((f) => (f.durMs == null ? "ongoing" : `${f.durMs} ms`));
-    L.push(`- LF field durations (a measurement holds a field open for about 2.5 s): ${durs.join(", ")}`);
+    const durs = r.log.lfFields.map((f) =>
+      f.durMs == null ? "ongoing" : `${f.durMs} ms`,
+    );
+    L.push(
+      `- LF field durations (a measurement holds a field open for about 2.5 s): ${durs.join(", ")}`,
+    );
     if (r.log.lfFields.some((f) => f.drops))
       L.push(
         `- Drops below the CU's fixed comparator level while the field lasted: ${r.log.lfFields.map((f) => f.drops).join(", ")}. A drop is a dip or an off, and the timing above says which. The last may be the field's end.`,
@@ -795,7 +1068,9 @@ export function safeMarkdown(r) {
   const hf = hfVerdict(r.log.hfFields);
   L.push(`- ${hf.text}`);
   if (hf.field)
-    L.push(`- ${hf.count} field(s), ${hf.frames} frame(s), ${hf.polls} REQA/WUPA, ${r.log.hfFields.reduce((n, f) => n + f.rxErrors, 0)} with receive errors`);
+    L.push(
+      `- ${hf.count} field(s), ${hf.frames} frame(s), ${hf.polls} REQA/WUPA, ${r.log.hfFields.reduce((n, f) => n + f.rxErrors, 0)} with receive errors`,
+    );
   return L.join("\n");
 }
 
@@ -805,19 +1080,26 @@ export function privateMarkdown(r) {
     const d = describeRound(rec);
     if (!d.field) continue; // with no field, the dips are noise
     const bits = d.dips.bursts.filter((b) => b.bits).map((b) => b.bits);
-    if (bits.length) L.push(`- wake ${rec.wake} +${(rec.tMs / 1000).toFixed(1)} s: command bits, from the intervals between gaps: ${bits.join(" ")}`);
+    if (bits.length)
+      L.push(
+        `- wake ${rec.wake} +${(rec.tMs / 1000).toFixed(1)} s: command bits, from the intervals between gaps: ${bits.join(" ")}`,
+      );
   }
   for (const rec of r.log.rounds) {
     const a = authOf(rec);
     if (!a) continue;
     L.push(
       `- wake ${rec.wake} +${(rec.tMs / 1000).toFixed(1)} s: Hitag 2 auth frame (${a.mode}), ${a.gaps} gaps over ${a.span} envelope samples (~${a.ms.toFixed(1)} ms)` +
-        (a.startGaps ? `, after a START_AUTH of ${a.startGaps} gaps` : " (no START_AUTH anchor in the capture)"),
+        (a.startGaps
+          ? `, after a START_AUTH of ${a.startGaps} gaps`
+          : " (no START_AUTH anchor in the capture)"),
     );
   }
   for (const f of r.log.hfFields)
     if (f.other)
-      L.push(`- HF wake ${f.wake} +${(f.tMs / 1000).toFixed(1)} s: last non-poll frame ${f.otherBits} bits, starts ${f.otherData.map((b) => b.toString(16).padStart(2, "0")).join(" ")}`);
+      L.push(
+        `- HF wake ${f.wake} +${(f.tMs / 1000).toFixed(1)} s: last non-poll frame ${f.otherBits} bits, starts ${f.otherData.map((b) => b.toString(16).padStart(2, "0")).join(" ")}`,
+      );
   if (L.length === 2) L.push("- none");
   return L.join("\n");
 }

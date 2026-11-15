@@ -109,8 +109,7 @@ $("connect").onclick = async () => {
     await fl.open(port);
     info = await fl.deviceInfo();
     const fw = `${info["firmware.origin.fork"] ?? "?"} ${info["firmware.version"] ?? "?"}`;
-    $("devinfo").textContent =
-      `${info["hardware.name"] ?? "Flipper"} · ${fw}`;
+    $("devinfo").textContent = `${info["hardware.name"] ?? "Flipper"} · ${fw}`;
     const commit = `${info["firmware.commit.hash"] ?? "?"}${info["firmware.commit.dirty"] === "true" ? "-dirty" : ""}`;
     log(
       `connected: ${fw} (${commit}), API ${info["firmware.api.major"]}.${info["firmware.api.minor"]}`,
@@ -157,8 +156,7 @@ $("install").onclick = async () => {
       APP_PATH,
       bytes,
       (p) =>
-        ($("installinfo").textContent =
-          `Installing: ${Math.floor(p * 100)} %`),
+        ($("installinfo").textContent = `Installing: ${Math.floor(p * 100)} %`),
     );
     await fl.openApp();
     $("installinfo").textContent =
@@ -177,9 +175,7 @@ $("install").onclick = async () => {
 
 const checked = (p) => {
   if (!p.pll)
-    throw new Error(
-      "the Flipper's clock left the crystal (it slept?): re-run",
-    );
+    throw new Error("the Flipper's clock left the crystal (it slept?): re-run");
   return p;
 };
 
@@ -226,8 +222,7 @@ function showTemperature(run) {
         ? `: ⚠ changed by ${change.toFixed(1)} °C (more than ${TEMPERATURE_LIMIT}). Not saved automatically`
         : ""),
   );
-  $("temp").textContent =
-    `${c[0].toFixed(1)} → ${c.at(-1).toFixed(1)} °C`;
+  $("temp").textContent = `${c[0].toFixed(1)} → ${c.at(-1).toFixed(1)} °C`;
   $("tempwarn").hidden = !run.unsteady;
   $("tempwarn").textContent =
     `The Flipper's temperature changed by ${change.toFixed(1)} °C during the run, which can move the result ` +
@@ -238,10 +233,7 @@ function showTemperature(run) {
 setInterval(() => {
   const run = currentRun();
   if (!running || !run) return;
-  const done = Math.min(
-    100,
-    ((nowS() - run.t0) / (run.minutes * 60)) * 100,
-  );
+  const done = Math.min(100, ((nowS() - run.t0) / (run.minutes * 60)) * 100);
   $("progress").style.width = `${done}%`;
   document
     .querySelector(".bar")
@@ -288,8 +280,7 @@ $("start").onclick = async () => {
   running = false;
   showTemperature(currentRun());
   if (!r) {
-    $("notice").textContent =
-      stopNotice();
+    $("notice").textContent = stopNotice();
     setState("ready");
   } else if (Math.abs(r.ppm) > CAL_LIMIT) {
     showSaved(

@@ -43,21 +43,50 @@ export const TRACE_KEEP = 8; // the first records a clear keeps (LF_IA_TRACE_KEE
 export const TR = { FIELD_OFF: 2, COMMAND: 3 };
 export const VERDICT = ["ignored", "answered", "ended"];
 export const DECODE = ["ok", "one class", "too few gaps", "overflow"];
-export const FLAG = { LATE: 1, GAPS_DROPPED: 2, ENCODE_FAILED: 4, FIELD_BACK: 8 };
+export const FLAG = {
+  LATE: 1,
+  GAPS_DROPPED: 2,
+  ENCODE_FAILED: 4,
+  FIELD_BACK: 8,
+};
 
 // ---------------------------------------------------------------- Hitag 2 pages and config
 
 // A made-up default tag, not a real credential. The page's fields start from this; a tester can change them, or read
 // a real tag over them. The config byte (page 3, byte 0) is 0x06: Hitag 2, password mode, the only mode supported.
 export const PLACEHOLDER_PAGES = Uint8Array.of(
-  0x12, 0x34, 0x56, 0x78, // page 0: UID
-  0x4d, 0x49, 0x4b, 0x52, // page 1: reader password (MIKR)
-  0x22, 0x22, 0x22, 0x22, // page 2: crypto key high bytes (unused in password mode)
-  0x06, 0xaa, 0xbb, 0xcc, // page 3: config byte + tag password
-  0x44, 0x44, 0x44, 0x44, // page 4: user
-  0x55, 0x55, 0x55, 0x55, // page 5: user
-  0x66, 0x66, 0x66, 0x66, // page 6: user
-  0x77, 0x77, 0x77, 0x77, // page 7: user
+  0x12,
+  0x34,
+  0x56,
+  0x78, // page 0: UID
+  0x4d,
+  0x49,
+  0x4b,
+  0x52, // page 1: reader password (MIKR)
+  0x22,
+  0x22,
+  0x22,
+  0x22, // page 2: crypto key high bytes (unused in password mode)
+  0x06,
+  0xaa,
+  0xbb,
+  0xcc, // page 3: config byte + tag password
+  0x44,
+  0x44,
+  0x44,
+  0x44, // page 4: user
+  0x55,
+  0x55,
+  0x55,
+  0x55, // page 5: user
+  0x66,
+  0x66,
+  0x66,
+  0x66, // page 6: user
+  0x77,
+  0x77,
+  0x77,
+  0x77, // page 7: user
 );
 
 // The config byte for Hitag 2 password mode, page 3 byte 0. The page fixes it, since it is the only mode supported.
@@ -75,14 +104,16 @@ export const HITAG2_PAGE_NAMES = [
   "User",
 ];
 
-const hex = (b) => [...b].map((x) => x.toString(16).padStart(2, "0").toUpperCase()).join("");
+const hex = (b) =>
+  [...b].map((x) => x.toString(16).padStart(2, "0").toUpperCase()).join("");
 
 // A hex string of exactly nBytes bytes, as a Uint8Array, or null. Spaces and a 0x prefix are allowed.
 export function parseHex(s, nBytes) {
   const t = (s ?? "").trim().replace(/^0x/i, "").replace(/\s+/g, "");
   if (!new RegExp(`^[0-9a-fA-F]{${nBytes * 2}}$`).test(t)) return null;
   const b = new Uint8Array(nBytes);
-  for (let i = 0; i < nBytes; i++) b[i] = parseInt(t.slice(i * 2, i * 2 + 2), 16);
+  for (let i = 0; i < nBytes; i++)
+    b[i] = parseInt(t.slice(i * 2, i * 2 + 2), 16);
   return b;
 }
 
@@ -94,7 +125,8 @@ export function parseUid(s) {
 
 export function pagesWithUid(uidHex, base = PLACEHOLDER_PAGES) {
   const p = Uint8Array.from(base);
-  for (let i = 0; i < 4; i++) p[i] = parseInt(uidHex.slice(i * 2, i * 2 + 2), 16);
+  for (let i = 0; i < 4; i++)
+    p[i] = parseInt(uidHex.slice(i * 2, i * 2 + 2), 16);
   return p;
 }
 
@@ -144,16 +176,21 @@ export const uidOf = (pages) => hex(pages.slice(0, 4));
 export function describeConfig(pages) {
   const c = pages[12];
   const crypto = (c & 0x08) !== 0;
-  const coding = ["Public mode B, biphase", "Public mode A, Manchester", "Public mode C, biphase", "Hitag 2"][
-    (c & 0x06) >> 1
-  ];
+  const coding = [
+    "Public mode B, biphase",
+    "Public mode A, Manchester",
+    "Public mode C, biphase",
+    "Hitag 2",
+  ][(c & 0x06) >> 1];
   return { byte: c, crypto, mode: crypto ? "crypto" : "password", coding };
 }
 
 // ---------------------------------------------------------------- requests
 
-export const reqSetType = (slotFw, type) => Uint8Array.of(slotFw, type >> 8, type & 0xff);
-export const reqSetEnable = (slotFw, sense, on) => Uint8Array.of(slotFw, sense, on ? 1 : 0);
+export const reqSetType = (slotFw, type) =>
+  Uint8Array.of(slotFw, type >> 8, type & 0xff);
+export const reqSetEnable = (slotFw, sense, on) =>
+  Uint8Array.of(slotFw, sense, on ? 1 : 0);
 export const reqActiveSlot = (slotFw) => Uint8Array.of(slotFw);
 export const reqTraceRead = (first) => Uint8Array.of(first >> 8, first & 0xff);
 
@@ -173,7 +210,8 @@ export function parseHitag2Read(d) {
   if (d.length < 33) return null;
   const mask = d[32];
   const pages = [];
-  for (let p = 0; p < 8; p++) pages.push(mask & (1 << p) ? d.slice(p * 4, p * 4 + 4) : null);
+  for (let p = 0; p < 8; p++)
+    pages.push(mask & (1 << p) ? d.slice(p * 4, p * 4 + 4) : null);
   let count = 0;
   for (let p = 0; p < 8; p++) if (mask & (1 << p)) count++;
   return { count, mask, pages };
@@ -274,8 +312,13 @@ export function classifyCommand(rec) {
   if (rec.type !== TR.COMMAND) return null;
   const n = rec.nBits;
   if (n === 5) return { kind: "start", label: "START_AUTH (request the UID)" };
-  if (n === 32) return { kind: "password", label: "32-bit password command (password mode)" };
-  if (n === 64) return { kind: "crypto", label: "64-bit command (crypto mode)" };
+  if (n === 32)
+    return {
+      kind: "password",
+      label: "32-bit password command (password mode)",
+    };
+  if (n === 64)
+    return { kind: "crypto", label: "64-bit command (crypto mode)" };
   if (n === 10) return { kind: "read", label: "read a data page" };
   return { kind: "other", label: `${n}-bit frame` };
 }
@@ -287,7 +330,14 @@ export function sessions(recs) {
   for (const r of recs) {
     const key = `${r.boot}/${r.session}`;
     if (!cur || cur.key !== key) {
-      cur = { key, boot: r.boot, session: r.session, tSessionUs: r.tSessionUs, commands: [], off: null };
+      cur = {
+        key,
+        boot: r.boot,
+        session: r.session,
+        tSessionUs: r.tSessionUs,
+        commands: [],
+        off: null,
+      };
       out.push(cur);
     }
     if (r.type === TR.COMMAND) cur.commands.push(r);
@@ -302,29 +352,51 @@ export function sessionVerdict(s) {
   const kinds = cmds.map((c) => classifyCommand(c)?.kind);
   const answered = cmds.filter((c) => c.verdict === 1).length;
   const sawStart = kinds.includes("start");
-  const startAnswered = cmds.some((c) => classifyCommand(c)?.kind === "start" && c.verdict === 1);
+  const startAnswered = cmds.some(
+    (c) => classifyCommand(c)?.kind === "start" && c.verdict === 1,
+  );
   const sawPassword = kinds.includes("password");
-  const passwordAnswered = cmds.some((c) => classifyCommand(c)?.kind === "password" && c.verdict === 1);
+  const passwordAnswered = cmds.some(
+    (c) => classifyCommand(c)?.kind === "password" && c.verdict === 1,
+  );
   const sawCrypto = kinds.includes("crypto");
   const reads = cmds.filter((c) => classifyCommand(c)?.kind === "read").length;
   const late = cmds.some((c) => c.flags & FLAG.LATE);
   const failed = cmds.filter((c) => c.decode !== 0).length;
 
   let verdict;
-  if (cmds.length === 0) verdict = "a field appeared, but no command was decoded";
+  if (cmds.length === 0)
+    verdict = "a field appeared, but no command was decoded";
   else if (sawCrypto)
-    verdict = "the reader uses crypto mode, which this emulation does not support";
+    verdict =
+      "the reader uses crypto mode, which this emulation does not support";
   else if (passwordAnswered)
-    verdict = "the reader authenticated in password mode and the CU served its pages";
+    verdict =
+      "the reader authenticated in password mode and the CU served its pages";
   else if (sawPassword)
-    verdict = "the reader sent a password in password mode; the CU's stored password did not match, so it did not answer";
+    verdict =
+      "the reader sent a password in password mode; the CU's stored password did not match, so it did not answer";
   else if (startAnswered)
-    verdict = "the reader began a Hitag 2 authentication and the CU answered with its UID, but no password command followed";
+    verdict =
+      "the reader began a Hitag 2 authentication and the CU answered with its UID, but no password command followed";
   else if (sawStart)
-    verdict = "the reader sent START_AUTH, but the CU's UID answer was not accepted";
-  else verdict = "the reader sent commands, but no Hitag 2 START_AUTH among them";
+    verdict =
+      "the reader sent START_AUTH, but the CU's UID answer was not accepted";
+  else
+    verdict = "the reader sent commands, but no Hitag 2 START_AUTH among them";
 
-  return { verdict, sawStart, startAnswered, sawPassword, passwordAnswered, sawCrypto, reads, answered, late, failed };
+  return {
+    verdict,
+    sawStart,
+    startAnswered,
+    sawPassword,
+    passwordAnswered,
+    sawCrypto,
+    reads,
+    answered,
+    late,
+    failed,
+  };
 }
 
 // A command/answer bit string (first-sent-first) as hex, one byte per 8 bits, MSB first — the order page 1 stores the
@@ -333,7 +405,11 @@ export function sessionVerdict(s) {
 export function bitsToHex(bitStr) {
   if (!bitStr || bitStr.length % 8 !== 0) return null;
   let h = "";
-  for (let i = 0; i < bitStr.length; i += 8) h += parseInt(bitStr.slice(i, i + 8), 2).toString(16).padStart(2, "0").toUpperCase();
+  for (let i = 0; i < bitStr.length; i += 8)
+    h += parseInt(bitStr.slice(i, i + 8), 2)
+      .toString(16)
+      .padStart(2, "0")
+      .toUpperCase();
   return h;
 }
 
@@ -343,11 +419,15 @@ export function bitsToHex(bitStr) {
 export function recoverPassword(recs, min = 2) {
   const counts = new Map();
   for (const r of recs) {
-    if (r.type === TR.COMMAND && r.nBits === 32 && r.decode === 0) counts.set(r.bits, (counts.get(r.bits) || 0) + 1);
+    if (r.type === TR.COMMAND && r.nBits === 32 && r.decode === 0)
+      counts.set(r.bits, (counts.get(r.bits) || 0) + 1);
   }
   let best = null;
-  for (const [bits, count] of counts) if (count >= min && (!best || count > best.count)) best = { bits, count };
-  return best ? { hex: bitsToHex(best.bits), bits: best.bits, count: best.count } : null;
+  for (const [bits, count] of counts)
+    if (count >= min && (!best || count > best.count)) best = { bits, count };
+  return best
+    ? { hex: bitsToHex(best.bits), bits: best.bits, count: best.count }
+    : null;
 }
 
 const s3 = (us) => (us / 1e6).toFixed(6);
@@ -357,11 +437,16 @@ const s3 = (us) => (us / 1e6).toFixed(6);
 // Safe to share: whether a reader engaged, and how far. No decoded command or answer bits.
 export function safeMarkdown(r) {
   const L = [];
-  L.push("**Chameleon Ultra interactive LF emulation report** (safe to share)", "");
+  L.push(
+    "**Chameleon Ultra interactive LF emulation report** (safe to share)",
+    "",
+  );
   L.push(`- Firmware: ${r.firmware}`);
   if (r.emu) {
     const c = describeConfig(r.emu);
-    L.push(`- Emulating: Hitag 2, UID ${uidOf(r.emu)}, config 0x${c.byte.toString(16).padStart(2, "0")} (${c.mode} mode, ${c.coding})`);
+    L.push(
+      `- Emulating: Hitag 2, UID ${uidOf(r.emu)}, config 0x${c.byte.toString(16).padStart(2, "0")} (${c.mode} mode, ${c.coding})`,
+    );
   }
   const c = r.counters;
   if (c)
@@ -369,13 +454,21 @@ export function safeMarkdown(r) {
       `- Trace: ${c.sessions} field session(s), ${c.commands} command(s), ${c.responses} answered, ${c.late} late, since the trace was cleared (boot ${r.boot})`,
     );
   const pw = recoverPassword(r.recs);
-  if (pw) L.push(`- Reader password: recovered from ${pw.count} matching attempts (value in the private details)`);
+  if (pw)
+    L.push(
+      `- Reader password: recovered from ${pw.count} matching attempts (value in the private details)`,
+    );
   if (r.total > r.recs.length)
-    L.push(`- ⚠ ${r.total} records were made and ${r.recs.length} kept: the first ${r.keep} and the latest, with ${r.total - r.recs.length} in between overwritten`);
+    L.push(
+      `- ⚠ ${r.total} records were made and ${r.recs.length} kept: the first ${r.keep} and the latest, with ${r.total - r.recs.length} in between overwritten`,
+    );
 
   const ss = sessions(r.recs);
   if (ss.length === 0) {
-    L.push("", "No field sessions recorded. Point the CU at the reader and try again.");
+    L.push(
+      "",
+      "No field sessions recorded. Point the CU at the reader and try again.",
+    );
     return L.join("\n");
   }
   L.push("", "**What the reader did**");
@@ -397,16 +490,36 @@ export function safeMarkdown(r) {
 export function privateMarkdown(r) {
   const L = [];
   L.push("**Interactive LF trace — private details**", "");
-  L.push("A reader's commands decoded to bits (a Hitag 2 reader's password is one of them) and the CU's answers. Don't post this publicly.", "");
+  L.push(
+    "A reader's commands decoded to bits (a Hitag 2 reader's password is one of them) and the CU's answers. Don't post this publicly.",
+    "",
+  );
   const pw = recoverPassword(r.recs);
-  if (pw) L.push(`**Recovered reader password: ${pw.hex}** (${pw.bits}, from ${pw.count} matching attempts). Put it in page 1 to authenticate.`, "");
-  if (r.emu) L.push("```", `emulated Hitag 2 pages: ${[...r.emu].map((x) => x.toString(16).padStart(2, "0")).join("")}`, "```", "");
+  if (pw)
+    L.push(
+      `**Recovered reader password: ${pw.hex}** (${pw.bits}, from ${pw.count} matching attempts). Put it in page 1 to authenticate.`,
+      "",
+    );
+  if (r.emu)
+    L.push(
+      "```",
+      `emulated Hitag 2 pages: ${[...r.emu].map((x) => x.toString(16).padStart(2, "0")).join("")}`,
+      "```",
+      "",
+    );
   const ss = sessions(r.recs);
   for (const s of ss) {
-    L.push(`### Boot ${s.boot}, session ${s.session} — field on at ${s3(s.tSessionUs)} s`);
+    L.push(
+      `### Boot ${s.boot}, session ${s.session} — field on at ${s3(s.tSessionUs)} s`,
+    );
     for (const c of s.commands) {
       const cl = classifyCommand(c);
-      const parts = [`${s3(c.tUs)} s`, `${c.nGaps} gaps`, `${c.nBits} bits`, cl ? cl.label : ""];
+      const parts = [
+        `${s3(c.tUs)} s`,
+        `${c.nGaps} gaps`,
+        `${c.nBits} bits`,
+        cl ? cl.label : "",
+      ];
       if (c.decode !== 0) parts.push(`decode: ${DECODE[c.decode] ?? c.decode}`);
       else {
         const h = bitsToHex(c.bits);
@@ -423,7 +536,10 @@ export function privateMarkdown(r) {
         );
       }
     }
-    if (s.off) L.push(`- ${s3(s.off.tUs)} s field off${s.off.flags & FLAG.FIELD_BACK ? " (came back)" : ""}`);
+    if (s.off)
+      L.push(
+        `- ${s3(s.off.tUs)} s field off${s.off.flags & FLAG.FIELD_BACK ? " (came back)" : ""}`,
+      );
     L.push("");
   }
   return L.join("\n").trimEnd();

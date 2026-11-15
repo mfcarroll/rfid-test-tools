@@ -86,8 +86,7 @@ async function asReader(fn) {
 
 // One long capture: chunk 0 captures, later chunks fetch slices of it, chunk 0xff describes it.
 async function fetchCapture(first) {
-  if (first.status !== X.STATUS.LF_TAG_OK || !first.data.length)
-    return null;
+  if (first.status !== X.STATUS.LF_TAG_OK || !first.data.length) return null;
   const parts = [first.data];
   for (let c = 1; c < 0xff; c++) {
     const r = await cu.cmd(X.CMD.LF_SNIFF, X.reqSniff(c));
@@ -158,9 +157,7 @@ bindFlashButtons({
 $("baseline").onclick = () =>
   run("empty field", async () => {
     if (!long)
-      return log(
-        "measuring the empty field needs the experimental firmware",
-      );
+      return log("measuring the empty field needs the experimental firmware");
     progress("Measuring the empty field", 0.2);
     const c = await asReader(sniff);
     if (!c) throw new Error("the CU returned no samples");
@@ -262,24 +259,17 @@ $("identify").onclick = () =>
           const c = await probe(X.PROBE_T55XX_CONFIG);
           if (c) {
             captures.config = c;
-            r.lf.config = t55ConfigFromProbe(
-              analyse(c.bytes),
-              r.lf.signal,
-            );
+            r.lf.config = t55ConfigFromProbe(analyse(c.bytes), r.lf.signal);
             // the configuration says how the tag modulates, which settles how to read the trace block
-            if (r.lf.config)
-              r.lf.chipBlock = traceBlock(t55probe, r.lf.config);
-            log(
-              `T55xx configuration: ${r.lf.config?.word ?? "not read"}`,
-            );
+            if (r.lf.config) r.lf.chipBlock = traceBlock(t55probe, r.lf.config);
+            log(`T55xx configuration: ${r.lf.config?.word ?? "not read"}`);
           }
         }
       }
       progress("Checking HF", 0.85);
       const h = await cu.cmd(X.CMD.HF14A_SCAN, undefined, 5);
       r.hf = {
-        cards:
-          h.status === X.STATUS.HF_TAG_OK ? X.parseHf14a(h.data) : [],
+        cards: h.status === X.STATUS.HF_TAG_OK ? X.parseHf14a(h.data) : [],
       };
       for (const card of r.hf.cards) {
         if (!X.isClassic(card.sak)) continue;
@@ -311,10 +301,7 @@ $("copyFull").onclick = async () => {
     return;
   await navigator.clipboard.writeText(X.fullMarkdown(report));
   $("copyFull").textContent = "Copied";
-  setTimeout(
-    () => ($("copyFull").textContent = "Copy the full report"),
-    1500,
-  );
+  setTimeout(() => ($("copyFull").textContent = "Copy the full report"), 1500);
 };
 $("download").onclick = () => {
   if (
