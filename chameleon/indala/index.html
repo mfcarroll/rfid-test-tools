@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CU Indala Test</title>
-    <link rel="stylesheet" href="../../common/style.css?v=7c6b70081f" />
+    <title>CU Indala test</title>
+    <link rel="stylesheet" href="../../common/style.css?v=c04a103948" />
   </head>
   <body>
     <main id="app" data-state="connect">
@@ -19,11 +19,6 @@
           >PR #509</a
         >.
       </p>
-
-      <ol class="steps" aria-label="Progress">
-        <li id="step-connect"><span>1</span>Connect</li>
-        <li id="step-test"><span>2</span>Test</li>
-      </ol>
 
       <section class="flow" aria-live="polite">
         <div class="only-connect">
@@ -56,7 +51,7 @@
             </div>
           </div>
           <div class="row gap-top">
-            <button id="continue" class="primary" disabled>Continue</button>
+            <button id="continue" class="primary" hidden>Continue</button>
           </div>
         </div>
 
@@ -277,21 +272,21 @@
         <summary><h2>Log</h2></summary>
         <pre id="log"></pre>
       </details>
-      <p class="note" id="siteversion"></p>
+      <footer id="footer"></footer>
     </main>
 
     <script type="importmap">
       {
         "imports": {
           "../common/cu.js": "../common/cu.js?v=203e0cbf62",
-          "../common/flash-ui.js": "../common/flash-ui.js?v=4f84a16279",
-          "../common/session.js": "../common/session.js?v=c093969636",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=48db307db7",
+          "../common/session.js": "../common/session.js?v=cd63fa21a7",
           "./indala.js": "./indala.js?v=6a79f0a778",
-          "../../common/page.js": "../../common/page.js?v=ec2e65cb9d",
+          "../../common/page.js": "../../common/page.js?v=dc505804aa",
           "../../flipper/crystal/flipper.js": "../../flipper/crystal/flipper.js?v=72e2283403"
         }
       }
     </script>
-    <script type="module" src="main.js?v=366aae8544"></script>
+    <script type="module" src="main.js?v=57aea55978"></script>
   </body>
 </html>

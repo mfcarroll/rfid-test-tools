@@ -3,13 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CU Pulse Test</title>
-    <link rel="stylesheet" href="../../common/style.css?v=7c6b70081f" />
+    <title>CU pulse test</title>
+    <link rel="stylesheet" href="../../common/style.css?v=c04a103948" />
   </head>
   <body>
     <main id="app" data-state="connect">
       <a class="back" href="../../">← RFID test tools</a>
-      <h1>Chameleon Ultra pulse test (experimental)</h1>
+      <h1>
+        Chameleon Ultra pulse test
+        <span class="badge experimental">Experimental</span>
+      </h1>
       <p class="sub">
         Some readers switch their field on for 50 to 80 ms at a time, over and
         over, and a frame from the CU has to fit inside one of those pulses.
@@ -17,6 +20,17 @@
         slots 1–7, each with a different way of answering such a reader. Try
         each slot at the reader and compare them.
       </p>
+
+      <div class="callout caution">
+        <p>
+          <b
+            >Setting up replaces the LF cards in slots 1–7 and empties slot
+            8.</b
+          >
+          A backup of every slot downloads first, and Backup and restore below
+          puts it back.
+        </p>
+      </div>
 
       <ol class="steps" aria-label="Progress">
         <li id="step-connect"><span>1</span>Connect</li>
@@ -27,17 +41,7 @@
 
       <section class="flow" aria-live="polite">
         <div class="only-connect">
-          <h2>Connect your Chameleon Ultra</h2>
-          <p class="note">
-            Plug your CU in to USB, not Bluetooth, and close anything else using
-            it, such as the CU app or the Python CLI. This page needs Chrome or
-            Edge on a computer. It works with the Chameleon Ultra only, not the
-            Lite.
-          </p>
-          <div class="row gap-top">
-            <button id="connect" class="primary">Connect CU</button>
-            <span id="connectinfo" class="note"></span>
-          </div>
+          <div id="connectcard"></div>
         </div>
 
         <div class="only-ready">
@@ -295,19 +299,19 @@
         <summary><h2>Log</h2></summary>
         <pre id="log"></pre>
       </details>
-      <p class="note" id="siteversion"></p>
+      <footer id="footer"></footer>
     </main>
 
     <script type="importmap">
       {
         "imports": {
           "../common/cu.js": "../common/cu.js?v=203e0cbf62",
-          "../common/flash-ui.js": "../common/flash-ui.js?v=4f84a16279",
-          "../common/fsk-page.js": "../common/fsk-page.js?v=04248b7db4",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=48db307db7",
+          "../common/fsk-page.js": "../common/fsk-page.js?v=ebb7ba3dc4",
           "../common/fsk.js": "../common/fsk.js?v=bb697734d5",
-          "../common/session.js": "../common/session.js?v=c093969636",
+          "../common/session.js": "../common/session.js?v=cd63fa21a7",
           "./pulse.js": "./pulse.js?v=9c38e0b006",
-          "../../common/page.js": "../../common/page.js?v=ec2e65cb9d"
+          "../../common/page.js": "../../common/page.js?v=dc505804aa"
         }
       }
     </script>

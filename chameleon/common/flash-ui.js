@@ -1,6 +1,6 @@
 // The Firmware section's controls, shared by the Chameleon pages. bindFlashButtons() puts them in the page's
-// <div id="flash">: a button per firmware (flashTest, flashStock, flashFile), the bootloader button (flashDfu) and a
-// status line (flashinfo).
+// <div id="flash">: the page's own firmware's button (flashTest), the others under "Other firmware" (flashStock,
+// flashFile), the bootloader button (flashDfu) and a status line (flashinfo).
 //   firmware: { test: { zip, name, label }, stock: { zip, name } }. A button shows its entry's label, or
 //             "Flash <name>". An entry may instead be a function that returns the firmware ({ name, data } for a file
 //             the person picked), or null to cancel. A "file" button with no entry uses pickFile().
@@ -29,26 +29,48 @@ export function pickFile() {
   return picked;
 }
 
+// The button for the page's own firmware (the first in buttons). showFirmware() makes it primary.
+let mainButton = null;
+
 function addControls(firmware, buttons) {
-  const row = document.createElement("div");
-  row.className = "row gap-top";
-  for (const [key, id] of Object.entries(buttons)) {
+  const button = ([key, id]) => {
     const b = document.createElement("button");
     b.id = id;
     const f = firmware[key];
     b.textContent = f?.label ?? (f?.name ? `Flash ${f.name}` : "Flash a file…");
-    row.append(b);
-  }
+    return b;
+  };
+  const [first, ...rest] = Object.entries(buttons);
+  mainButton = first[1];
+  const row = document.createElement("div");
+  row.className = "row gap-top";
   const input = document.createElement("input");
   Object.assign(input, { id: "fwfile", type: "file", accept: ".zip" });
   input.hidden = true;
   const dfu = document.createElement("button");
   Object.assign(dfu, { id: "flashDfu", className: "primary", hidden: true });
   dfu.textContent = "Allow the bootloader (first time only)";
-  row.append(input, dfu);
+  row.append(button(first), input, dfu);
+  const more = document.createElement("details");
+  more.className = "more";
+  const summary = document.createElement("summary");
+  summary.textContent = "Other firmware";
+  const moreRow = document.createElement("div");
+  moreRow.className = "row gap-top";
+  moreRow.append(...rest.map(button));
+  more.append(summary, moreRow);
   const info = document.createElement("div");
   Object.assign(info, { id: "flashinfo", className: "note gap-top" });
-  $("flash").replaceChildren(row, info);
+  $("flash").replaceChildren(row, more, info);
+}
+
+// Says what firmware the connected CU runs, on the page's #fwinfo line. If needsFlash, the line shows as a warning
+// and the page's own firmware button becomes the primary one.
+/** @param {string} text @param {boolean} needsFlash */
+export function showFirmware(text, needsFlash) {
+  $("fwinfo").textContent = text;
+  $("fwinfo").classList.toggle("warn", needsFlash);
+  if (mainButton) $(mainButton).classList.toggle("primary", needsFlash);
 }
 
 /**

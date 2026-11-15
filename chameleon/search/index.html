@@ -3,13 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CU Card Search</title>
-    <link rel="stylesheet" href="../../common/style.css?v=7c6b70081f" />
+    <title>CU card search</title>
+    <link rel="stylesheet" href="../../common/style.css?v=c04a103948" />
   </head>
   <body>
     <main id="app" data-state="connect">
       <a class="back" href="../../">← RFID test tools</a>
-      <h1>Chameleon Ultra card search (experimental)</h1>
+      <h1>
+        Chameleon Ultra card search
+        <span class="badge experimental">Experimental</span>
+      </h1>
       <p class="sub">
         Check what type of card / fob you have. The page tries every card type
         the CU can read, including the Indala and Paradox reads from
@@ -23,13 +26,6 @@
         card talks), and checks for an ISO 14443-A card on HF.
       </p>
 
-      <div class="callout">
-        <p>
-          <b>Everything happens in this browser.</b> The page talks to the CU
-          over USB. Nothing is sent to any server, and it doesn't save anything
-          unless you press Copy or Download.
-        </p>
-      </div>
       <div class="callout caution">
         <p>
           <b>The private details output can contain your card's credential.</b>
@@ -38,23 +34,9 @@
         </p>
       </div>
 
-      <ol class="steps" aria-label="Progress">
-        <li id="step-connect"><span>1</span>Connect</li>
-        <li id="step-test"><span>2</span>Search</li>
-      </ol>
-
       <section class="flow" aria-live="polite">
         <div class="only-connect">
-          <h2>Connect the Chameleon Ultra</h2>
-          <p class="note">
-            This page requires Chrome or Edge on a computer. Use USB, not
-            Bluetooth, and close anything else using the CU, such as the CU app
-            or the Python CLI.
-          </p>
-          <div class="row gap-top">
-            <button id="connect" class="primary">Connect CU</button>
-            <span id="connectinfo" class="note"></span>
-          </div>
+          <div id="connectcard"></div>
         </div>
 
         <div class="only-ready">
@@ -219,21 +201,21 @@
         <summary><h2>Log</h2></summary>
         <pre id="log"></pre>
       </details>
-      <p class="note" id="siteversion"></p>
+      <footer id="footer"></footer>
     </main>
     <script type="importmap">
       {
         "imports": {
           "../common/cu.js": "../common/cu.js?v=203e0cbf62",
-          "../common/flash-ui.js": "../common/flash-ui.js?v=4f84a16279",
-          "../common/session.js": "../common/session.js?v=c093969636",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=48db307db7",
+          "../common/session.js": "../common/session.js?v=cd63fa21a7",
           "./framecheck.js": "./framecheck.js?v=41ad185e67",
           "./identify.js": "./identify.js?v=7ae8c66b46",
           "./lfdemod.js": "./lfdemod.js?v=5749888947",
-          "../../common/page.js": "../../common/page.js?v=ec2e65cb9d"
+          "../../common/page.js": "../../common/page.js?v=dc505804aa"
         }
       }
     </script>
-    <script type="module" src="main.js?v=942224b1e3"></script>
+    <script type="module" src="main.js?v=b824fc91f9"></script>
   </body>
 </html>

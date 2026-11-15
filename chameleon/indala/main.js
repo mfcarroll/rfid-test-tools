@@ -1,7 +1,7 @@
 // The Indala test page (index.html): connecting the CU, loading the test card, and timing the reads.
 
 import { STATUS_INVALID_CMD } from "../common/cu.js";
-import { bindFlashButtons } from "../common/flash-ui.js";
+import { bindFlashButtons, showFirmware } from "../common/flash-ui.js";
 import { openCU } from "../common/session.js";
 import { SerialFlipper } from "../../flipper/crystal/flipper.js";
 import {
@@ -14,7 +14,7 @@ import {
   setDisabled,
   oneAtATime,
   bindTabs,
-  showSiteCommit,
+  showFooter,
 } from "../../common/page.js";
 import * as X from "./indala.js";
 
@@ -185,17 +185,21 @@ const connectCU = () =>
     loaded = null;
     const p = await detectProfile();
     $("profile").value = p;
-    $("fwinfo").textContent = p
-      ? `Firmware ${fw}.` +
-        (p === "pr509" && !fw.includes(PR.version)
-          ? ` This isn't #509's current build (${PR.name.replace("#509 ", "")}). To test that build, use Flash #509 below.`
-          : "")
-      : `Firmware ${fw} has no Indala commands this page knows. Flash #509 below, then connect again.`;
+    const old = p === "pr509" && !fw.includes(PR.version);
+    showFirmware(
+      p
+        ? `Firmware ${fw}.` +
+            (old
+              ? ` This isn't #509's current build (${PR.name.replace("#509 ", "")}). To test that build, use Flash #509 below.`
+              : "")
+        : `Firmware ${fw} has no Indala commands this page knows. Flash #509 below, then connect again.`,
+      !p || old,
+    );
     $("connectinfo").textContent = "";
     await showSlots();
     showReady();
     $("connectinfo").textContent = "Connected";
-    $("continue").disabled = false;
+    $("continue").hidden = false;
     // back from a flash, or with the Flipper already connected: no reason to stop here
     if (runs.length || fl) setState("ready");
   });
@@ -222,7 +226,7 @@ bindFlashButtons({
   busy: () => (isBusy() ? "wait for the current test to finish" : null),
   done: (f) => {
     $("connectinfo").textContent = `Flashed ${f.name}. Connect again.`;
-    $("continue").disabled = true;
+    $("continue").hidden = true;
     $("profile").value = "";
     setState("connect");
   },
@@ -364,4 +368,4 @@ $("emuTest").onclick = () =>
 
 bindTabs();
 setState("connect");
-showSiteCommit($("siteversion"));
+showFooter();

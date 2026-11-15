@@ -62,6 +62,47 @@ export function saveJson(name, data) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+// The Connect step's heading, instructions and button, in the page's <div id="connectcard">. device names what to
+// connect ("Chameleon Ultra") and short names it on the button ("CU"). prepare says what to plug in and close first.
+// extra adds a sentence of the page's own. cli says the page has a command-line version further down.
+/** @param {{ device: string, short: string, prepare: string, extra?: string, cli?: boolean }} card */
+export function connectCard({
+  device,
+  short,
+  prepare,
+  extra = "",
+  cli = false,
+}) {
+  const note =
+    `${prepare} This page needs Chrome or Edge on a computer.` +
+    (cli ? " The command-line version is further down." : "") +
+    (extra ? ` ${extra}` : "");
+  const h2 = document.createElement("h2");
+  h2.textContent = `Connect your ${device}`;
+  const p = document.createElement("p");
+  p.className = "note";
+  p.textContent = note;
+  const row = document.createElement("div");
+  row.className = "row gap-top";
+  const button = document.createElement("button");
+  Object.assign(button, { id: "connect", className: "primary" });
+  button.textContent = `Connect ${short}`;
+  const info = document.createElement("span");
+  Object.assign(info, { id: "connectinfo", className: "note" });
+  row.append(button, info);
+  $("connectcard").replaceChildren(h2, p, row);
+}
+
+// The page's <footer>: what happens to the device's data, and the site's version.
+export function showFooter() {
+  const privacy = document.createElement("p");
+  privacy.textContent =
+    "The page sends your device's data nowhere: it stays in this browser until you press Copy or Download.";
+  const version = document.createElement("p");
+  $("footer").replaceChildren(privacy, version);
+  showSiteCommit(version);
+}
+
 // The commit GitHub Pages serves this site from: the head of main, read from the GitHub API. A page served from
 // anywhere other than <owner>.github.io/<repo>/ shows nothing.
 export async function showSiteCommit(el) {

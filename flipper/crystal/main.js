@@ -15,9 +15,10 @@ import {
   nowS,
   hasWebSerial,
   showState,
+  connectCard,
   bindTabs,
   bindCopyButtons,
-  showSiteCommit,
+  showFooter,
 } from "../../common/page.js";
 import {
   newRun,
@@ -27,6 +28,14 @@ import {
   stopNotice,
   redrawPlots,
 } from "../../common/timerun.js";
+
+connectCard({
+  device: "Flipper Zero",
+  short: "Flipper",
+  prepare:
+    "Plug your Flipper in to USB and close qFlipper. Exit any app that's open on the Flipper itself.",
+  cli: true,
+});
 
 const TEMPERATURE_EVERY = 16; // s between temperature readings
 const PPM_PER_DEGREE = 0.25; // the crystal's shift per °C, measured on one Flipper
@@ -319,6 +328,6 @@ $("details").addEventListener(
 
 bindTabs();
 bindCopyButtons();
-showSiteCommit($("siteversion"));
+showFooter();
 bindRunControls("flipper-crystal");
 setState("connect");

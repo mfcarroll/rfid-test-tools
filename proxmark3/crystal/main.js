@@ -7,9 +7,10 @@ import {
   log,
   hasWebSerial,
   showState,
+  connectCard,
   bindTabs,
   bindCopyButtons,
-  showSiteCommit,
+  showFooter,
 } from "../../common/page.js";
 import {
   newRun,
@@ -19,6 +20,14 @@ import {
   stopNotice,
   redrawPlots,
 } from "../../common/timerun.js";
+
+connectCard({
+  device: "Proxmark3",
+  short: "PM3",
+  prepare:
+    "Plug your PM3 in to USB, not Bluetooth, and quit the pm3 client or anything else using it.",
+  cli: true,
+});
 
 let pm3 = null,
   ticks = null,
@@ -31,7 +40,7 @@ function setState(state) {
     connect: ["current"],
     ready: ["done", "current"],
     run: ["done", "current"],
-    done: ["done", "done", "done"],
+    done: ["done", "done", "current"],
   });
   setButtons();
 }
@@ -170,4 +179,4 @@ bindTabs();
 bindCopyButtons();
 bindRunControls("pm3-crystal");
 setState("connect");
-showSiteCommit($("siteversion"));
+showFooter();

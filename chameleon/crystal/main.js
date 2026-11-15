@@ -1,8 +1,8 @@
 // The crystal offset page (index.html): connecting the CU, checking its firmware, and the measurement run.
 
 import * as H from "./hfxo.js";
-import { bindFlashButtons } from "../common/flash-ui.js";
-import { openCU } from "../common/session.js";
+import { bindFlashButtons, showFirmware } from "../common/flash-ui.js";
+import { openCU, cuConnectCard } from "../common/session.js";
 import {
   $,
   nowS,
@@ -10,7 +10,7 @@ import {
   showState,
   bindTabs,
   bindCopyButtons,
-  showSiteCommit,
+  showFooter,
 } from "../../common/page.js";
 import {
   newRun,
@@ -20,6 +20,8 @@ import {
   stopNotice,
   redrawPlots,
 } from "../../common/timerun.js";
+
+cuConnectCard({ cli: true });
 
 const FIRMWARE = {
   test: {
@@ -44,7 +46,7 @@ function setState(state) {
     connect: ["current"],
     ready: ["done", "current"],
     run: ["done", "current"],
-    done: ["done", "done", "done"],
+    done: ["done", "done", "current"],
   });
   setButtons();
 }
@@ -61,10 +63,12 @@ async function checkFirmware(version) {
     () => true,
     () => false,
   );
-  $("fwinfo").textContent = counter
-    ? `Firmware ${version}, with the crystal tick counter.`
-    : `Firmware ${version} can't count the crystal's ticks. Flash the test firmware below.`;
-  $("flashTest").className = counter ? "" : "primary";
+  showFirmware(
+    counter
+      ? `Firmware ${version}, with the crystal tick counter.`
+      : `Firmware ${version} can't count the crystal's ticks. Flash the test firmware below.`,
+    !counter,
+  );
   $("start").className = counter ? "primary" : "";
 }
 
@@ -175,4 +179,4 @@ bindTabs();
 bindCopyButtons();
 bindRunControls("cu-crystal");
 setState("connect");
-showSiteCommit($("siteversion"));
+showFooter();

@@ -2,7 +2,7 @@
 // its own variable and passes it in.
 
 import { SerialCU } from "./cu.js";
-import { $, log, hasWebSerial } from "../../common/page.js";
+import { $, log, hasWebSerial, connectCard } from "../../common/page.js";
 
 // Asks the person to pick their CU, closes previous (the page's last connection) and opens the CU picked. Returns
 // the open SerialCU, or null if the browser has no Web Serial. If the person cancels, previous stays open. If the
@@ -36,3 +36,15 @@ export function watchDisconnect(current, gone) {
     gone();
   });
 }
+
+// The Connect step for a CU, in the page's <div id="connectcard">. extra and cli as connectCard() takes them.
+/** @param {{ extra?: string, cli?: boolean }} [opts] */
+export const cuConnectCard = ({ extra, cli } = {}) =>
+  connectCard({
+    device: "Chameleon Ultra",
+    short: "CU",
+    prepare:
+      "Plug your CU in to USB, not Bluetooth, and close anything else using it, such as the CU app or the Python CLI.",
+    extra,
+    cli,
+  });

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RFID Test Tools</title>
-    <link rel="stylesheet" href="common/style.css?v=7c6b70081f" />
+    <link rel="stylesheet" href="common/style.css?v=c04a103948" />
   </head>
   <body class="home">
     <main>
@@ -17,83 +17,85 @@
         >.
       </p>
 
+      <!-- A tool's status goes after its name: <span class="badge experimental">Experimental</span>,
+           <span class="badge upstreamed">Upstreamed</span> or <span class="badge">Retiring</span>. -->
       <h2>Chameleon Ultra</h2>
       <p>
         Each tool needs its own test firmware, available to flash on the page.
       </p>
-      <a class="tool" href="chameleon/crystal/"
-        ><b>Crystal oscillator offset</b>
-        <span
-          >How fast or slow the 32 MHz crystal runs, measured against internet
-          time.</span
-        ></a
-      >
-      <a class="tool" href="chameleon/selftrim/"
-        ><b>FSK self-trim (experimental)</b>
-        <span
-          >Emulates HID Prox, Paradox and ioProx cards matched to a reader's
-          clock. Put the same card in slots with and without the various
-          experimental modes, and see which ones a reader accepts.</span
-        ></a
-      >
-      <a class="tool" href="chameleon/pulse/"
-        ><b>Pulse test (experimental)</b>
-        <span
-          >For readers that switch their field on and off. Puts one HID Prox,
-          Paradox or ioProx card in slots 1–7, each answering a different way,
-          to see which one a reader accepts.</span
-        ></a
-      >
-      <a class="tool" href="chameleon/search/"
-        ><b>Card search</b>
-        <span
-          >Finds out what kind of card or fob you have: tries every LF card type
-          the CU reads, works out an unknown card's modulation, bit rate and
-          frame length from its raw signal, and checks HF. Gives a report that's
-          safe to share.</span
-        ></a
-      >
-      <a class="tool" href="chameleon/field/"
-        ><b>Field measurement (experimental)</b>
-        <span
-          >Use the CU to measure a reader's field: the LF carrier's frequency,
-          whether the reader sends commands, and whether an HF reader polls for
-          ISO 14443-A cards. Works on battery and reports when you
-          reconnect.</span
-        ></a
-      >
-      <a class="tool" href="chameleon/interactive/"
-        ><b>Interactive LF emulation (experimental)</b>
-        <span>Read and emulate a Hitag 2 tag in password mode.</span></a
-      >
-      <a class="tool" href="chameleon/indala/"
-        ><b>Indala test</b>
-        <span
-          >Measures the timing of the CU reading Indala cards, and a Flipper
-          Zero reading the CU's Indala emulation. Compare firmwares by flashing
-          between runs, without moving anything. For testing PR #509.</span
-        ></a
-      >
-
+      <div class="tools">
+        <a class="tool" href="chameleon/crystal/"
+          ><b>Crystal oscillator offset</b
+          ><span
+            >How fast or slow the CU's 32 MHz crystal runs, against internet
+            time.</span
+          ></a
+        >
+        <a class="tool" href="chameleon/search/"
+          ><b>Card search</b>
+          <span class="badge experimental">Experimental</span
+          ><span
+            >Works out what card or fob you have, with a report that's safe to
+            share.</span
+          ></a
+        >
+        <a class="tool" href="chameleon/selftrim/"
+          ><b>FSK self-trim</b>
+          <span class="badge experimental">Experimental</span
+          ><span
+            >HID Prox, Paradox and ioProx emulation matched to a reader's clock,
+            compared slot by slot.</span
+          ></a
+        >
+        <a class="tool" href="chameleon/pulse/"
+          ><b>Pulse test</b> <span class="badge experimental">Experimental</span
+          ><span
+            >Seven ways to answer a reader that switches its field on and off,
+            one per slot.</span
+          ></a
+        >
+        <a class="tool" href="chameleon/field/"
+          ><b>Field measurement</b>
+          <span class="badge experimental">Experimental</span
+          ><span
+            >Measures a reader's field: its LF frequency, its commands and its
+            HF polls.</span
+          ></a
+        >
+        <a class="tool" href="chameleon/interactive/"
+          ><b>Interactive LF emulation</b>
+          <span class="badge experimental">Experimental</span
+          ><span>Reads and emulates a Hitag 2 tag in password mode.</span></a
+        >
+        <a class="tool" href="chameleon/indala/"
+          ><b>Indala test</b
+          ><span
+            >Times Indala reads on the CU and on a Flipper Zero, to compare
+            firmwares for PR #509.</span
+          ></a
+        >
+      </div>
       <h2>Flipper Zero</h2>
-      <a class="tool" href="flipper/crystal/"
-        ><b>Crystal oscillator calibration</b>
-        <span
-          >Measures the 32 MHz crystal against internet time and saves the
-          correction in a new version of the RFID detector app, allowing exact
-          LF reader frequency measurements.</span
-        ></a
-      >
-
+      <div class="tools">
+        <a class="tool" href="flipper/crystal/"
+          ><b>Crystal oscillator calibration</b
+          ><span
+            >Measures the 32 MHz crystal and saves the correction in the RFID
+            detector app.</span
+          ></a
+        >
+      </div>
       <h2>Proxmark3</h2>
       <p>Needs test firmware, which you flash with your own pm3 client.</p>
-      <a class="tool" href="proxmark3/crystal/"
-        ><b>Crystal oscillator offset</b>
-        <span
-          >How fast or slow the 16 MHz crystal runs, measured against internet
-          time. The PM3's 125 kHz LF carrier is off by the same amount.</span
-        ></a
-      >
+      <div class="tools">
+        <a class="tool" href="proxmark3/crystal/"
+          ><b>Crystal oscillator offset</b
+          ><span
+            >How fast or slow the 16 MHz crystal runs. The 125 kHz LF carrier is
+            off by the same amount.</span
+          ></a
+        >
+      </div>
     </main>
   </body>
 </html>

@@ -1,8 +1,8 @@
 // The card search page (index.html): connecting the CU, running the reads and chip checks, and the report.
 
 import { STATUS_SUCCESS } from "../common/cu.js";
-import { bindFlashButtons } from "../common/flash-ui.js";
-import { openCU } from "../common/session.js";
+import { bindFlashButtons, showFirmware } from "../common/flash-ui.js";
+import { openCU, cuConnectCard } from "../common/session.js";
 import {
   $,
   log,
@@ -11,7 +11,7 @@ import {
   oneAtATime,
   bindCopyButtons,
   saveJson,
-  showSiteCommit,
+  showFooter,
 } from "../../common/page.js";
 import * as X from "./identify.js";
 import { analyse, t55xxAnswer, traceBlock } from "./lfdemod.js";
@@ -22,6 +22,8 @@ import {
   shapeFits,
   t55ConfigFromProbe,
 } from "./framecheck.js";
+
+cuConnectCard();
 
 const IDENTIFY = {
   zip: "firmware/lf-search-aa05875a-ultra-dfu-app.zip",
@@ -104,9 +106,12 @@ async function checkFirmware() {
   // know the command.
   const r = await cu.cmd(X.CMD.LF_CHIP_PROBE, new Uint8Array(0));
   long = r.status !== X.STATUS.INVALID_CMD;
-  $("fwinfo").textContent =
-    `CU on ${fw}: ` +
-    (long ? "has long captures and the chip check" : "no long captures");
+  showFirmware(
+    long
+      ? `Firmware ${fw}, with long captures and the chip check.`
+      : `Firmware ${fw} has no long captures.`,
+    !long,
+  );
   $("fwneed").hidden = long;
   log(`connected: ${fw}, long captures ${long ? "yes" : "no"}`);
   return fw;
@@ -302,4 +307,4 @@ $("download").onclick = () => {
 
 bindCopyButtons();
 setState("connect");
-showSiteCommit($("siteversion"));
+showFooter();

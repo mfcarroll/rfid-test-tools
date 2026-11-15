@@ -482,7 +482,16 @@ li {
 
 /* home page */
 .home main {
-  max-width: 720px;
+  max-width: 880px;
+}
+.tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.tools .tool {
+  margin: 0;
 }
 .home h2 {
   font-size: 16px;
@@ -504,7 +513,26 @@ li {
 .tool b {
   color: var(--accent);
 }
-.tool span {
+/* a short label after a heading or a tool's name: Experimental, Retiring, Upstreamed */
+.badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 7px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  vertical-align: middle;
+  color: var(--muted);
+}
+.badge.experimental {
+  color: var(--warn);
+}
+.badge.upstreamed {
+  color: var(--good);
+}
+.tool span:not(.badge) {
   display: block;
   color: var(--muted);
   font-size: 13px;
@@ -578,11 +606,29 @@ dl.options-list dd {
   font-size: 14px;
 }
 .callout.caution {
-  border-left-color: var(--bad);
+  border-left-color: var(--warn);
 }
 .callout p {
   margin: 0 0 6px;
 }
 .callout p:last-child {
   margin-bottom: 0;
+}
+
+/* the firmware a page doesn't need first: stock, or a file of the person's own */
+details.more {
+  margin-top: 8px;
+}
+details.more summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 14px;
+}
+footer {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+footer p {
+  margin: 0 0 4px;
 }

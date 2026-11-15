@@ -1,7 +1,7 @@
 // The interactive LF emulation page (index.html): connecting the CU, the Hitag 2 test tag, and reading its trace.
 
-import { bindFlashButtons } from "../common/flash-ui.js";
-import { openCU, watchDisconnect } from "../common/session.js";
+import { bindFlashButtons, showFirmware } from "../common/flash-ui.js";
+import { openCU, watchDisconnect, cuConnectCard } from "../common/session.js";
 import {
   $,
   log,
@@ -11,9 +11,11 @@ import {
   oneAtATime,
   bindCopyButtons,
   saveJson,
-  showSiteCommit,
+  showFooter,
 } from "../../common/page.js";
 import * as P from "./interactive.js";
+
+cuConnectCard();
 
 const TEST_FW = {
   zip: "firmware/lf-interactive-bcf166a8-ultra-dfu-app.zip",
@@ -32,10 +34,11 @@ let cu = null,
   firmware = "",
   report = null;
 
+// Step 3 (read the trace) is current once a trace has been read.
 const setState = (state) =>
   showState(state, {
     connect: ["current"],
-    ready: ["done", "current"],
+    ready: report ? ["done", "done", "current"] : ["done", "current"],
   });
 const CONTROLS = [
   "slot",
@@ -60,9 +63,12 @@ async function checkFirmware() {
   // The engine's counters command is the probe: a firmware without it answers "invalid command".
   const r = await cu.cmd(P.CMD.LF_IA_TUNING);
   has = r.status === P.STATUS.SUCCESS;
-  $("fwinfo").textContent =
-    `CU on ${fw}: ` +
-    (has ? "has the interactive LF engine" : "no interactive LF engine");
+  showFirmware(
+    has
+      ? `Firmware ${fw}, with the interactive LF engine.`
+      : `Firmware ${fw} has no interactive LF engine.`,
+    !has,
+  );
   $("fwneed").hidden = has;
   log(`connected: ${fw}, interactive engine ${has ? "yes" : "no"}`);
   return fw;
@@ -336,6 +342,7 @@ $("read").onclick = () =>
     $("safe").textContent = P.safeMarkdown(report);
     $("private").textContent = P.privateMarkdown(report);
     $("resultbox").hidden = false;
+    setState("ready");
     // If the reader's password turned up in the trace (repeated attempts that agree), put it in page 1 so the
     // tag can authenticate on the next visit.
     const pw = P.recoverPassword(t.recs);
@@ -375,5 +382,5 @@ bindFlashButtons({
 
 bindCopyButtons();
 setState("connect");
-showSiteCommit($("siteversion"));
+showFooter();
 hasWebSerial();

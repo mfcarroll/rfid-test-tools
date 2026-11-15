@@ -24,14 +24,14 @@
 //   saveExtra(page): more keys for the saved report
 
 import { STATUS_SUCCESS, STATUS_INVALID_CMD } from "./cu.js";
-import { bindFlashButtons } from "./flash-ui.js";
-import { openCU } from "./session.js";
+import { bindFlashButtons, showFirmware } from "./flash-ui.js";
+import { openCU, cuConnectCard } from "./session.js";
 import * as F from "./fsk.js";
 import {
   $,
   log,
   saveJson,
-  showSiteCommit,
+  showFooter,
   showState,
   oneAtATime,
 } from "../../common/page.js";
@@ -39,6 +39,9 @@ import {
 export function fskPage(variant) {
   const V = variant,
     X = variant.presets;
+  cuConnectCard({
+    extra: "It works with the Chameleon Ultra only, not the Lite.",
+  });
   // The test firmware's commit, on its flash button
   V.firmware.test.label = `Flash the test firmware (${V.firmware.test.name.match(/([0-9a-f]{7,8})\)$/)[1]})`;
 
@@ -104,12 +107,14 @@ export function fskPage(variant) {
       last = null;
     }
     const current = fw.includes(V.firmware.test.version);
-    $("fwinfo").textContent = !support
-      ? `Firmware ${fw} ${V.lacks}. Flash ${V.flashIt} below, then connect again.`
-      : current
-        ? `Firmware ${fw}, the current test build.`
-        : `Firmware ${fw}, an older test build. Flash the current one below before testing.`;
-    $("flashTest").className = support && current ? "" : "primary";
+    showFirmware(
+      !support
+        ? `Firmware ${fw} ${V.lacks}. Flash ${V.flashIt} below, then connect again.`
+        : current
+          ? `Firmware ${fw}, the current test build.`
+          : `Firmware ${fw}, an older test build. Flash the current one below before testing.`,
+      !(support && current),
+    );
     $("setup").hidden = !support;
     for (const id of ["backup", "restore"]) $(id).disabled = !support;
   }
@@ -639,6 +644,6 @@ export function fskPage(variant) {
     });
 
   setState("connect");
-  showSiteCommit($("siteversion"));
+  showFooter();
   return page;
 }

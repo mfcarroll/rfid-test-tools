@@ -1,7 +1,7 @@
 // The field measurement page (index.html): connecting the CU, setting up a measurement, and reading its log.
 
-import { bindFlashButtons } from "../common/flash-ui.js";
-import { openCU, watchDisconnect } from "../common/session.js";
+import { bindFlashButtons, showFirmware } from "../common/flash-ui.js";
+import { openCU, watchDisconnect, cuConnectCard } from "../common/session.js";
 import {
   $,
   log,
@@ -10,9 +10,11 @@ import {
   oneAtATime,
   bindCopyButtons,
   saveJson,
-  showSiteCommit,
+  showFooter,
 } from "../../common/page.js";
 import * as P from "./measure.js";
+
+cuConnectCard();
 
 const MEASURE_FW = {
   zip: "firmware/field-measure-e67be65e-ultra-dfu-app.zip",
@@ -76,8 +78,12 @@ async function checkFirmware() {
     );
   }
   if (has) measureVersion = m.version;
-  $("fwinfo").textContent =
-    `CU on ${fw}: ` + (has ? "has field measurement" : "no field measurement");
+  showFirmware(
+    has
+      ? `Firmware ${fw}, with field measurement.`
+      : `Firmware ${fw} has no field measurement.`,
+    !has,
+  );
   $("fwneed").hidden = has;
   if (m && has) showMode(m);
   log(`connected: ${fw}, field measurement ${has ? "yes" : "no"}`);
@@ -325,4 +331,4 @@ $("download").onclick = () => {
 };
 bindCopyButtons();
 setState("connect");
-showSiteCommit($("siteversion"));
+showFooter();
