@@ -35,6 +35,8 @@ export function stopNotice() {
 }
 
 export function newRun({ minutes, burstN, nominal, ...extra }) {
+  $("finish").disabled = false;
+  $("finish").textContent = "Finish now";
   run = {
     id: new Date().toISOString(),
     minutes,
@@ -393,11 +395,17 @@ function update() {
 
 // Finish now, Abort, Download log, and noting when the tab is hidden. `file` names the downloaded log.
 export function bindRunControls(file) {
+  // The run still takes its end burst, which can last a minute, so the button says it heard.
   $("finish").onclick = () => {
-    if (run) {
-      run.finishNow = true;
-      log("finishing early: end burst next");
-    }
+    if (!run || run.finishNow) return;
+    run.finishNow = true;
+    $("finish").disabled = true;
+    $("finish").textContent = "Finishing…";
+    log(
+      run.probes.length || run.midBurst
+        ? "finishing early: end burst next"
+        : "finishing early: end burst after the start burst",
+    );
   };
   $("abort").onclick = () => {
     if (run) {
