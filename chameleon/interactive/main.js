@@ -19,8 +19,8 @@ import * as P from "./interactive.js";
 cuConnectCard();
 
 const TEST_FW = {
-  zip: "firmware/lf-interactive-bcf166a8-ultra-dfu-app.zip",
-  name: "experimental bcf166a8",
+  zip: "firmware/lf-interactive-0c947cd1-ultra-dfu-app.zip",
+  name: "experimental 0c947cd1",
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",

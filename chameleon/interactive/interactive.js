@@ -16,7 +16,7 @@ export const CMD = {
   SET_SLOT_ENABLE: 1006,
   SLOT_DATA_CONFIG_SAVE: 1009,
   GET_ACTIVE_SLOT: 1018,
-  HITAG2_SCAN: 3036, // read a tag's UID (the firmware flips to reader mode for this command)
+  HITAG2_SCAN: 3038, // read a tag's UID (the firmware flips to reader mode for this command). 3036 is #509's.
   HITAG2_READ: 3037, // read a tag's eight pages with a password (reader mode)
   HITAG2_SET_EMU_DATA: 5040,
   HITAG2_GET_EMU_DATA: 5041,

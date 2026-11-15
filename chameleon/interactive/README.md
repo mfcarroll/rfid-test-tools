@@ -87,15 +87,16 @@ retained exchange trace, on top of upstream `main`. Commands the page uses:
 | 1003 set active slot  | slot (u8)                                      | –                                                                                                                                       |
 | 1004 set slot type    | slot (u8), tag type (BE16)                     | –                                                                                                                                       |
 | 1018 get active slot  | –                                              | the active slot (u8)                                                                                                                    |
-| 3036 Hitag 2 scan     | –                                              | the tag's UID, 4 bytes (status `LF_TAG_OK`, else `LF_TAG_NO_FOUND`)                                                                     |
+| 1019 get slot info    | –                                              | each slot's HF and LF tag type (BE16 each), slot 1 first                                                                                |
 | 3037 Hitag 2 read     | the reader password, 4 bytes                   | 32 page bytes, then a u8 mask of which pages read (status `LF_TAG_OK`, `LF_TAG_NO_FOUND` if partial, `MF_ERR_AUTH` on a wrong password) |
+| 3038 Hitag 2 scan     | –                                              | the tag's UID, 4 bytes (status `LF_TAG_OK`, else `LF_TAG_NO_FOUND`)                                                                     |
 | 5040 set Hitag 2 data | 32 bytes: eight pages, page 0 first, MSB first | –                                                                                                                                       |
 | 5041 get Hitag 2 data | –                                              | the active slot's 32 bytes, if its LF type is Hitag 2                                                                                   |
 | 3180 trace read       | first record index (BE16)                      | total (u32 LE), record size (u16 LE), count (u8), first kept (u8), boot (u16 LE), then the records                                      |
 | 3181 trace clear      | –                                              | –                                                                                                                                       |
 | 3184 counters         | –                                              | the 14-byte tuning struct, then seven u32 counters (sessions, commands, answers, late, ADC ticks, slips, longest tick)                  |
 
-3036 and 3037 are reader commands: the firmware rejects them unless the CU is already in reader mode (command 1001,
+3037 and 3038 are reader commands: the firmware rejects them unless the CU is already in reader mode (command 1001,
 argument 1), returning a device-mode error. The page switches to reader mode around each read and back to tag mode
 after, so the slot keeps emulating.
 
