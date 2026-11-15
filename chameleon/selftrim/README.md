@@ -84,7 +84,7 @@ The test firmware's one new command for the page. Request: none (report), `slot,
 learned and the field counts). Setting the active slot's preset reloads the slot. Reply (big-endian): version (1),
 active slot, default preset, phase constant K, live drive and trim state, the self-trim status, then 18 bytes per
 slot: stored preset, preset in use, LF type, fields seen, learned (valid, LF type, trim in steps, the reader's
-line in mHz, fields averaged). `selftrim.js` parses it.
+line in mHz, fields averaged). `../common/fsk.js` parses it.
 
 ## Command 3100, offset 0xFFFE
 
@@ -100,9 +100,10 @@ since that wake. Offset `0xFFFC` clears it. The CU keeps the log while it sleeps
 
 ## Files
 
-| file                                       |                                                              |
-| ------------------------------------------ | ------------------------------------------------------------ |
-| `index.html`                               | the page                                                     |
-| `selftrim.js`                              | command 3120 and the slot commands, no DOM                   |
-| `../common/cu.js`, `../common/flash-ui.js` | the CU client and flashing, shared with the crystal page     |
-| `firmware/`                                | the test firmware (stock v2.3.0 is in `../common/firmware/`) |
+| file                                        |                                                              |
+| ------------------------------------------- | ------------------------------------------------------------ |
+| `index.html`, `main.js`                     | the page, and what it does differently from the pulse page   |
+| `selftrim.js`                               | the self-trim modes and the report, no DOM                   |
+| `../common/fsk-page.js`, `../common/fsk.js` | the page and command 3120, shared with the pulse page        |
+| `../common/cu.js`, `../common/flash-ui.js`  | the CU client and flashing, shared with the crystal page     |
+| `firmware/`                                 | the test firmware (stock v2.3.0 is in `../common/firmware/`) |
