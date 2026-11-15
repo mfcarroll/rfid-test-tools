@@ -1,0 +1,52 @@
+.pages {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  gap: 7px 20px;
+  align-items: center;
+}
+.pages .ph {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.pages .ph:first-child {
+  text-align: right;
+}
+.pages .pn {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.pages .pf {
+  display: flex;
+  gap: 6px;
+  width: 130px;
+}
+.pages input {
+  box-sizing: border-box;
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase;
+}
+.pages #p3config {
+  flex: 0 0 40px;
+}
+.pages #p3tagpw {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pages input:read-only {
+  color: var(--muted);
+  border-style: dashed;
+}
+.pages .pa {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  color: var(--muted);
+  white-space: pre;
+  min-width: 4ch;
+}
+.pages .pl {
+  color: var(--muted);
+  font-size: 14px;
+}

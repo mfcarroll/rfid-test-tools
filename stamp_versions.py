@@ -5,8 +5,9 @@ with old cached modules (GitHub Pages lets browsers keep a file for 10 minutes).
     python3 stamp_versions.py           # rewrite the pages
     python3 stamp_versions.py --check   # exit 1 if a page is out of date (run before pushing)
 
-Each page gets an import map that sends every local module it loads, imports of imports included, to
-"<module>?v=<hash>". The stylesheet link gets the same query. A file's URL changes only when the file does.
+Each page's module script (<script type="module" src="main.js">) and stylesheet links get "?v=<hash>". The page
+also gets an import map that sends every module the script imports, imports of imports included, to
+"<module>?v=<hash>". A file's URL changes only when the file does.
 """
 
 import hashlib
@@ -16,7 +17,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 IMPORT = re.compile(r"""(?:\bimport\b[^"';]*?\bfrom\s*|\bimport\s*|\bexport\b[^"';]*?\bfrom\s*)["'](\.{1,2}/[^"']+)["']""")
-MODULE_SCRIPT = re.compile(r'<script type="module">(.*?)</script>', re.S)
+MODULE_SCRIPT = re.compile(r'(<script type="module" src=")([^"?]+)(?:\?v=[0-9a-f]+)?("></script>)')
 IMPORT_MAP = re.compile(r'\n?( *)<script type="importmap">.*?</script>', re.S)
 STYLESHEET = re.compile(r'(<link rel="stylesheet" href=")([^"?]+)(?:\?v=[0-9a-f]+)?(")')
 
@@ -26,11 +27,9 @@ def file_hash(path):
         return hashlib.sha256(f.read()).hexdigest()[:10]
 
 
-def module_graph(page_dir, sources):
-    """Every local module reachable from the page's own module scripts, as paths relative to the page."""
-    found, pending = set(), []
-    for source in sources:
-        pending += [os.path.normpath(os.path.join(page_dir, spec)) for spec in IMPORT.findall(source)]
+def module_graph(scripts):
+    """Every local module the page's module scripts import, directly or not. The scripts themselves are left out."""
+    found, pending = set(), list(scripts)
     while pending:
         path = pending.pop()
         if path in found or not os.path.isfile(path):
@@ -39,7 +38,7 @@ def module_graph(page_dir, sources):
         with open(path, encoding="utf-8") as f:
             text = f.read()
         pending += [os.path.normpath(os.path.join(os.path.dirname(path), spec)) for spec in IMPORT.findall(text)]
-    return sorted(found)
+    return sorted(found - set(scripts))
 
 
 def stamp(page):
@@ -48,16 +47,18 @@ def stamp(page):
         html = f.read()
     stamped = IMPORT_MAP.sub("", html)
 
-    def stamp_stylesheet(match):
+    def stamp_link(match):
         target = os.path.normpath(os.path.join(page_dir, match.group(2)))
         return f"{match.group(1)}{match.group(2)}?v={file_hash(target)}{match.group(3)}"
 
-    stamped = STYLESHEET.sub(stamp_stylesheet, stamped)
-    modules = module_graph(page_dir, MODULE_SCRIPT.findall(stamped))
+    stamped = STYLESHEET.sub(stamp_link, stamped)
+    stamped = MODULE_SCRIPT.sub(stamp_link, stamped)
+    scripts = [os.path.normpath(os.path.join(page_dir, m.group(2))) for m in MODULE_SCRIPT.finditer(stamped)]
+    modules = module_graph(scripts)
     if modules:
         entries = []
         script = MODULE_SCRIPT.search(stamped)
-        indent = re.search(r"( *)<script type=\"module\">", stamped).group(1)
+        indent = re.search(r"( *)<script type=\"module\"", stamped).group(1)
         for path in modules:
             url = os.path.relpath(path, page_dir)
             url = url if url.startswith(".") else "./" + url
