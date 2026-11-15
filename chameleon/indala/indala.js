@@ -38,29 +38,7 @@ export const isTestDecode = (r) =>
   r.info.includes("FC: 123") &&
   r.info.includes("Card: 1337");
 
-const LF_TYPES = {
-  0: "empty",
-  100: "EM410x",
-  150: "PAC",
-  170: "Viking",
-  180: "Jablotron",
-  200: "HID Prox",
-  201: "ioProx",
-  203: "Paradox",
-  300: "Indala",
-  310: "IDTECK",
-  311: "Indala (nieldk)",
-};
-export const lfName = (t) => LF_TYPES[t] ?? `type ${t}`;
-
-// GET_SLOT_INFO: eight (hf, lf) pairs of u16, slot 1 first.
-export function parseSlotInfo(d) {
-  const v = new DataView(d.buffer, d.byteOffset, d.byteLength);
-  const slots = [];
-  for (let i = 0; i + 4 <= d.length; i += 4)
-    slots.push({ hf: v.getUint16(i), lf: v.getUint16(i + 2) });
-  return slots;
-}
+export { lfName, parseSlotInfo } from "../common/slots.js";
 
 export const reqMode = (reader) => Uint8Array.of(reader ? 1 : 0);
 export const reqSlot = (slot) => Uint8Array.of(slot);

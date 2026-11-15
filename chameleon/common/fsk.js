@@ -7,24 +7,7 @@ export const EXACT_BITS = 0x04;
 export const UNSET = 0xff;
 export const FSK_TYPES = new Set([200, 201, 203]); // HID Prox, ioProx, Paradox: the types the presets apply to
 
-const LF_TYPES = {
-  0: "none",
-  100: "EM410x",
-  101: "EM410x/16",
-  102: "EM410x/32",
-  103: "EM410x/64",
-  104: "EM410x Electra",
-  150: "PAC",
-  170: "Viking",
-  180: "Jablotron",
-  200: "HID Prox",
-  201: "ioProx",
-  202: "Pyramid",
-  203: "Paradox",
-  300: "Indala",
-  310: "IDTECK",
-};
-export const lfName = (t) => LF_TYPES[t] ?? `type ${t}`;
+export { lfName } from "./slots.js";
 
 export const reqQuery = () => new Uint8Array(0);
 export const reqSet = (slot, preset) => Uint8Array.of(slot, preset); // slot 0-7, a preset or UNSET

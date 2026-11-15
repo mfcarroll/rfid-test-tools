@@ -13,6 +13,7 @@ import {
   saveJson,
   showFooter,
 } from "../../common/page.js";
+import { CMD_GET_SLOT_INFO, lfName, parseSlotInfo } from "../common/slots.js";
 import * as P from "./interactive.js";
 
 cuConnectCard();
@@ -26,11 +27,9 @@ const STOCK = {
   name: "stock v2.3.0",
 };
 TEST_FW.label = `Flash the experimental firmware (${TEST_FW.name.replace("experimental ", "")})`;
-for (let s = 0; s < 8; s++)
-  $("slot").append(new Option(`slot ${s + 1}`, String(s)));
-
 let cu = null,
   has = false, // the firmware has the interactive engine
+  slotTypes = null, // each slot's LF card type, once read
   firmware = "",
   report = null;
 
@@ -42,6 +41,7 @@ const setState = (state) =>
   });
 const CONTROLS = [
   "slot",
+  "loadslot",
   "setup",
   "scan",
   "readtag",
@@ -52,10 +52,45 @@ const CONTROLS = [
   "flashStock",
   "flashFile",
 ];
-const { run, isBusy } = oneAtATime((on) => setDisabled(CONTROLS, on));
+const { run, isBusy } = oneAtATime((on) => {
+  setDisabled(CONTROLS, on);
+  if (!on) syncLoadButton();
+});
 const need = () => {
   if (!has) throw new Error("this firmware has no interactive LF engine");
 };
+
+// The slot list: each slot's number and, once the page has read them, its LF card.
+function renderSlots() {
+  const sel = $("slot"),
+    keep = sel.value;
+  sel.textContent = "";
+  for (let s = 0; s < 8; s++)
+    sel.append(
+      new Option(
+        slotTypes ? `slot ${s + 1}: ${lfName(slotTypes[s])}` : `slot ${s + 1}`,
+        String(s),
+      ),
+    );
+  if (keep !== "") sel.value = keep;
+  syncLoadButton();
+}
+async function readSlots() {
+  const r = await cu.cmd(CMD_GET_SLOT_INFO);
+  slotTypes =
+    r.status === P.STATUS.SUCCESS
+      ? parseSlotInfo(r.data).map((s) => s.lf)
+      : null;
+  renderSlots();
+}
+// Loading a slot into the fields needs a slot that holds a Hitag 2 card.
+function syncLoadButton() {
+  if (isBusy()) return;
+  $("loadslot").disabled =
+    !cu || slotTypes?.[Number($("slot").value)] !== P.TAG_TYPE_HITAG2;
+}
+renderSlots();
+$("slot").onchange = syncLoadButton;
 
 // ---------------------------------------------------------------- connect and firmware
 async function checkFirmware() {
@@ -78,6 +113,7 @@ const connectCU = () =>
     cu = await openCU(cu);
     if (!cu) return;
     firmware = await checkFirmware();
+    await readSlots();
     if (has) {
       const a = await cu.cmd(P.CMD.GET_ACTIVE_SLOT);
       if (a.status === P.STATUS.SUCCESS) $("slot").value = String(a.data[0]);
@@ -319,6 +355,37 @@ $("setup").onclick = () =>
     $("setupinfo").textContent =
       `Slot ${slotFw + 1}: Hitag 2, UID ${uid}, saved. Clear the trace, then go to the reader.`;
     log(`set up Hitag 2 on slot ${slotFw + 1}, UID ${uid}`);
+    await readSlots();
+  });
+
+// The CU reads the active slot's card, so loading another slot makes it active for a moment. The slot that was
+// active is put back afterwards.
+$("loadslot").onclick = () =>
+  run("load the slot", async () => {
+    need();
+    const slot = Number($("slot").value);
+    const was = (await cu.ok(P.CMD.GET_ACTIVE_SLOT)).data[0];
+    await cu.ok(P.CMD.SET_ACTIVE_SLOT, P.reqActiveSlot(slot));
+    let data;
+    try {
+      data = (await cu.ok(P.CMD.HITAG2_GET_EMU_DATA)).data.slice(
+        0,
+        P.HITAG2_DATA_SIZE,
+      );
+    } finally {
+      if (was !== slot)
+        await cu.ok(P.CMD.SET_ACTIVE_SLOT, P.reqActiveSlot(was));
+    }
+    if (data.length !== P.HITAG2_DATA_SIZE)
+      throw new Error(
+        `slot ${slot + 1} sent ${data.length} bytes, expected 32`,
+      );
+    fillReadPages({
+      pages: Array.from({ length: 8 }, (_, i) => data.slice(i * 4, i * 4 + 4)),
+    });
+    $("setupinfo").textContent =
+      `Slot ${slot + 1}'s Hitag 2 card is in the fields, UID ${P.uidOf(data)}.`;
+    log(`loaded slot ${slot + 1}'s Hitag 2 card, UID ${P.uidOf(data)}`);
   });
 
 $("clear").onclick = () =>

@@ -56,11 +56,12 @@
           <div class="gap-top">
             <div class="title">1. Set up a Hitag 2 tag</div>
             <p class="note">
-              Enter the tag's eight pages, or read a real tag into the fields,
-              then write it to the active slot. Each field is hex. For a reader
-              to authenticate, the reader password (page 1) must match the one
-              the reader sends. The config byte is fixed at <code>06</code> —
-              Hitag 2, password mode, the only mode supported.
+              Enter the tag's eight pages, read a real tag into the fields, or
+              load a slot that already holds a Hitag 2 card. Then write it to a
+              slot, which also makes that slot active. Each field is hex. For a
+              reader to authenticate, the reader password (page 1) must match
+              the one the reader sends. The config byte is fixed at
+              <code>06</code> — Hitag 2, password mode, the only mode supported.
             </p>
             <div class="pages gap-top">
               <span class="ph">#</span><span class="ph">data</span
@@ -163,6 +164,9 @@
                 >Slot
                 <select id="slot"></select
               ></label>
+              <button id="loadslot" disabled>
+                Load the slot into the fields
+              </button>
               <button id="setup" class="primary">Write it to the slot</button>
               <button id="example">Fill blanks with the example tag</button>
               <span class="note" id="setupinfo"></span>
@@ -281,11 +285,12 @@
           "../common/cu.js": "../common/cu.js?v=203e0cbf62",
           "../common/flash-ui.js": "../common/flash-ui.js?v=48db307db7",
           "../common/session.js": "../common/session.js?v=cd63fa21a7",
+          "../common/slots.js": "../common/slots.js?v=ca14c3948d",
           "./interactive.js": "./interactive.js?v=4ba0f8c23f",
           "../../common/page.js": "../../common/page.js?v=dc505804aa"
         }
       }
     </script>
-    <script type="module" src="main.js?v=f7f6f59b32"></script>
+    <script type="module" src="main.js?v=9f4c73355b"></script>
   </body>
 </html>
