@@ -77,7 +77,7 @@ def main():
     check = "--check" in sys.argv[1:]
     stale = []
     for directory, _, files in os.walk(ROOT):
-        if "/." in directory:
+        if "/." in directory or "node_modules" in directory:
             continue
         if "index.html" in files:
             page = os.path.join(directory, "index.html")

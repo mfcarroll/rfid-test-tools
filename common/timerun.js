@@ -154,6 +154,10 @@ async function readLoop(dev, onRead) {
 }
 
 // Runs the whole measurement. Returns the result, or null if it was aborted or failed.
+/**
+ * @param {any} dev
+ * @param {{ onRead?: (p: any) => void }} [opts]
+ */
 export async function measure(dev, { onRead } = {}) {
   const n = run.burstN;
   try {

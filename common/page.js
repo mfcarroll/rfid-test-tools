@@ -1,5 +1,7 @@
 // Small helpers every tool page uses: the page's elements, its log, and sleeping that survives a hidden tab.
 
+// The page element with this id. Typed any: the pages look up inputs, selects and canvases by id.
+/** @type {(id: string) => any} */
 export const $ = (id) => document.getElementById(id);
 export const nowS = () => (performance.timeOrigin + performance.now()) / 1000;
 export const fmt = (v, d = 2) => (v >= 0 ? "+" : "") + v.toFixed(d);
@@ -109,6 +111,7 @@ export function setDisabled(ids, disabled) {
 
 // Runs a page's steps one at a time. run(what, fn) ignores a click while a step is running, and logs a step that
 // fails. onBusy(true) runs before each step and onBusy(false) after it.
+/** @param {(busy: boolean) => void} [onBusy] */
 export function oneAtATime(onBusy = () => {}) {
   let busy = false;
   return {
@@ -131,7 +134,9 @@ export function oneAtATime(onBusy = () => {}) {
 
 // Tabs: buttons with role="tab" and aria-controls naming their panel. Arrow keys move between them.
 export function bindTabs() {
-  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  const tabs = [...document.querySelectorAll('[role="tab"]')].map(
+    (t) => /** @type {HTMLElement} */ (t),
+  );
   const select = (tab) => {
     for (const t of tabs) {
       const on = t === tab;
@@ -156,6 +161,7 @@ export function bindTabs() {
 // Copy buttons: each copies the text of the element just before it.
 export function bindCopyButtons() {
   for (const button of document.querySelectorAll("button.copy")) {
+    if (!(button instanceof HTMLButtonElement)) continue;
     button.onclick = async () => {
       try {
         await navigator.clipboard.writeText(

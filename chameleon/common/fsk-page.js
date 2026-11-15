@@ -524,6 +524,7 @@ export function fskPage(variant) {
       slots: [],
     };
     for (const s of r.slots) {
+      /** @type {Record<string, any>} */
       const e = {
         slot: s.slot,
         lfType: s.lfType,

@@ -24,7 +24,8 @@ const STOCK = {
   name: "stock v2.3.0",
 };
 TEST_FW.label = `Flash the experimental firmware (${TEST_FW.name.replace("experimental ", "")})`;
-for (let s = 0; s < 8; s++) $("slot").append(new Option(`slot ${s + 1}`, s));
+for (let s = 0; s < 8; s++)
+  $("slot").append(new Option(`slot ${s + 1}`, String(s)));
 
 let cu = null,
   has = false, // the firmware has the interactive engine

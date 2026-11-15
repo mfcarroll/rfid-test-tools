@@ -51,6 +51,16 @@ function addControls(firmware, buttons) {
   $("flash").replaceChildren(row, info);
 }
 
+/**
+ * @param {{
+ *   firmware: Record<string, any>,
+ *   buttons?: Record<string, string>,
+ *   port: () => SerialPort | null,
+ *   release: () => Promise<void>,
+ *   busy?: () => string | null,
+ *   done?: (fw: any) => void,
+ * }} opts
+ */
 export function bindFlashButtons({
   firmware,
   buttons = { test: "flashTest", stock: "flashStock", file: "flashFile" },

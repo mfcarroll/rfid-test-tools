@@ -13,7 +13,7 @@ function modeSelect(value, defaultPreset) {
     sel.append(
       new Option(
         X.presetName(p) + (p === defaultPreset ? " (default)" : ""),
-        p,
+        String(p),
       ),
     ),
   );

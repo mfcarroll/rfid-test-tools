@@ -130,6 +130,7 @@ export const CHANGE_DEVICE_MODE = 1001; // 1 reader, 0 tag
 export const STATUS_LF_TAG_OK = 0x40;
 export const STATUS_LF_TAG_NO_FOUND = 0x41;
 // [type, scan command, request, bytes of the reply the slot takes]. HID Prox and ioProx take a format hint, 0 for any.
+/** @type {[number, number, number[], number][]} */
 export const SCANS = [
   [203, 3022, [], 6],
   [200, 3002, [0], 13],

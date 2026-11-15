@@ -43,6 +43,12 @@ const setState = (state) =>
     ready: ["done", "current"],
   });
 
+// The Connect Flipper buttons, one in each step.
+const flipperButtons = () =>
+  /** @type {NodeListOf<HTMLButtonElement>} */ (
+    document.querySelectorAll(".connectFlipper")
+  );
+
 // While a test runs, its progress shows under the tabs and the other controls wait.
 const CONTROLS = [
   "readTest",
@@ -57,7 +63,7 @@ const CONTROLS = [
 function setRunning(on) {
   $("runbox").hidden = !on;
   setDisabled(CONTROLS, on);
-  for (const b of document.querySelectorAll(".connectFlipper")) b.disabled = on;
+  for (const b of flipperButtons()) b.disabled = on;
   if (!on) showReady();
 }
 
@@ -313,13 +319,11 @@ const connectFlipper = () =>
       `${name}, ${fork} ${info["firmware.version"] ?? ""}` +
         (app ? `. Exit ${app} on the Flipper first.` : ""),
     );
-    for (const b of document.querySelectorAll(".connectFlipper"))
-      b.textContent = "Reconnect";
+    for (const b of flipperButtons()) b.textContent = "Reconnect";
     log(`Flipper connected: ${name}, ${fork}`);
     showReady();
   });
-for (const b of document.querySelectorAll(".connectFlipper"))
-  b.onclick = connectFlipper;
+for (const b of flipperButtons()) b.onclick = connectFlipper;
 
 $("emuTest").onclick = () =>
   test("emulation test", async () => {

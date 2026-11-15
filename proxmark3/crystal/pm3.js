@@ -91,6 +91,7 @@ export function parseVersion(d) {
 
 export class SerialPM3 {
   // onDebug(text): the PM3's debug prints (Dbprintf), which arrive between replies.
+  /** @param {{ onDebug?: (text: string) => void }} [opts] */
   constructor({ onDebug } = {}) {
     this.onDebug = onDebug;
   }

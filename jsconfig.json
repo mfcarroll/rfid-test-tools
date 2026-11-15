@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": ["w3c-web-serial"]
+  },
+  "include": [
+    "common/*.js",
+    "chameleon/**/*.js",
+    "flipper/**/*.js",
+    "proxmark3/**/*.js"
+  ],
+  "exclude": ["chameleon/search"]
+}

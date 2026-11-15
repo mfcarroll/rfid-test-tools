@@ -42,4 +42,10 @@ After changing a page or a script, run `python3 stamp_versions.py` before pushin
 modules and stylesheet with a hash of their contents, so a browser never pairs a new page with old cached files.
 `python3 stamp_versions.py --check` reports any page that is out of date.
 
+## Checks
+
+`npm install` once, then `npm test` runs every tool's selftest, type-checks the pages' modules from their JSDoc
+comments (`jsconfig.json`; `chameleon/search/` is left out for now) and runs `stamp_versions.py --check`. The site
+itself needs no build: the browser loads the same files. `npm run format` runs Prettier.
+
 GPL-3.0.

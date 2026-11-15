@@ -1,0 +1,14 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node selftests.mjs && tsc -p jsconfig.json && python3 stamp_versions.py --check",
+    "check": "tsc -p jsconfig.json",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@types/w3c-web-serial": "1.0.9",
+    "prettier": "3.10.1",
+    "typescript": "5.9.3"
+  }
+}
