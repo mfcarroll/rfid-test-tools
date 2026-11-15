@@ -374,5 +374,6 @@ bindFlashButtons({
 });
 
 bindCopyButtons();
+setState("connect");
 showSiteCommit($("siteversion"));
 hasWebSerial();
