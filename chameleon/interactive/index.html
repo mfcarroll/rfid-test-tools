@@ -438,8 +438,18 @@
         };
         for (const id in pages) $(id).textContent = hexToAscii(pages[id]);
       }
-      for (const id of ["p0", "p1", "p2", "p3config", "p3tagpw", "p4", "p5", "p6", "p7"])
-        $(id).addEventListener("input", updateAscii);
+      // Each field holds hex of a fixed length: 8 digits (4 bytes) per page, 2 for the config byte, 6 for the tag
+      // password. Cap the length and drop any non-hex character as it is typed or pasted.
+      const HEX_LEN = { p0: 8, p1: 8, p2: 8, p3config: 2, p3tagpw: 6, p4: 8, p5: 8, p6: 8, p7: 8 };
+      for (const id in HEX_LEN) {
+        const el = $(id);
+        el.maxLength = HEX_LEN[id];
+        el.addEventListener("input", () => {
+          const clean = el.value.replace(/[^0-9a-fA-F]/g, "").slice(0, HEX_LEN[id]);
+          if (clean !== el.value) el.value = clean;
+          updateAscii();
+        });
+      }
       updateAscii();
 
       // Read a physical tag. The reader commands require the device to be in reader mode (the firmware rejects them in
