@@ -108,14 +108,14 @@
               <span class="note">the tag is written here, and this slot is made active</span>
             </div>
             <div class="pages gap-top">
-              <span class="pn">0</span><div class="pf"><input id="p0" value="01020304" size="10" spellcheck="false" aria-label="page 0, UID" /></div><span class="pl">UID</span>
-              <span class="pn">1</span><div class="pf"><input id="p1" value="4D494B52" size="10" spellcheck="false" aria-label="page 1, reader password" /></div><span class="pl">Reader password</span>
-              <span class="pn">2</span><div class="pf"><input id="p2" value="22222222" size="10" spellcheck="false" aria-label="page 2, crypto key high bytes" /></div><span class="pl">Key, high bytes (crypto mode only, not supported yet)</span>
-              <span class="pn">3</span><div class="pf"><input id="p3config" value="06" size="2" readonly aria-label="page 3, config byte" /><input id="p3tagpw" value="AABBCC" size="7" spellcheck="false" aria-label="page 3, tag password" /></div><span class="pl">Config + tag password</span>
-              <span class="pn">4</span><div class="pf"><input id="p4" value="04040404" size="10" spellcheck="false" aria-label="page 4, user" /></div><span class="pl">User</span>
-              <span class="pn">5</span><div class="pf"><input id="p5" value="05050505" size="10" spellcheck="false" aria-label="page 5, user" /></div><span class="pl">User</span>
-              <span class="pn">6</span><div class="pf"><input id="p6" value="06060606" size="10" spellcheck="false" aria-label="page 6, user" /></div><span class="pl">User</span>
-              <span class="pn">7</span><div class="pf"><input id="p7" value="07070707" size="10" spellcheck="false" aria-label="page 7, user" /></div><span class="pl">User</span>
+              <span class="pn">0</span><div class="pf"><input id="p0" placeholder="01020304" size="10" spellcheck="false" aria-label="page 0, UID" /></div><span class="pl">UID</span>
+              <span class="pn">1</span><div class="pf"><input id="p1" placeholder="4D494B52" size="10" spellcheck="false" aria-label="page 1, reader password" /></div><span class="pl">Reader password</span>
+              <span class="pn">2</span><div class="pf"><input id="p2" placeholder="22222222" size="10" spellcheck="false" aria-label="page 2, crypto key high bytes" /></div><span class="pl">Key, high bytes (crypto mode only, not supported yet)</span>
+              <span class="pn">3</span><div class="pf"><input id="p3config" value="06" size="2" readonly aria-label="page 3, config byte" /><input id="p3tagpw" placeholder="AABBCC" size="7" spellcheck="false" aria-label="page 3, tag password" /></div><span class="pl">Config + tag password</span>
+              <span class="pn">4</span><div class="pf"><input id="p4" placeholder="04040404" size="10" spellcheck="false" aria-label="page 4, user" /></div><span class="pl">User</span>
+              <span class="pn">5</span><div class="pf"><input id="p5" placeholder="05050505" size="10" spellcheck="false" aria-label="page 5, user" /></div><span class="pl">User</span>
+              <span class="pn">6</span><div class="pf"><input id="p6" placeholder="06060606" size="10" spellcheck="false" aria-label="page 6, user" /></div><span class="pl">User</span>
+              <span class="pn">7</span><div class="pf"><input id="p7" placeholder="07070707" size="10" spellcheck="false" aria-label="page 7, user" /></div><span class="pl">User</span>
             </div>
             <div class="row gap-top">
               <button id="setup" class="primary">Write it to the slot</button>
@@ -365,16 +365,18 @@
       });
 
       // ---------------------------------------------------------------- the tag's details
+      // A blank field uses its placeholder (the default shown greyed), so the defaults still write without being typed.
+      const fv = (id) => $(id).value.trim() || $(id).placeholder;
       const readFields = () => ({
-        p0: $("p0").value,
-        p1: $("p1").value,
-        p2: $("p2").value,
+        p0: fv("p0"),
+        p1: fv("p1"),
+        p2: fv("p2"),
         config: $("p3config").value,
-        tagpw: $("p3tagpw").value,
-        p4: $("p4").value,
-        p5: $("p5").value,
-        p6: $("p6").value,
-        p7: $("p7").value,
+        tagpw: fv("p3tagpw"),
+        p4: fv("p4"),
+        p5: fv("p5"),
+        p6: fv("p6"),
+        p7: fv("p7"),
       });
       // Fills every editable field from a read. The config byte is fixed, so it is left alone.
       function fillFields(f) {

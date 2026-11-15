@@ -10,7 +10,8 @@ exchange got.
 
 ## The tag
 
-The page shows all eight Hitag 2 pages as fields, in order, each hex and pre-filled with a made-up default:
+The page shows all eight Hitag 2 pages as fields, in order, each hex. A made-up default is shown as a greyed
+placeholder; leave a field blank to use its default, or type over it:
 
 | page | default | holds |
 | --- | --- | --- |
