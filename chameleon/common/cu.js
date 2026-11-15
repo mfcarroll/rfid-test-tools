@@ -71,7 +71,10 @@ export class FrameParser {
 export class SerialCU {
   async open(port) {
     this.port = port;
-    await port.open({ baudRate: 115200 });
+    // A large read buffer: the interactive trace reply is one ~3.9 KB frame, well over Web Serial's small default
+    // buffer, and a big burst over USB can outrun the read loop and drop bytes with the default. Other pages read in
+    // small pieces, so they never hit it.
+    await port.open({ baudRate: 115200, bufferSize: 1 << 16 });
     this.reader = port.readable.getReader();
     this.writer = port.writable.getWriter();
     this.parser = new FrameParser();
