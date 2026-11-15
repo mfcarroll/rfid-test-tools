@@ -1,0 +1,125 @@
+// Hitag 2 slot modes: command 3188 on the interactive-LF test firmware (exp/lf-hitag-modes), copying a Hitag 2 card
+// between slots, and the slot backup. No DOM, no Web Serial in here.
+//
+// The firmware runs the interactive LF engine, whose first module is a Hitag 2 tag. Each slot carries three research
+// mode bits (lf_ia.h), a test of how the emulated tag should follow the reader:
+//   SCALE (0x01):        time the answer's bits and delay in the reader's measured carrier, not a fixed 125 kHz.
+//   ALT_DELAY (0x02):    answer in the middle of the reader's listening window, not a genuine fob's timing.
+//   ALT_PROTOCOL (0x04): answer only every second START_AUTH, as the HT2 datasheet says a genuine tag does.
+// The three bits give eight combinations. Command 3188 reads all eight slots' modes, or sets them from eight bytes.
+// The modes live in retained RAM: they survive sleep (a test runs at a reader on battery) but reset to 0 on a
+// power-on reset or a flash.
+
+import { lfName } from "../common/slots.js";
+
+export { lfName };
+
+// ---------------------------------------------------------------- commands and constants
+
+export const CMD = {
+  CHANGE_DEVICE_MODE: 1001, // 1 reader, 0 tag
+  SET_ACTIVE_SLOT: 1003,
+  SET_SLOT_TAG_TYPE: 1004,
+  SET_SLOT_ENABLE: 1006,
+  SET_SLOT_TAG_NICK: 1007,
+  GET_SLOT_TAG_NICK: 1008,
+  SLOT_DATA_CONFIG_SAVE: 1009,
+  GET_ACTIVE_SLOT: 1018,
+  GET_SLOT_INFO: 1019,
+  DELETE_SLOT_TAG_NICK: 1021,
+  GET_ENABLED_SLOTS: 1023,
+  DELETE_SLOT_SENSE_TYPE: 1024,
+  HITAG2_SET_EMU_DATA: 5040,
+  HITAG2_GET_EMU_DATA: 5041,
+  LF_IA_SLOT_MODES: 3188, // in: empty to read, or 8 bytes to set; out: the 8 slot modes
+};
+export const STATUS_SUCCESS = 0x68;
+export const STATUS_INVALID_CMD = 0x67;
+
+export const TAG_TYPE_HITAG2 = 470;
+export const SENSE_LF = 1;
+export const SENSE_HF = 2;
+export const HITAG2_DATA_SIZE = 32; // eight 32-bit pages
+export const SLOTS = 8;
+
+// ---------------------------------------------------------------- modes
+
+export const SCALE = 0x01;
+export const ALT_DELAY = 0x02;
+export const ALT_PROTOCOL = 0x04;
+export const MODE_BITS = SCALE | ALT_DELAY | ALT_PROTOCOL;
+// The eight combinations, in counting order, so slot i gets combination i by default.
+export const CHOICES = [0, 1, 2, 3, 4, 5, 6, 7];
+// The default plan: one combination per slot, slot 1 to slot 8.
+export const DEFAULT_MODES = [...CHOICES];
+
+/** @type {[number, string][]} */
+const FLAGS = [
+  [SCALE, "scale"],
+  [ALT_DELAY, "alt-delay"],
+  [ALT_PROTOCOL, "every-second"],
+];
+// A mode's name, e.g. "scale + every-second", or "baseline" for 0.
+export const modeName = (m) => {
+  const on = FLAGS.filter(([bit]) => m & bit).map(([, name]) => name);
+  return on.length ? on.join(" + ") : "baseline";
+};
+// A slot nickname for a mode, e.g. "Hitag 2 S+E" or "Hitag 2 base" (the CU allows 32 bytes).
+/** @type {[number, string][]} */
+const SHORT = [
+  [SCALE, "S"],
+  [ALT_DELAY, "D"],
+  [ALT_PROTOCOL, "E"],
+];
+export const modeNick = (m) => {
+  const on = SHORT.filter(([bit]) => m & bit).map(([, c]) => c);
+  return `Hitag 2 ${on.length ? on.join("+") : "base"}`;
+};
+
+// Command 3188 reply: the 8 slot modes, slot 1 first.
+export function parseModes(d) {
+  if (d.length < SLOTS)
+    throw new Error(`3188 reply is ${d.length} bytes, expected ${SLOTS}`);
+  return Array.from(d.slice(0, SLOTS));
+}
+// Command 3188 request to set every slot's mode.
+export const reqSetModes = (modes) => Uint8Array.from(modes);
+
+// ---------------------------------------------------------------- requests
+
+export const reqSlot = (slot) => Uint8Array.of(slot);
+export const reqSlotType = (slot, type) =>
+  Uint8Array.of(slot, type >> 8, type & 0xff);
+export const reqSlotLf = (slot) => Uint8Array.of(slot, SENSE_LF);
+export const reqEnable = (slot, sense, on = true) =>
+  Uint8Array.of(slot, sense, on ? 1 : 0);
+export function reqNick(slot, sense, name) {
+  const b = new TextEncoder().encode(name).slice(0, 32);
+  const r = new Uint8Array(2 + b.length);
+  r[0] = slot;
+  r[1] = sense;
+  r.set(b, 2);
+  return r;
+}
+
+export const hex = (b) =>
+  [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+export const unhex = (h) =>
+  Uint8Array.from(h.match(/../g) ?? [], (x) => parseInt(x, 16));
+
+// ---------------------------------------------------------------- backup
+
+// A backup file holds each slot's LF side: card type, Hitag 2 card data, whether LF and HF are enabled, the
+// nickname and the mode. A slot whose LF type this page can't read back is noted and left as it is on restore.
+export const BACKUP_KIND =
+  "rfid-test-tools/chameleon/hitag-modes LF slot backup";
+export function checkBackup(b) {
+  if (
+    b?.kind !== BACKUP_KIND ||
+    b.version !== 1 ||
+    !Array.isArray(b.slots) ||
+    b.slots.length !== SLOTS
+  )
+    throw new Error("this isn't a backup file from this page");
+  return b;
+}

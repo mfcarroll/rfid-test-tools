@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CU Hitag 2 modes</title>
+    <link rel="stylesheet" href="../../common/style.css?v=95520d4648" />
+  </head>
+  <body>
+    <main id="app" data-state="connect">
+      <a class="back" href="../../">← RFID test tools</a>
+      <h1>
+        Chameleon Ultra Hitag 2 modes
+        <span class="badge experimental">Experimental</span>
+      </h1>
+      <p class="sub">
+        Flash test firmware whose Hitag 2 emulation can answer a reader in
+        several ways, set by a per-slot mode. Copy one Hitag 2 card into all
+        eight slots, give each slot a different mode, then try the slots at a
+        reader and compare them.
+      </p>
+
+      <div class="callout caution">
+        <p>
+          <b>Setting up replaces the LF card in each slot it copies into.</b> A
+          backup of every slot downloads first, and Backup and restore below
+          puts it back.
+        </p>
+      </div>
+
+      <ol class="steps" aria-label="Progress">
+        <li id="step-connect"><span>1</span>Connect</li>
+        <li id="step-setup"><span>2</span>Set up</li>
+        <li id="step-slots"><span>3</span>Slots</li>
+      </ol>
+
+      <section class="flow" aria-live="polite">
+        <div class="only-connect">
+          <div id="connectcard"></div>
+        </div>
+
+        <div class="only-ready">
+          <div>
+            <div class="ok small">Connected</div>
+            <div class="title">Chameleon Ultra</div>
+            <div class="note" id="fwinfo">Checking the firmware…</div>
+          </div>
+          <div id="setup">
+            <h2 class="gap-top">Set up the slots</h2>
+            <p class="note">
+              The table shows how your slots are laid out now. Press
+              <b>Default setup</b> to copy one Hitag 2 card into all eight slots
+              and give each a different mode, or tick slots and pick modes by
+              hand. Choose the slot that holds the card to copy. No Hitag 2 card
+              yet? Read one into a slot on the
+              <a href="../interactive/">Interactive LF emulation</a> page first,
+              then come back. A backup of every slot downloads before anything
+              changes.
+            </p>
+            <div class="row gap-top">
+              <label class="note"
+                >Use card from
+                <select id="src" disabled>
+                  <option>connect first</option>
+                </select></label
+              >
+            </div>
+            <div class="row gap-top">
+              <button id="planDefault">Default setup</button>
+              <span class="note">(copy into all 8 slots, one mode each)</span>
+            </div>
+            <div class="tablewrap gap-top">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Copy</th>
+                    <th>Slot</th>
+                    <th>Now</th>
+                    <th>Mode</th>
+                  </tr>
+                </thead>
+                <tbody id="plan"></tbody>
+              </table>
+            </div>
+            <p class="note">
+              Only the slots' LF side changes. An HF card in the same slot
+              stays. Each slot gets an LF nickname naming its mode, e.g. "Hitag
+              2 S+E". The modes apply to all eight slots whether or not a card
+              is copied into them.
+            </p>
+            <div class="row gap-top">
+              <button id="apply" class="primary" disabled>
+                Back up, copy and set modes
+              </button>
+              <button id="setModes">Set modes only</button>
+              <span id="planinfo" class="note"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="only-done">
+          <h2>Slots</h2>
+          <p class="note" id="doneinfo"></p>
+          <div class="tablewrap gap-top">
+            <table>
+              <thead>
+                <tr>
+                  <th>Active</th>
+                  <th>Slot</th>
+                  <th>LF card</th>
+                  <th>Name</th>
+                  <th>Mode</th>
+                </tr>
+              </thead>
+              <tbody id="slotsview"></tbody>
+            </table>
+          </div>
+          <p class="note">
+            A slot's name reflects its mode (e.g. "Hitag 2 S+E"). Unplug the CU,
+            hold each slot to the reader in turn, and note which read. Changing
+            a mode here takes effect at once.
+          </p>
+          <div class="row gap-top">
+            <button id="again" class="primary">Set up again</button>
+            <button id="reread">Read the slots again</button>
+            <span id="doneextra" class="note"></span>
+          </div>
+        </div>
+
+        <div class="not-run aside">
+          <div class="small"><b>Firmware</b></div>
+          <p class="note">
+            The test firmware is the interactive LF engine with per-slot Hitag 2
+            modes (<a
+              href="https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes"
+              >source</a
+            >). Flashing keeps your slots and saved cards, and resets every
+            slot's mode to baseline. Stock v2.3.0 has no Hitag 2 emulation. When
+            you're done, flash stock back, or use "Flash a file" for another
+            application DFU package (a .zip).
+          </p>
+          <div id="flash"></div>
+        </div>
+      </section>
+
+      <details class="fold" id="modes">
+        <summary><h2>What the modes do</h2></summary>
+        <p class="note">
+          Each slot has three independent mode bits, so eight combinations. Slot
+          <i>n</i> gets combination <i>n</i> by default (slot 1 baseline, slot 8
+          all three on), so one walk past a reader compares them all.
+        </p>
+        <ul class="note">
+          <li>
+            <b>scale</b>: the CU measures the reader's carrier at the start of
+            each field and times the answer's bits and delay in that reader's
+            carrier periods. Without it, a carrier period is taken as 8 µs (125
+            kHz), so the answer drifts against a reader whose clock is off.
+          </li>
+          <li>
+            <b>alt-delay</b>: the tag answers in the middle of the reader's
+            listening window, rather than at a genuine fob's timing. A reader
+            with a wide window may read either; a strict one may prefer one.
+          </li>
+          <li>
+            <b>every-second</b>: the tag answers only every second START_AUTH.
+            The HT2 datasheet (rev 2.1, 4.2.2) says a second START_AUTH resets a
+            genuine tag's state machine, so it answers only every second one. A
+            reader that relies on that may reject a tag that answers every time.
+          </li>
+        </ul>
+        <p class="note">
+          The modes are kept in retained RAM. They survive sleep, so a test runs
+          at a reader on battery, but reset to baseline on a power-on reset or a
+          flash. Saving the slots does not save the modes.
+        </p>
+      </details>
+
+      <details class="fold" id="testing">
+        <summary><h2>Test at a reader</h2></summary>
+        <ol class="note">
+          <li>
+            Unplug the CU and take it to the reader. Start on the first slot.
+          </li>
+          <li>
+            Hold the CU to the reader on each slot, several times. "scale"
+            measures the reader at the start of each field, so its first read on
+            a slot can be slower.
+          </li>
+          <li>
+            Note for each slot whether it read, how quickly, and how close the
+            CU had to be. The slot's nickname names its mode.
+          </li>
+          <li>
+            Test one reader at a time. This page sets the modes; it reads no
+            results back. To see what a reader actually sent and how the tag
+            answered, use the
+            <a href="../interactive/">Interactive LF emulation</a> page, which
+            records the exchange.
+          </li>
+        </ol>
+      </details>
+
+      <details class="fold" id="backupbox">
+        <summary><h2>Backup and restore</h2></summary>
+        <p class="note">
+          A backup is a file with every slot's LF side: card type, card data,
+          whether it's enabled, its nickname and its mode. Restore puts every
+          slot's LF side back. HF cards are never changed.
+          <b>The file contains your cards' data.</b> Keep it somewhere private.
+          The file lists card types this page can't read (anything other than
+          Hitag 2), but can't restore those card types.
+        </p>
+        <div class="row">
+          <button id="backup" disabled>Download backup</button>
+          <button id="restore" disabled>Restore from file</button>
+          <input
+            id="restorefile"
+            type="file"
+            accept=".json,application/json"
+            hidden
+          />
+          <span id="backupinfo" class="note"></span>
+        </div>
+      </details>
+
+      <details class="fold" id="protocol">
+        <summary><h2>For developers</h2></summary>
+        <ul class="note">
+          <li>
+            Command 3188 reads the eight slot modes (send nothing), or sets them
+            (send eight bytes, one per slot, the LF_IA_MODE_ flags: 0x01 scale,
+            0x02 alt-delay, 0x04 every-second).
+          </li>
+          <li>
+            Copying a card reads the source slot's Hitag 2 data with command
+            5041 and writes it to each target with command 5040 (32 bytes, eight
+            4-byte pages).
+          </li>
+          <li>
+            The page's parsing is in
+            <a href="hitag-modes.js"><code>hitag-modes.js</code></a
+            >. The card data only passes between the CU and the page's memory.
+            The page never shows, logs, stores or sends it, except in a backup
+            file you download.
+          </li>
+        </ul>
+      </details>
+
+      <details class="fold" id="logbox">
+        <summary><h2>Log</h2></summary>
+        <pre id="log"></pre>
+      </details>
+      <footer id="footer"></footer>
+    </main>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "../common/cu.js": "../common/cu.js?v=203e0cbf62",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=04945afa76",
+          "../common/session.js": "../common/session.js?v=cd63fa21a7",
+          "../common/slots.js": "../common/slots.js?v=ca14c3948d",
+          "./hitag-modes.js": "./hitag-modes.js?v=10a06178a6",
+          "../../common/page.js": "../../common/page.js?v=dc505804aa"
+        }
+      }
+    </script>
+    <script type="module" src="main.js?v=0361387390"></script>
+  </body>
+</html>
