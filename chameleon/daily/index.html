@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CU daily firmware</title>
+    <link rel="stylesheet" href="../../common/style.css?v=95520d4648" />
+  </head>
+  <body>
+    <main id="app" data-state="connect">
+      <a class="back" href="../../">← RFID test tools</a>
+      <h1>Chameleon Ultra daily firmware</h1>
+      <p class="sub">
+        The firmware I run on my own Chameleon Ultras: upstream firmware with
+        the fixes and features below, most of them waiting in pull requests. It
+        updates whenever I update mine.
+      </p>
+
+      <div class="callout caution">
+        <p>
+          <b>This is unofficial firmware.</b> It works with the Chameleon Ultra
+          only, not the Lite. Flashing keeps your slots and saved cards. To go
+          back, flash stock v2.3.0 from "Other firmware".
+        </p>
+      </div>
+
+      <section>
+        <h2>What's in it</h2>
+        <p class="note" id="build">Loading the build's details…</p>
+        <ul class="changes" id="changes"></ul>
+        <p class="note" id="source"></p>
+      </section>
+
+      <section>
+        <h2>Flash it</h2>
+        <p class="note">
+          Plug your CU in to USB, not Bluetooth, and close anything else using
+          it, such as the CU app or the Python CLI. This page needs Chrome or
+          Edge on a computer. The browser asks you to pick the CU when you
+          flash.
+        </p>
+        <div id="flash"></div>
+      </section>
+
+      <details class="fold" id="logbox">
+        <summary><h2>Log</h2></summary>
+        <pre id="log"></pre>
+      </details>
+      <footer id="footer"></footer>
+    </main>
+    <script type="importmap">
+      {
+        "imports": {
+          "../common/cu.js": "../common/cu.js?v=203e0cbf62",
+          "../common/flash-ui.js": "../common/flash-ui.js?v=04945afa76",
+          "../../common/page.js": "../../common/page.js?v=dc505804aa"
+        }
+      }
+    </script>
+    <script type="module" src="main.js?v=1e06772867"></script>
+  </body>
+</html>

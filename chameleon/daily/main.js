@@ -1,0 +1,76 @@
+// The daily firmware page (index.html): what the current build adds to upstream, and flashing it. The build's
+// publish step (publish-daily.py, next to build-daily.sh in rfid-research) writes firmware/daily.json and the DFU.
+
+import { bindFlashButtons } from "../common/flash-ui.js";
+import { $, log, showFooter } from "../../common/page.js";
+
+const STOCK = {
+  zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
+  name: "stock v2.3.0",
+};
+
+// What a change's badge says, by the state publish-daily.py gives it.
+const STATE = {
+  open: ["badge", "open PR"],
+  merged: ["badge upstreamed", "merged upstream"],
+  closed: ["badge", "closed PR"],
+  "no PR": ["badge", "no PR yet"],
+  "daily only": ["badge", "daily only"],
+};
+
+function showChanges(d) {
+  const date = new Date(d.published).toLocaleDateString([], {
+    dateStyle: "medium",
+  });
+  $("build").textContent =
+    `Version ${d.version}, published ${date}. Upstream main ${d.upstream.commit}, plus:`;
+  for (const c of d.changes) {
+    const li = document.createElement("li");
+    if (c.url) {
+      const a = document.createElement("a");
+      a.href = c.url;
+      a.textContent = `#${c.pr}`;
+      li.append(a, " ");
+    }
+    li.append(c.title);
+    const [cls, text] = STATE[c.state] ?? ["badge", c.state];
+    const badge = document.createElement("span");
+    badge.className = cls;
+    badge.textContent = text;
+    li.append(badge);
+    $("changes").append(li);
+  }
+  const upstream = document.createElement("a");
+  upstream.href = d.upstream.url;
+  upstream.textContent = `upstream ${d.upstream.commit}`;
+  const source = document.createElement("a");
+  source.href = d.source.url;
+  source.textContent = `the fork's daily branch (${d.source.commit})`;
+  $("source").append("Source: ", source, ", built on ", upstream, ".");
+}
+
+showFooter();
+try {
+  const r = await fetch("firmware/daily.json", { cache: "no-store" });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const d = await r.json();
+  showChanges(d);
+  bindFlashButtons({
+    firmware: {
+      test: {
+        zip: `firmware/${d.zip}`,
+        name: `daily firmware ${d.version}`,
+        label: `Flash the daily firmware (${d.commit})`,
+      },
+      stock: STOCK,
+    },
+    port: () => null,
+    release: async () => {},
+    done: (f) => log(`flashed ${f.name}`),
+  });
+  $("flashTest").classList.add("primary"); // flashing is what this page is for
+} catch (e) {
+  $("build").textContent =
+    `Couldn't load the build's details (${e.message}). Reload the page to try again.`;
+  log(`couldn't load firmware/daily.json: ${e.message}`);
+}

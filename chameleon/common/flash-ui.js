@@ -98,8 +98,9 @@ export function bindFlashButtons({
   );
 
   const setFlashing = (on, msg) => {
+    // the daily firmware page flashes without connecting, so it has no Connect button
     for (const id of [...Object.values(buttons), "connect"])
-      $(id).disabled = on;
+      if ($(id)) $(id).disabled = on;
     if (msg !== undefined) $("flashinfo").textContent = msg;
   };
 

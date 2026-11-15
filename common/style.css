@@ -632,3 +632,11 @@ footer {
 footer p {
   margin: 0 0 4px;
 }
+/* the daily firmware page's list of changes */
+ul.changes {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+ul.changes li {
+  margin: 4px 0;
+}
