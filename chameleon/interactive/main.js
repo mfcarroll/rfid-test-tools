@@ -95,8 +95,21 @@ watchDisconnect(
 );
 
 // ---------------------------------------------------------------- the tag's details
-// A blank field uses its placeholder (the default shown greyed), so the defaults still write without being typed.
-const fv = (id) => $(id).value.trim() || $(id).placeholder;
+// A field's placeholder shows the example tag in grey. Only what's typed or read counts: "Fill blanks with the
+// example tag" copies the placeholders in.
+const fv = (id) => $(id).value.trim();
+// The fields each page fills, page 0 first. Page 3 is the config byte and the tag password.
+const PAGE_FIELDS = [
+  ["p0"],
+  ["p1"],
+  ["p2"],
+  ["p3config", "p3tagpw"],
+  ["p4"],
+  ["p5"],
+  ["p6"],
+  ["p7"],
+];
+const EDITABLE = PAGE_FIELDS.flat().filter((id) => id !== "p3config");
 const readFields = () => ({
   p0: fv("p0"),
   p1: fv("p1"),
@@ -108,13 +121,16 @@ const readFields = () => ({
   p6: fv("p6"),
   p7: fv("p7"),
 });
-// Fills every editable field from a read. The config byte is fixed, so it is left alone.
-function fillFields(f) {
-  for (const k of ["p0", "p1", "p2", "p4", "p5", "p6", "p7"]) $(k).value = f[k];
-  $("p3tagpw").value = f.tagpw;
-  // Show the tag's real config byte, even though it is normally fixed at 06. The emulation ignores it and always
-  // runs password mode, so a non-06 value is informational.
-  $("p3config").value = f.config;
+// Fills the fields of the pages a read got. The fields of pages it didn't get keep what they held.
+function fillReadPages(read) {
+  const f = P.fieldsFromPages(P.pagesFromRead(read));
+  const value = { p3config: f.config, p3tagpw: f.tagpw };
+  read.pages.forEach((bytes, i) => {
+    if (!bytes) return;
+    // Page 3 shows the tag's real config byte, even though it is normally fixed at 06. The emulation ignores it and
+    // always runs password mode, so a non-06 value is informational.
+    for (const id of PAGE_FIELDS[i]) $(id).value = value[id] ?? f[id];
+  });
   updateAscii();
 }
 
@@ -234,31 +250,52 @@ $("readtag").onclick = () =>
       (r.status === P.STATUS.LF_TAG_OK ||
         r.status === P.STATUS.LF_TAG_NO_FOUND) &&
       P.parseHitag2Read(r.data);
-    if (!read) {
+    if (!read || !read.count) {
       setScan("No Hitag 2 tag found.", "bad");
       return;
     }
-    const pages = P.pagesFromRead(read);
-    fillFields(P.fieldsFromPages(pages));
-    const partial = r.status === P.STATUS.LF_TAG_NO_FOUND;
-    const cfg = P.describeConfig(pages);
+    fillReadPages(read);
+    const unread = read.pages.flatMap((b, i) => (b ? [] : [i]));
+    const cfg = read.pages[3] && P.describeConfig(P.pagesFromRead(read));
     const cfgNote =
-      cfg.byte === 0x06
+      !cfg || cfg.byte === 0x06
         ? ""
         : ` Config is 0x${cfg.byte.toString(16).padStart(2, "0")} (${cfg.mode} mode); the emulation runs password mode regardless.`;
     setScan(
-      `Read ${read.count}/8 pages into the fields${partial ? " (some pages unread)" : ""}. Review, then write it to the slot.${cfgNote}`,
-      partial ? "warn" : "ok",
+      (unread.length
+        ? `Read ${read.count} of 8 pages into the fields. Not read: page${unread.length > 1 ? "s" : ""} ${unread.join(", ")}. Those fields keep what they held.`
+        : "Read all 8 pages into the fields.") +
+        ` Review, then write it to the slot.${cfgNote}`,
+      unread.length ? "warn" : "ok",
     );
     log(
-      `read a Hitag 2 tag, ${read.count}/8 pages, UID ${P.uidOf(P.pagesFromRead(read))}`,
+      `read a Hitag 2 tag, ${read.count}/8 pages` +
+        (read.pages[0] ? `, UID ${P.uidOf(read.pages[0])}` : ""),
     );
   });
 
 // ---------------------------------------------------------------- write the tag to the slot
+// The example tag, made up, into every blank field. The fields show it as placeholders until then.
+$("example").onclick = () => {
+  for (const id of EDITABLE) if (!fv(id)) $(id).value = $(id).placeholder;
+  updateAscii();
+  $("setupinfo").textContent = "";
+};
 $("setup").onclick = () =>
   run("set up", async () => {
     need();
+    const blank = EDITABLE.filter((id) => !fv(id));
+    if (blank.length) {
+      const pages = [
+        ...new Set(
+          blank.map((id) => PAGE_FIELDS.findIndex((f) => f.includes(id))),
+        ),
+      ];
+      $("setupinfo").textContent =
+        `Page${pages.length > 1 ? "s" : ""} ${pages.join(", ")} ${pages.length > 1 ? "are" : "is"} blank. ` +
+        "Type them, read a tag, or fill the blanks with the example tag.";
+      return;
+    }
     const pages = P.pagesFromFields(readFields());
     if (!pages) {
       $("setupinfo").textContent =
