@@ -60,7 +60,7 @@ try {
       test: {
         zip: `firmware/${d.zip}`,
         name: `daily firmware ${d.version}`,
-        label: `Flash the daily firmware (${d.commit})`,
+        label: `Flash the daily firmware (${d.version})`,
       },
       stock: STOCK,
     },

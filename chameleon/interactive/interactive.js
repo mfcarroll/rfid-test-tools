@@ -36,13 +36,28 @@ export const STATUS = {
 export const TAG_TYPE_HITAG2 = 470;
 export const SENSE_LF = 1;
 export const HITAG2_DATA_SIZE = 32; // eight 32-bit pages
-export const REC_SIZE = 276; // sizeof(lf_ia_trace_rec_t)
+// sizeof(lf_ia_trace_rec_t). The base record ends at t_session_us (276 bytes). The exp/lf-hitag-modes firmware
+// appends 14 bytes of per-record timing and carrier-measurement fields (290). The layout below 276 is the same for
+// both, and parseRecord reads the extra fields only when the record carries them.
+export const REC_SIZE = 276;
+export const REC_SIZE_TIMING = 290;
+export const REC_SIZES = new Set([REC_SIZE, REC_SIZE_TIMING]);
 export const TRACE_KEEP = 8; // the first records a clear keeps (LF_IA_TRACE_KEEP), for a note when some roll off
 
 // lf_ia_trace.h
 export const TR = { FIELD_OFF: 2, COMMAND: 3 };
 export const VERDICT = ["ignored", "answered", "ended"];
 export const DECODE = ["ok", "one class", "too few gaps", "overflow"];
+// lf_ia_carrier_status_t; 255 when no measurement ran in the session.
+export const MEAS = ["ok", "too few samples", "weak"];
+// The per-slot mode flags (lf_ia.h, LF_IA_MODE_), as a name. Shared meaning with the Hitag 2 modes page.
+export const modeFlags = (m) => {
+  const f = [];
+  if (m & 1) f.push("scale");
+  if (m & 2) f.push("alt-delay");
+  if (m & 4) f.push("every-second");
+  return f.length ? f.join("+") : "baseline";
+};
 export const FLAG = {
   LATE: 1,
   GAPS_DROPPED: 2,
@@ -253,10 +268,11 @@ function bitsStr(bytes, n) {
   return s;
 }
 
-export function parseRecord(buf, o = 0) {
+export function parseRecord(buf, o = 0, size = REC_SIZE) {
   const v = new DataView(buf.buffer, buf.byteOffset + o);
   const u8 = (i) => v.getUint8(i);
   const u16 = (i) => v.getUint16(i, true);
+  const i16 = (i) => v.getInt16(i, true);
   const u32 = (i) => v.getUint32(i, true);
   const nGaps = u16(28);
   const gaps = [];
@@ -265,7 +281,7 @@ export function parseRecord(buf, o = 0) {
   }
   const nBits = u16(30);
   const nTxBits = u16(32);
-  return {
+  const rec = {
     type: u8(0),
     verdict: u8(1),
     decode: u8(2),
@@ -290,6 +306,19 @@ export function parseRecord(buf, o = 0) {
     session: u16(270),
     tSessionUs: u32(272),
   };
+  // The exp/lf-hitag-modes firmware appends the carrier the answer was timed by, the measurement, and the slot/mode.
+  if (size >= REC_SIZE_TIMING) {
+    rec.timing = {
+      fcUsedHz: u32(276) / 10, // fc_used_dhz, 0.1 Hz
+      fcMeasuredHz: u32(280) / 10, // fc_measured_dhz, 0.1 Hz, 0 if none measured
+      measSnrDb: i16(284) / 10, // meas_snr_db10
+      measStatus: u8(286), // lf_ia_carrier_status_t, 255 if none ran
+      mode: u8(287), // the slot's LF_IA_MODE_ flags
+      slot: u8(288), // the active slot, 1 to 8
+      measUs: u8(289) * 32, // meas_us32, how long the measurement took, in 32 µs units
+    };
+  }
+  return rec;
 }
 
 // The trace-read reply header: total u32, record size u16, count u8, kept u8, boot u16, then the records.
@@ -301,7 +330,7 @@ export function parseTraceReply(d) {
   const keep = v.getUint8(7);
   const boot = v.getUint16(8, true);
   const recs = [];
-  for (let i = 0; i < n; i++) recs.push(parseRecord(d, 10 + i * size));
+  for (let i = 0; i < n; i++) recs.push(parseRecord(d, 10 + i * size, size));
   return { total, size, n, keep, boot, recs };
 }
 
@@ -474,7 +503,9 @@ export function safeMarkdown(r) {
   L.push("", "**What the reader did**");
   for (const s of ss) {
     const v = sessionVerdict(s);
-    L.push(`- Boot ${s.boot}, session ${s.session}: ${v.verdict}.`);
+    const t = s.off?.timing ?? s.commands[0]?.timing;
+    const slotMode = t ? `, slot ${t.slot}, mode ${modeFlags(t.mode)}` : "";
+    L.push(`- Boot ${s.boot}, session ${s.session}${slotMode}: ${v.verdict}.`);
     const extra = [];
     extra.push(`${s.commands.length} command(s), ${v.answered} answered`);
     if (v.reads) extra.push(`${v.reads} page read(s)`);
@@ -509,9 +540,20 @@ export function privateMarkdown(r) {
     );
   const ss = sessions(r.recs);
   for (const s of ss) {
+    const t = s.off?.timing ?? s.commands[s.commands.length - 1]?.timing;
+    const head = t ? `, slot ${t.slot}, mode ${modeFlags(t.mode)}` : "";
     L.push(
-      `### Boot ${s.boot}, session ${s.session} — field on at ${s3(s.tSessionUs)} s`,
+      `### Boot ${s.boot}, session ${s.session}${head} — field on at ${s3(s.tSessionUs)} s`,
     );
+    if (t) {
+      const meas =
+        t.measStatus === 255
+          ? "no measurement ran"
+          : `measured ${Math.round(t.fcMeasuredHz)} Hz (${MEAS[t.measStatus] ?? t.measStatus}, SNR ${t.measSnrDb.toFixed(1)} dB, took ${t.measUs} µs)`;
+      L.push(
+        `- timed the answer at ${Math.round(t.fcUsedHz)} Hz; ${t.fcMeasuredHz ? meas : "no carrier measured"}`,
+      );
+    }
     for (const c of s.commands) {
       const cl = classifyCommand(c);
       const parts = [

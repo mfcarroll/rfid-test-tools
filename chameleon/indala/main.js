@@ -21,13 +21,13 @@ import * as X from "./indala.js";
 const PR = {
   zip: "firmware/pr509-7bba4118-ultra-dfu-app.zip",
   name: "#509 7bba411",
-  version: "g7bba411",
+  version: "v2.3.0-34-g7bba411",
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
 };
-PR.label = `Flash #509 (${PR.name.replace("#509 ", "")})`;
+PR.label = `Flash #509 (${PR.version})`;
 
 let cu = null,
   fl = null,

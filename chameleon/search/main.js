@@ -28,12 +28,13 @@ cuConnectCard();
 const IDENTIFY = {
   zip: "firmware/lf-search-aa05875a-ultra-dfu-app.zip",
   name: "experimental aa05875",
+  version: "v2.3.0-54-gaa05875",
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
 };
-IDENTIFY.label = `Flash the experimental firmware (${IDENTIFY.name.replace("experimental ", "")})`;
+IDENTIFY.label = `Flash the experimental firmware (${IDENTIFY.version})`;
 
 let cu = null,
   long = false; // the firmware has long captures and the chip check

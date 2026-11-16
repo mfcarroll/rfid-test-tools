@@ -21,12 +21,13 @@ cuConnectCard();
 const TEST_FW = {
   zip: "firmware/lf-interactive-0c947cd1-ultra-dfu-app.zip",
   name: "experimental 0c947cd1",
+  version: "v2.3.0-40-g0c947cd",
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
 };
-TEST_FW.label = `Flash the experimental firmware (${TEST_FW.name.replace("experimental ", "")})`;
+TEST_FW.label = `Flash the experimental firmware (${TEST_FW.version})`;
 let cu = null,
   has = false, // the firmware has the interactive engine
   slotTypes = null, // each slot's LF card type, once read
@@ -421,9 +422,9 @@ async function readTrace() {
   for (;;) {
     const r = await traceBatch(recs.length);
     const part = P.parseTraceReply(r.data);
-    if (part.size !== P.REC_SIZE)
+    if (!P.REC_SIZES.has(part.size))
       throw new Error(
-        `trace record size ${part.size}, this page reads ${P.REC_SIZE}: firmware and page differ`,
+        `trace record size ${part.size}, this page reads ${[...P.REC_SIZES].join(" or ")}: firmware and page differ`,
       );
     ({ total, keep, boot } = part);
     if (part.n === 0) break;

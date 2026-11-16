@@ -18,13 +18,14 @@ cuConnectCard();
 
 const MEASURE_FW = {
   zip: "firmware/field-measure-e67be65e-ultra-dfu-app.zip",
-  name: "experimental cbb0b5c6",
+  name: "experimental e67be65e",
+  version: "v2.3.0-73-ge67be65",
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
 };
-MEASURE_FW.label = `Flash the experimental firmware (${MEASURE_FW.name.replace("experimental ", "")})`;
+MEASURE_FW.label = `Flash the experimental firmware (${MEASURE_FW.version})`;
 
 let cu = null,
   has = false, // the firmware has field measurement

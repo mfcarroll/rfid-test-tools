@@ -27,14 +27,15 @@ const FIRMWARE = {
   test: {
     zip: "firmware/hfxo-count-4e494589-ultra-dfu-app.zip",
     name: "test firmware (hfxo-count 4e494589)",
+    version: "v2.3.0-5-g4e49458",
   },
   stock: {
     zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
     name: "stock v2.3.0",
   },
 };
-// The test firmware's commit, on its flash button
-FIRMWARE.test.label = `Flash the test firmware (${FIRMWARE.test.name.match(/([0-9a-f]{7,8})\)$/)[1]})`;
+// The device's own version string (git describe), on its flash button, to match the connected-firmware line.
+FIRMWARE.test.label = `Flash the test firmware (${FIRMWARE.test.version})`;
 
 let cu = null,
   counter = false, // the connected firmware has command 3125

@@ -484,5 +484,118 @@ check(
   "private details give the recovered password hex",
 );
 
+// ---------------------------------------------------------------- the exp/lf-hitag-modes 290-byte record (timing)
+
+check(P.REC_SIZES.has(290), "the 290-byte timing record is a known size");
+check(
+  P.modeFlags(0) === "baseline" &&
+    P.modeFlags(0b111) === "scale+alt-delay+every-second",
+  "modeFlags names the mode bits",
+);
+
+// Build one 290-byte record: a 276-byte base with the 14 timing bytes appended.
+function recTiming(base, timing) {
+  const b = new Uint8Array(290);
+  b.set(base, 0);
+  const v = new DataView(b.buffer);
+  v.setUint32(276, Math.round(timing.fcUsedHz * 10), true);
+  v.setUint32(280, Math.round(timing.fcMeasuredHz * 10), true);
+  v.setInt16(284, Math.round(timing.measSnrDb * 10), true);
+  b[286] = timing.measStatus;
+  b[287] = timing.mode;
+  b[288] = timing.slot;
+  b[289] = Math.round(timing.measUs / 32);
+  return b;
+}
+function replyTiming(recs, boot = 2) {
+  const d = new Uint8Array(10 + recs.length * 290);
+  const v = new DataView(d.buffer);
+  v.setUint32(0, recs.length, true);
+  v.setUint16(4, 290, true);
+  d[6] = recs.length;
+  d[7] = P.TRACE_KEEP;
+  v.setUint16(8, boot, true);
+  recs.forEach((r, i) => d.set(r, 10 + i * 290));
+  return d;
+}
+
+const tCmd = recTiming(
+  rec({
+    nBits: 5,
+    bits: "11000",
+    txBits: "1".repeat(37),
+    tUs: 4000,
+    boot: 2,
+    session: 1,
+    tSession: 100,
+  }),
+  {
+    fcUsedHz: 125300,
+    fcMeasuredHz: 125300,
+    measSnrDb: 22.4,
+    measStatus: 0,
+    mode: 0b101,
+    slot: 3,
+    measUs: 1024,
+  },
+);
+const tOff = recTiming(
+  rec({
+    type: P.TR.FIELD_OFF,
+    verdict: 0,
+    tUs: 50000,
+    boot: 2,
+    session: 1,
+    tSession: 100,
+  }),
+  {
+    fcUsedHz: 125300,
+    fcMeasuredHz: 125300,
+    measSnrDb: 22.4,
+    measStatus: 0,
+    mode: 0b101,
+    slot: 3,
+    measUs: 1024,
+  },
+);
+const tParsed = P.parseTraceReply(replyTiming([tCmd, tOff]));
+check(
+  tParsed.size === 290 && tParsed.recs.length === 2,
+  "parses a 290-byte reply",
+);
+const tim = tParsed.recs[0].timing;
+check(
+  tim && tim.slot === 3 && tim.mode === 0b101,
+  "timing carries the slot and mode",
+);
+check(
+  tim &&
+    Math.round(tim.fcMeasuredHz) === 125300 &&
+    Math.abs(tim.measSnrDb - 22.4) < 0.05,
+  "timing carries the measured carrier and SNR",
+);
+// The base 276-byte record parses with no timing attached.
+check(
+  P.parseRecord(tCmd.slice(0, 276), 0, 276).timing === undefined,
+  "a 276-byte record has no timing field",
+);
+const tReport = {
+  firmware: "v2.3.0-49-g361e7f9",
+  counters: { sessions: 1, commands: 1, responses: 1, late: 0 },
+  boot: 2,
+  total: 2,
+  keep: 8,
+  recs: tParsed.recs,
+};
+check(
+  P.safeMarkdown(tReport).includes("slot 3") &&
+    P.safeMarkdown(tReport).includes("scale+every-second"),
+  "the safe report names the slot and mode from the timing fields",
+);
+check(
+  P.privateMarkdown(tReport).includes("125300 Hz"),
+  "the private report shows the measured carrier",
+);
+
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exit(failed ? 1 : 0);

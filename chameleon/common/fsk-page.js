@@ -42,8 +42,8 @@ export function fskPage(variant) {
   cuConnectCard({
     extra: "It works with the Chameleon Ultra only, not the Lite.",
   });
-  // The test firmware's commit, on its flash button
-  V.firmware.test.label = `Flash the test firmware (${V.firmware.test.name.match(/([0-9a-f]{7,8})\)$/)[1]})`;
+  // The device's own version string (git describe), on its flash button, to match the connected-firmware line.
+  V.firmware.test.label = `Flash the test firmware (${V.firmware.test.version})`;
 
   let cu = null,
     fw = "",
