@@ -597,5 +597,219 @@ check(
   "the private report shows the measured carrier",
 );
 
+// ---------------------------------------------------------------- the tag's answer timing (LF_RDR_LAST / CAPTURE)
+
+// Build an LF_RDR_LAST reply: n_bits u16, 32 bytes of bits, first u16, idle/load/threshold i16, n_runs u16, runs u16.
+function lastReply({
+  nBits = 5,
+  first = 30,
+  idle = 4138,
+  load = 14152,
+  threshold = 9000,
+  runs = [],
+}) {
+  const d = new Uint8Array(44 + runs.length * 2);
+  const v = new DataView(d.buffer);
+  v.setUint16(0, nBits, true);
+  d.set(packBits("11000"), 2); // a recognisable answer; bitsStr reads nBits of it
+  v.setUint16(34, first, true);
+  v.setInt16(36, idle, true);
+  v.setInt16(38, load, true);
+  v.setInt16(40, threshold, true);
+  v.setUint16(42, runs.length, true);
+  runs.forEach((r, i) =>
+    v.setUint16(44 + i * 2, (r.load ? 0x8000 : 0) | (r.fc & 0x7fff), true),
+  );
+  return d;
+}
+
+const lastT = P.parseLastReply(
+  lastReply({
+    runs: [
+      { load: true, fc: 32 },
+      { load: false, fc: 16 },
+      { load: true, fc: 8 },
+    ],
+  }),
+);
+check(lastT.nBits === 5 && lastT.bits === "11000", "parseLastReply reads bits");
+check(lastT.delayUs === 240, "delay is first * 8 µs");
+check(
+  lastT.idle === 4138 && lastT.load === 14152 && lastT.depth === 10014,
+  "levels and depth (|load - idle|)",
+);
+check(
+  lastT.nRuns === 3 &&
+    lastT.runs[0].load === true &&
+    lastT.runs[0].us === 256 &&
+    lastT.runs[1].load === false &&
+    lastT.runs[1].us === 128,
+  "runs decode load flag and length to µs",
+);
+check(lastT.totalUs === 448, "total is the sum of the runs' µs");
+check(
+  P.parseLastReply(new Uint8Array(20)) === null,
+  "parseLastReply rejects a short reply",
+);
+
+// The reported run count can exceed the runs present (the reply caps at 400); the parser stops at the buffer.
+const capped = lastReply({
+  runs: Array.from({ length: 400 }, () => ({ load: true, fc: 1 })),
+});
+new DataView(capped.buffer).setUint16(42, 500, true); // claim 500, only 400 present
+const cappedT = P.parseLastReply(capped);
+check(
+  cappedT.nRuns === 500 && cappedT.runs.length === 400,
+  "parser stops at the runs present",
+);
+
+// LF_RDR_CAPTURE reply: total u16, count u16, then i16 samples.
+const capBuf = new Uint8Array(4 + 3 * 2);
+const capV = new DataView(capBuf.buffer);
+capV.setUint16(0, 200, true);
+capV.setUint16(2, 3, true);
+[100, -50, 4138].forEach((s, i) => capV.setInt16(4 + i * 2, s, true));
+const cap = P.parseCapture(capBuf);
+check(
+  cap.total === 200 && cap.count === 3 && cap.samples[1] === -50,
+  "parseCapture reads the envelope samples",
+);
+
+// HITAG2_READER_LINK reply: a 20-byte lf_rdr_link_t.
+const linkBuf = new Uint8Array(20);
+const linkV = new DataView(linkBuf.buffer);
+linkV.setUint16(0, 64, true); // gap_us
+linkV.setUint16(2, 128, true); // bit0_us
+linkV.setUint16(15, 2048, true); // capture_n
+linkV.setInt16(17, 5000, true); // min_depth
+linkBuf[19] = 50; // slice_pct
+const link = P.parseReaderLink(linkBuf);
+check(
+  link.gapUs === 64 &&
+    link.bit0Us === 128 &&
+    link.captureN === 2048 &&
+    link.minDepth === 5000 &&
+    link.slicePct === 50,
+  "parseReaderLink reads the link fields",
+);
+
+// ---------------------------------------------------------------- the whole exchange (LF_RDR_TRACE_READ)
+
+check(
+  P.exchangeLabel(5, 0x18) === "START_AUTH" &&
+    P.exchangeLabel(32, 0) === "password" &&
+    P.exchangeLabel(10, (3 << 8) | (5 << 5) | (~5 & 7)) === "read page 5",
+  "exchangeLabel names START_AUTH, password and a page read",
+);
+
+// Build one trace record (LF_RDR_TRACE_REC_SIZE bytes): n_tx u8, tx 4 bytes (first-bit-first), power-up u16, flags u8,
+// n_bits u16, first u16, idle/load/threshold i16, n_runs u16, then TRACE_RUNS runs u16.
+function traceRec({
+  nTx = 5,
+  tx = 0x18,
+  powerUp = 0,
+  clean = 1,
+  nBits = 0,
+  first = 30,
+  idle = 4138,
+  load = 14152,
+  threshold = 9000,
+  runs = [],
+}) {
+  const d = new Uint8Array(P.TRACE_REC_SIZE);
+  const v = new DataView(d.buffer);
+  d[0] = nTx;
+  for (let i = 0; i < nTx && i < 32; i++)
+    if ((tx >> (nTx - 1 - i)) & 1) d[1 + (i >> 3)] |= 1 << (7 - (i & 7));
+  v.setUint16(5, powerUp, true);
+  d[7] = clean;
+  v.setUint16(8, nBits, true);
+  v.setUint16(10, first, true);
+  v.setInt16(12, idle, true);
+  v.setInt16(14, load, true);
+  v.setInt16(16, threshold, true);
+  v.setUint16(18, runs.length, true);
+  runs.forEach((r, i) =>
+    v.setUint16(20 + i * 2, (r.load ? 0x8000 : 0) | (r.fc & 0x7fff), true),
+  );
+  return d;
+}
+
+const startRec = traceRec({ nTx: 5, tx: 0x18, powerUp: 2968, nBits: 0 });
+const pageRec = traceRec({
+  nTx: 10,
+  tx: (3 << 8) | (2 << 5) | (~2 & 7),
+  nBits: 38,
+  first: 189,
+  runs: [
+    { load: true, fc: 20 },
+    { load: false, fc: 13 },
+  ],
+});
+const recParsed = P.parseTraceRecord(pageRec);
+check(
+  recParsed.cmd === "read page 2" && recParsed.nTx === 10,
+  "parseTraceRecord decodes the command",
+);
+check(
+  recParsed.nBits === 38 &&
+    recParsed.answered === true &&
+    recParsed.delayUs === 189 * 8 &&
+    recParsed.depth === 10014 &&
+    recParsed.runs[0].us === 160 &&
+    recParsed.totalUs === 264,
+  "parseTraceRecord reads the answer and runs",
+);
+check(
+  P.parseTraceRecord(startRec).answered === false &&
+    P.parseTraceRecord(startRec).powerUpUs === 2968,
+  "a no-answer record is marked not answered and keeps its power-up",
+);
+
+// LF_RDR_TRACE_READ reply: total u16, size u16, count u8, then the records.
+function traceReply(recs, total = recs.length) {
+  const d = new Uint8Array(5 + recs.length * P.TRACE_REC_SIZE);
+  const v = new DataView(d.buffer);
+  v.setUint16(0, total, true);
+  v.setUint16(2, P.TRACE_REC_SIZE, true);
+  d[4] = recs.length;
+  recs.forEach((r, i) => d.set(r, 5 + i * P.TRACE_REC_SIZE));
+  return d;
+}
+const reply2 = P.parseReaderTraceReply(traceReply([startRec, pageRec]));
+check(
+  reply2.total === 2 &&
+    reply2.size === P.TRACE_REC_SIZE &&
+    reply2.recs.length === 2 &&
+    reply2.recs[1].cmd === "read page 2",
+  "parseReaderTraceReply reads the header and records",
+);
+
+const txns = reply2.recs;
+const exLog = P.exchangeLogText(txns);
+check(
+  exLog.includes("#0 START_AUTH: no answer") &&
+    exLog.includes("#1 read page 2: 38 bit(s)") &&
+    exLog.includes("L160") &&
+    exLog.includes("power-up 2968 µs"),
+  "exchangeLogText lists every command with its runs",
+);
+
+const exRec = P.buildExchangeRecord(
+  { firmware: "v2.3.0-52-g25fdc86", action: "read", uid: "024E0220" },
+  txns,
+  cap,
+  link,
+);
+check(
+  exRec.action === "read" &&
+    exRec.uid === "024E0220" &&
+    exRec.transactions.length === 2 &&
+    exRec.transactions[1].depth === 10014 &&
+    exRec.lastEnvelope.samples.length === 3 &&
+    exRec.link.minDepth === 5000,
+  "buildExchangeRecord keeps every transaction, the last envelope and the link",
+);
+
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exit(failed ? 1 : 0);

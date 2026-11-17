@@ -19,9 +19,9 @@ import * as P from "./interactive.js";
 cuConnectCard();
 
 const TEST_FW = {
-  zip: "firmware/lf-interactive-0c947cd1-ultra-dfu-app.zip",
-  name: "experimental 0c947cd1",
-  version: "v2.3.0-40-g0c947cd",
+  zip: "firmware/lf-hitag-modes-25fdc86e-ultra-dfu-app.zip",
+  name: "experimental 25fdc86e",
+  version: "v2.3.0-52-g25fdc86",
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
@@ -30,9 +30,12 @@ const STOCK = {
 TEST_FW.label = `Flash the experimental firmware (${TEST_FW.version})`;
 let cu = null,
   has = false, // the firmware has the interactive engine
+  hasTiming = false, // the firmware has LF_RDR_LAST (3189), for a single answer's timing
+  hasTrace = false, // the firmware has LF_RDR_TRACE_READ (3190), for the whole exchange
   slotTypes = null, // each slot's LF card type, once read
   firmware = "",
-  report = null;
+  report = null,
+  timing = null; // the last exchange's timing record, for download
 
 // Step 3 (read the trace) is current once a trace has been read.
 const setState = (state) =>
@@ -49,6 +52,8 @@ const CONTROLS = [
   "clear",
   "read",
   "reconnect",
+  "timingdownload",
+  "showenvelope",
   "flashTest",
   "flashStock",
   "flashFile",
@@ -99,6 +104,12 @@ async function checkFirmware() {
   // The engine's counters command is the probe: a firmware without it answers "invalid command".
   const r = await cu.cmd(P.CMD.LF_IA_TUNING);
   has = r.status === P.STATUS.SUCCESS;
+  // The answer timing is newer than the engine itself: a build without it answers "invalid command". The whole-exchange
+  // trace (LF_RDR_TRACE_READ) is newer still; without it the page falls back to the single last answer (LF_RDR_LAST).
+  const t = has ? await cu.cmd(P.CMD.LF_RDR_LAST) : null;
+  hasTiming = !!t && t.status !== P.STATUS.INVALID_CMD;
+  const tr = hasTiming ? await cu.cmd(P.CMD.LF_RDR_TRACE_READ) : null;
+  hasTrace = !!tr && tr.status !== P.STATUS.INVALID_CMD;
   showFirmware(
     has
       ? `Firmware ${fw}, with the interactive LF engine.`
@@ -106,7 +117,12 @@ async function checkFirmware() {
     !has,
   );
   $("fwneed").hidden = has;
-  log(`connected: ${fw}, interactive engine ${has ? "yes" : "no"}`);
+  log(
+    `connected: ${fw}, interactive engine ${has ? "yes" : "no"}` +
+      (has
+        ? `, answer timing ${hasTrace ? "full exchange" : hasTiming ? "last answer only" : "no"}`
+        : ""),
+  );
   return fw;
 }
 const connectCU = () =>
@@ -127,6 +143,9 @@ watchDisconnect(
   () => cu,
   () => {
     cu = null;
+    hasTiming = false;
+    hasTrace = false;
+    clearExchange();
     setState("connect");
   },
 );
@@ -243,10 +262,200 @@ function setScan(msg, cls = "") {
   $("scaninfo").textContent = msg;
 }
 
+// ---------------------------------------------------------------- the reader exchange timing
+// A scan or read runs many reader commands, each its own transaction. The firmware records each one's command and
+// answer timing (LF_RDR_TRACE_*). The page clears the trace before the exchange, then reads it back, shows every
+// command, logs the full run detail, and keeps a complete record for download. Older builds with only the single last
+// answer (LF_RDR_LAST) fall back to one transaction. Gated on the scan/read result, not on any record's own status:
+// with no tag the raw status can still read "tag OK" from the field settling, but a scan/read only succeeds on a real
+// answer.
+
+function clearExchange() {
+  timing = null;
+  $("timingbox").hidden = true;
+  $("envelopebox").hidden = true;
+  $("envelopebox").textContent = "";
+}
+
+// Clear the reader trace before a scan or read, so it holds exactly that exchange.
+async function resetTrace() {
+  if (hasTrace) await cu.cmd(P.CMD.LF_RDR_TRACE_CLEAR);
+}
+
+// LF_RDR_CAPTURE pages the samples; the offset is a big-endian u16.
+async function readCapture() {
+  const samples = [];
+  let total = 0;
+  for (;;) {
+    const off = samples.length;
+    const r = await cu.cmd(
+      P.CMD.LF_RDR_CAPTURE,
+      Uint8Array.of(off >> 8, off & 0xff),
+      6,
+    );
+    if (r.status !== P.STATUS.SUCCESS) break;
+    const part = P.parseCapture(r.data);
+    if (!part) break;
+    total = part.total;
+    if (part.count === 0) break;
+    samples.push(...part.samples);
+    if (samples.length >= total) break;
+  }
+  return { total, count: samples.length, samples };
+}
+
+// Read every reader-transaction record, paging by record index (big-endian u16). total can exceed the records held if a
+// long read rolled some off, so stop on an empty batch too.
+async function readReaderTrace() {
+  const recs = [];
+  let total = 0;
+  for (;;) {
+    const r = await cu.cmd(
+      P.CMD.LF_RDR_TRACE_READ,
+      Uint8Array.of(recs.length >> 8, recs.length & 0xff),
+      6,
+    );
+    if (r.status !== P.STATUS.SUCCESS) break;
+    const part = P.parseReaderTraceReply(r.data);
+    if (!part) break;
+    if (part.size !== P.TRACE_REC_SIZE)
+      throw new Error(
+        `trace record size ${part.size}, this page reads ${P.TRACE_REC_SIZE}: firmware and page differ`,
+      );
+    total = part.total;
+    if (part.count === 0) break;
+    recs.push(...part.recs);
+    if (recs.length >= total) break;
+  }
+  return { total, recs };
+}
+
+// A square-wave strip of the load runs: a filled bar while the tag loads, a gap while it doesn't, width by duration.
+function runsSvg(runs) {
+  const total = runs.reduce((s, r) => s + r.us, 0) || 1;
+  const W = 600,
+    H = 40;
+  let x = 0,
+    rects = "";
+  for (const r of runs) {
+    const w = (r.us / total) * W;
+    if (r.load)
+      rects += `<rect x="${x.toFixed(1)}" y="0" width="${w.toFixed(1)}" height="${H}" fill="currentColor"/>`;
+    x += w;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" role="img" aria-label="tag answer load runs">${rects}</svg>`;
+}
+
+// The raw envelope as a line, idle at the bottom.
+function envelopeSvg(samples) {
+  if (samples.length < 2) return "";
+  const W = 600,
+    H = 120;
+  const min = Math.min(...samples),
+    max = Math.max(...samples),
+    span = max - min || 1;
+  const pts = samples
+    .map(
+      (v, i) =>
+        `${((i / (samples.length - 1)) * W).toFixed(1)},${(H - ((v - min) / span) * H).toFixed(1)}`,
+    )
+    .join(" ");
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" role="img" aria-label="tag answer envelope"><polyline fill="none" stroke="currentColor" stroke-width="1" points="${pts}"/></svg>`;
+}
+
+// One row per transaction; the strip and the envelope below are the last command's answer.
+function renderExchange(txns) {
+  const answered = txns.filter((t) => t.answered).length;
+  $("timinginfo").textContent =
+    `${txns.length} command(s), ${answered} answered. The strip and envelope below are the last command's answer.`;
+  const tb = $("timingtx");
+  tb.textContent = "";
+  for (let i = 0; i < txns.length; i++) {
+    const t = txns[i];
+    const tr = document.createElement("tr");
+    const td = (text, cls) => {
+      const c = document.createElement("td");
+      c.textContent = text;
+      if (cls) c.className = cls;
+      tr.append(c);
+      return c;
+    };
+    td(String(i));
+    td(t.cmd);
+    td(t.answered ? `${t.nBits} bit` : "–", t.answered ? "" : "dim");
+    td(`${t.delayUs}`);
+    td(String(t.depth));
+    td(`${t.totalUs}`);
+    tb.append(tr);
+  }
+  const last = txns[txns.length - 1];
+  $("timingruns").innerHTML = last ? runsSvg(last.runs) : "";
+  $("envelopebox").hidden = true;
+  $("envelopebox").textContent = "";
+  $("timingbox").hidden = false;
+}
+
+async function captureExchange(action, extra) {
+  let txns = null;
+  if (hasTrace) {
+    txns = (await readReaderTrace()).recs;
+  } else if (hasTiming) {
+    const lr = await cu.cmd(P.CMD.LF_RDR_LAST);
+    if (
+      lr.status !== P.STATUS.LF_TAG_OK &&
+      lr.status !== P.STATUS.LF_TAG_NO_FOUND
+    )
+      return;
+    const last = P.parseLastReply(lr.data);
+    if (!last) return;
+    txns = [
+      {
+        ...last,
+        cmd: "last answer",
+        nTx: 0,
+        powerUpUs: 0,
+        answered: last.nBits > 0,
+      },
+    ];
+  } else return;
+  if (!txns.length) return;
+  const cap = await readCapture();
+  const linkR = await cu.cmd(P.CMD.HITAG2_READER_LINK);
+  const link =
+    linkR.status === P.STATUS.SUCCESS ? P.parseReaderLink(linkR.data) : null;
+  timing = P.buildExchangeRecord(
+    { firmware, action, ...extra },
+    txns,
+    cap,
+    link,
+  );
+  renderExchange(txns);
+  log(P.exchangeLogText(txns));
+}
+
+$("timingdownload").onclick = () => {
+  if (!timing) return;
+  const t = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  saveJson(`cu-hitag-exchange-${t}.json`, timing);
+};
+$("showenvelope").onclick = () => {
+  if (!timing?.lastEnvelope) return;
+  const box = $("envelopebox");
+  if (box.hidden) {
+    box.innerHTML = envelopeSvg(timing.lastEnvelope.samples);
+    box.hidden = false;
+  } else {
+    box.hidden = true;
+    box.textContent = "";
+  }
+};
+
 $("scan").onclick = () =>
   run("scan", async () => {
     need();
+    clearExchange();
     setScan("Hold a tag to the CU…");
+    await resetTrace();
     const r = await inReaderMode(() =>
       cu.cmd(P.CMD.HITAG2_SCAN, new Uint8Array(0), 6),
     );
@@ -262,6 +471,7 @@ $("scan").onclick = () =>
       "ok",
     );
     log(`scanned a Hitag 2 tag, UID ${uid}`);
+    await captureExchange("scan", { uid });
   });
 
 $("readtag").onclick = () =>
@@ -275,7 +485,9 @@ $("readtag").onclick = () =>
       );
       return;
     }
+    clearExchange();
     setScan("Hold a tag to the CU…");
+    await resetTrace();
     const r = await inReaderMode(() =>
       cu.cmd(P.CMD.HITAG2_READ, P.reqHitag2Read(pw), 12),
     );
@@ -309,6 +521,9 @@ $("readtag").onclick = () =>
       `read a Hitag 2 tag, ${read.count}/8 pages` +
         (read.pages[0] ? `, UID ${P.uidOf(read.pages[0])}` : ""),
     );
+    await captureExchange("read", {
+      uid: read.pages[0] ? P.uidOf(read.pages[0]) : undefined,
+    });
   });
 
 // ---------------------------------------------------------------- write the tag to the slot

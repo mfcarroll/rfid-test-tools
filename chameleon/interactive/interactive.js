@@ -23,6 +23,11 @@ export const CMD = {
   LF_IA_TRACE_READ: 3180,
   LF_IA_TRACE_CLEAR: 3181,
   LF_IA_TUNING: 3184,
+  LF_RDR_CAPTURE: 3186, // the last reader answer's raw envelope samples
+  HITAG2_READER_LINK: 3187, // the Hitag 2 reader's link timing, for context in a saved record
+  LF_RDR_LAST: 3189, // the last reader answer: bits, envelope levels and load runs
+  LF_RDR_TRACE_READ: 3190, // every reader transaction of the last exchange
+  LF_RDR_TRACE_CLEAR: 3191, // clear the reader trace before an exchange
 };
 export const STATUS = {
   MF_ERR_AUTH: 0x06, // the tag rejected the password
@@ -237,6 +242,195 @@ export function pagesFromRead(read, base = PLACEHOLDER_PAGES) {
   const p = Uint8Array.from(base);
   for (let i = 0; i < 8; i++) if (read.pages[i]) p.set(read.pages[i], i * 4);
   return p;
+}
+
+// ---------------------------------------------------------------- the last reader answer's timing
+
+// In reader mode the CU drives its own field at 125 kHz, so one carrier period is 8 µs.
+export const FC_US = 8;
+
+// LF_RDR_LAST / LF_RDR_TRANSACT reply: n_bits u16, 32 bytes of answer bits, env.first u16, idle/load/threshold i16
+// each, n_runs u16, then the load runs (u16 each; bit 15 = loaded, bits 0..14 = length in carrier periods). Returns
+// the answer decoded for display, or null if the reply is short. The runs are the exact timing of the tag's reply:
+// each load/idle segment's length. delayUs is how long after the command the answer's first load began. depth is the
+// swing the firmware measured (|load - idle| in ADC counts), which min_depth is checked against.
+export function parseLastReply(d) {
+  if (d.length < 44) return null;
+  const v = new DataView(d.buffer, d.byteOffset);
+  const nBits = v.getUint16(0, true);
+  const first = v.getUint16(34, true);
+  const idle = v.getInt16(36, true);
+  const load = v.getInt16(38, true);
+  const threshold = v.getInt16(40, true);
+  const nRuns = v.getUint16(42, true);
+  const runs = [];
+  for (let i = 0; i < nRuns && 44 + i * 2 + 2 <= d.length; i++) {
+    const r = v.getUint16(44 + i * 2, true);
+    const fc = r & 0x7fff;
+    runs.push({ load: !!(r & 0x8000), fc, us: fc * FC_US });
+  }
+  const totalUs = runs.reduce((s, r) => s + r.us, 0);
+  return {
+    nBits,
+    bits: bitsStr(d.subarray(2, 34), nBits),
+    delayUs: first * FC_US,
+    idle,
+    load,
+    threshold,
+    depth: Math.abs(load - idle),
+    nRuns,
+    totalUs,
+    runs,
+  };
+}
+
+// LF_RDR_CAPTURE reply: total u16, count u16, then count i16 samples (one per carrier period, 8 µs apart). Returns
+// { total, count, samples } for this batch.
+export function parseCapture(d) {
+  if (d.length < 4) return null;
+  const v = new DataView(d.buffer, d.byteOffset);
+  const total = v.getUint16(0, true);
+  const count = v.getUint16(2, true);
+  const samples = [];
+  for (let i = 0; i < count && 4 + i * 2 + 2 <= d.length; i++)
+    samples.push(v.getInt16(4 + i * 2, true));
+  return { total, count, samples };
+}
+
+// HITAG2_READER_LINK reply: a 20-byte lf_rdr_link_t (little-endian), kept with a record for context.
+export function parseReaderLink(d) {
+  if (d.length < 20) return null;
+  const v = new DataView(d.buffer, d.byteOffset);
+  return {
+    gapUs: v.getUint16(0, true),
+    bit0Us: v.getUint16(2, true),
+    bit1Us: v.getUint16(4, true),
+    eofGap: v.getUint8(6),
+    stopUs: v.getUint16(7, true),
+    coding: v.getUint8(9),
+    codingFlags: v.getUint8(10),
+    bitFc: v.getUint16(11, true),
+    windowUs: v.getUint16(13, true),
+    captureN: v.getUint16(15, true),
+    minDepth: v.getInt16(17, true),
+    slicePct: v.getUint8(19),
+  };
+}
+
+// ---------------------------------------------------------------- the whole exchange (LF_RDR_TRACE_READ)
+
+// A read runs many reader commands, each its own transaction (lf_hitag2_reader.c): START_AUTH, the password, then each
+// page, with retries. The firmware keeps a record per transaction. This reads them back so the page shows the whole
+// exchange, each command labelled, instead of only the last answer.
+
+export const TRACE_REC_SIZE = 212; // LF_RDR_TRACE_REC_SIZE: 20-byte header + 96 runs
+export const TRACE_RUNS = 96;
+
+// Name a command from its bits (lf_hitag2_reader.c): START_AUTH is 0x18 in 5 bits, the password is 32 bits, and a page
+// read is 10 bits, 11 ppp 00 ~ppp, with the page number in the middle.
+export function exchangeLabel(nTx, v) {
+  if (nTx === 5 && v === 0x18) return "START_AUTH";
+  if (nTx === 32) return "password";
+  if (nTx === 10 && v >> 8 === 3 && ((v >> 3) & 3) === 0)
+    return `read page ${(v >> 5) & 7}`;
+  return `${nTx}-bit 0x${v.toString(16)}`;
+}
+
+// One trace record (LF_RDR_TRACE_REC_SIZE bytes): command bit count (u8), command bits (4, first-bit-first), power-up
+// (u16), flags (u8, bit0 clean), answer bit count (u16), first loaded sample (u16), idle/load/threshold (i16), run
+// count (u16), then TRACE_RUNS runs (u16, zero past the count). No decoded answer bits.
+export function parseTraceRecord(d, o = 0) {
+  const v = new DataView(d.buffer, d.byteOffset + o);
+  const nTx = v.getUint8(0);
+  let tx = 0;
+  for (let i = 0; i < nTx && i < 32; i++)
+    if (d[o + 1 + (i >> 3)] & (1 << (7 - (i & 7)))) tx |= 1 << (nTx - 1 - i);
+  tx >>>= 0;
+  const nRuns = v.getUint16(18, true);
+  const runs = [];
+  for (let i = 0; i < nRuns && i < TRACE_RUNS; i++) {
+    const r = v.getUint16(20 + i * 2, true);
+    const fc = r & 0x7fff;
+    runs.push({ load: !!(r & 0x8000), fc, us: fc * FC_US });
+  }
+  const idle = v.getInt16(12, true);
+  const load = v.getInt16(14, true);
+  return {
+    nTx,
+    tx,
+    cmd: exchangeLabel(nTx, tx),
+    powerUpUs: v.getUint16(5, true),
+    clean: !!(v.getUint8(7) & 1),
+    nBits: v.getUint16(8, true),
+    delayUs: v.getUint16(10, true) * FC_US,
+    idle,
+    load,
+    threshold: v.getInt16(16, true),
+    depth: Math.abs(load - idle),
+    answered: v.getUint16(8, true) > 0,
+    nRuns,
+    totalUs: runs.reduce((s, r) => s + r.us, 0),
+    runs,
+  };
+}
+
+// LF_RDR_TRACE_READ reply: total u16 (records since the clear), size u16 (record size), count u8, then count records.
+export function parseReaderTraceReply(d) {
+  if (d.length < 5) return null;
+  const v = new DataView(d.buffer, d.byteOffset);
+  const total = v.getUint16(0, true);
+  const size = v.getUint16(2, true);
+  const count = v.getUint8(4);
+  const recs = [];
+  for (let i = 0; i < count && 5 + (i + 1) * size <= d.length; i++)
+    recs.push(parseTraceRecord(d, 5 + i * size));
+  return { total, size, count, recs };
+}
+
+// The whole exchange as plain text for the log: one block per transaction, every run listed, no decoded answer bits.
+export function exchangeLogText(txns) {
+  const lines = [`Hitag 2 exchange: ${txns.length} command(s)`];
+  txns.forEach((t, i) => {
+    lines.push(
+      `  #${i} ${t.cmd}: ${t.answered ? `${t.nBits} bit(s)` : "no answer"}, ` +
+        `delay ${t.delayUs} µs, depth ${t.depth} (idle ${t.idle}, load ${t.load}, threshold ${t.threshold}), ` +
+        `${t.nRuns} runs, total ${t.totalUs} µs` +
+        (t.powerUpUs ? `, power-up ${t.powerUpUs} µs` : ""),
+    );
+    lines.push(
+      "    runs (µs, L = loaded): " +
+        t.runs.map((r) => `${r.load ? "L" : "·"}${r.us}`).join(" "),
+    );
+  });
+  return lines.join("\n");
+}
+
+// A complete record for the downloaded file: every transaction's command and timing, the raw envelope of the last
+// transaction, and the reader link. The levels sit beside each transaction, so a tag's swing can be measured without
+// rerunning. No decoded answer bits.
+export function buildExchangeRecord(
+  { firmware, action, uid },
+  txns,
+  lastEnvelope,
+  link,
+) {
+  return {
+    kind: "rfid-test-tools/chameleon/interactive Hitag 2 reader exchange",
+    firmware,
+    read: new Date().toISOString(),
+    action, // "scan" or "read"
+    reader: "the CU's own antenna at 125 kHz (8 µs per carrier period)",
+    ...(uid ? { uid } : {}),
+    transactions: txns,
+    lastEnvelope: lastEnvelope
+      ? {
+          fcUs: FC_US,
+          total: lastEnvelope.total,
+          samples: lastEnvelope.samples,
+        }
+      : null,
+    link: link ?? null,
+  };
 }
 
 // ---------------------------------------------------------------- the counters (LF_IA_TUNING reply)

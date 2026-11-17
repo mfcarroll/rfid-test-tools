@@ -180,6 +180,41 @@
               <button id="readtag">Read a tag (uses page 1's password)</button>
               <span class="note" id="scaninfo"></span>
             </div>
+
+            <div id="timingbox" class="gap-top" hidden>
+              <div class="title">Exchange timing</div>
+              <p class="note" id="timinginfo"></p>
+              <div class="tablewrap gap-top">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Command</th>
+                      <th>Answer</th>
+                      <th>Delay (µs)</th>
+                      <th>Depth</th>
+                      <th>Length (µs)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="timingtx"></tbody>
+                </table>
+              </div>
+              <div id="timingruns" class="gap-top"></div>
+              <p class="note">
+                The strip shows the last command's load-modulated answer: a
+                filled bar while the tag loads the field, a gap while it
+                doesn't, width by duration. The full per-command run detail goes
+                to the log, and Download keeps every command, run and level —
+                plus the last command's raw envelope — in a file, so a tag's
+                swing against the reader's own ringing can be measured from it
+                later.
+              </p>
+              <div class="row gap-top">
+                <button id="timingdownload">Download the exchange</button>
+                <button id="showenvelope">Show the envelope</button>
+              </div>
+              <div id="envelopebox" class="gap-top" hidden></div>
+            </div>
           </div>
 
           <div class="gap-top">
@@ -211,8 +246,8 @@
           <div class="small"><b>Firmware</b></div>
           <p class="note">
             Needs the experimental firmware: the interactive LF engine with the
-            Hitag 2 module (<a
-              href="https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-interactive"
+            Hitag 2 module and the reader answer timing (<a
+              href="https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes"
               >source</a
             >). Flashing replaces the CU's firmware and keeps the current slots.
           </p>
@@ -286,11 +321,11 @@
           "../common/flash-ui.js": "../common/flash-ui.js?v=04945afa76",
           "../common/session.js": "../common/session.js?v=cd63fa21a7",
           "../common/slots.js": "../common/slots.js?v=ca14c3948d",
-          "./interactive.js": "./interactive.js?v=598d674138",
+          "./interactive.js": "./interactive.js?v=8b5ceb317a",
           "../../common/page.js": "../../common/page.js?v=dc505804aa"
         }
       }
     </script>
-    <script type="module" src="main.js?v=54819cdeec"></script>
+    <script type="module" src="main.js?v=3b3e760abd"></script>
   </body>
 </html>
