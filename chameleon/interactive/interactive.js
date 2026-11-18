@@ -43,10 +43,12 @@ export const SENSE_LF = 1;
 export const HITAG2_DATA_SIZE = 32; // eight 32-bit pages
 // sizeof(lf_ia_trace_rec_t). The base record ends at t_session_us (276 bytes). The exp/lf-hitag-modes firmware
 // appends 14 bytes of per-record timing and carrier-measurement fields (290). The layout below 276 is the same for
-// both, and parseRecord reads the extra fields only when the record carries them.
+// both, and parseRecord reads the extra fields only when the record carries them. From a501f268 on, it also appends
+// t_field_seen_us, the last time the CU saw the reader's field while answering (294).
 export const REC_SIZE = 276;
 export const REC_SIZE_TIMING = 290;
-export const REC_SIZES = new Set([REC_SIZE, REC_SIZE_TIMING]);
+export const REC_SIZE_WATCH = 294;
+export const REC_SIZES = new Set([REC_SIZE, REC_SIZE_TIMING, REC_SIZE_WATCH]);
 export const TRACE_KEEP = 8; // the first records a clear keeps (LF_IA_TRACE_KEEP), for a note when some roll off
 
 // lf_ia_trace.h
@@ -61,6 +63,7 @@ export const modeFlags = (m) => {
   if (m & 1) f.push("scale");
   if (m & 2) f.push("alt-delay");
   if (m & 4) f.push("every-second");
+  if (m & 8) f.push("rest-unloaded");
   return f.length ? f.join("+") : "baseline";
 };
 export const FLAG = {
@@ -512,7 +515,22 @@ export function parseRecord(buf, o = 0, size = REC_SIZE) {
       measUs: u8(289) * 32, // meas_us32, how long the measurement took, in 32 µs units
     };
   }
+  // t_field_seen_us: 0 if the CU never saw the field after the command.
+  if (size >= REC_SIZE_WATCH) rec.tFieldSeenUs = u32(290);
   return rec;
+}
+
+// Where the reader's field was last seen against the answer the CU sent, or null if the record doesn't say.
+export function fieldSeenText(c) {
+  if (c.tFieldSeenUs === undefined) return null;
+  const seen = c.tFieldSeenUs;
+  if (!seen) return "field never seen after the command";
+  // The watch sees up to about 35 µs before the answer's end (conversion and smoothing lag).
+  if (seen >= c.tTxEndUs - 50) return `field still on at the answer's end`;
+  if (seen < c.tTxUs) return `field gone ${c.tTxUs - seen} µs before the answer started`;
+  const bitUs = (c.tTxEndUs - c.tTxUs) / Math.max(c.nTxBits, 1);
+  const bit = Math.floor((seen - c.tTxUs) / bitUs);
+  return `field gone during the answer: last seen ${seen - c.tTxUs} µs in, in bit ${bit} of ${c.nTxBits}`;
 }
 
 // The trace-read reply header: total u32, record size u16, count u8, kept u8, boot u16, then the records.
@@ -770,6 +788,8 @@ export function privateMarkdown(r) {
         L.push(
           `  answer ${c.nTxBits} bits ${c.txBits}, ready ${c.tReadyUs - c.tUs} µs after the command, sent at ${c.tTxUs - c.tUs} µs (due ${c.tDueUs - c.tUs})${flags.length ? " " + flags.join(" ") : ""}`,
         );
+        const seen = fieldSeenText(c);
+        if (seen) L.push(`  ${seen}`);
       }
     }
     if (s.off)

@@ -574,6 +574,28 @@ check(
     Math.abs(tim.measSnrDb - 22.4) < 0.05,
   "timing carries the measured carrier and SNR",
 );
+// The 294-byte record carries where the field was last seen. Field gone in bit 3 of the answer.
+{
+  const w = new Uint8Array(294);
+  w.set(tCmd.slice(0, 290));
+  const wv = new DataView(w.buffer);
+  wv.setUint32(20, 100000, true); // t_tx_us
+  wv.setUint32(24, 100000 + 37 * 256, true); // t_tx_end_us
+  wv.setUint16(32, 37, true); // n_tx_bits
+  const base = P.parseRecord(w, 0, 290);
+  const bitUs = 256;
+  wv.setUint32(290, Math.round(base.tTxUs + 3.5 * bitUs), true);
+  const r = P.parseRecord(w, 0, 294);
+  check(P.REC_SIZES.has(294), "the 294-byte field-watch record is a known size");
+  check(
+    r.tFieldSeenUs === Math.round(base.tTxUs + 3.5 * bitUs) && /in bit 3 of/.test(P.fieldSeenText(r)),
+    `field watch: ${P.fieldSeenText(r)}`,
+  );
+  wv.setUint32(290, base.tTxEndUs, true);
+  check(/still on/.test(P.fieldSeenText(P.parseRecord(w, 0, 294))), "field still on at the answer's end");
+  check(P.fieldSeenText(base) === null, "a 290-byte record says nothing about the field");
+  check(P.modeFlags(8) === "rest-unloaded", "mode 8 is rest-unloaded");
+}
 // The base 276-byte record parses with no timing attached.
 check(
   P.parseRecord(tCmd.slice(0, 276), 0, 276).timing === undefined,
