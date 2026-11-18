@@ -19,9 +19,9 @@ import * as P from "./interactive.js";
 cuConnectCard();
 
 const TEST_FW = {
-  zip: "firmware/lf-hitag-modes-271eaf55-ultra-dfu-app.zip",
-  name: "experimental 271eaf55",
-  version: "v2.3.0-53-g271eaf5",
+  zip: "firmware/lf-hitag-modes-87d54b75-ultra-dfu-app.zip",
+  name: "experimental 87d54b75",
+  version: "v2.3.0-59-g87d54b7",
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
@@ -615,7 +615,7 @@ $("clear").onclick = () =>
   });
 
 // ---------------------------------------------------------------- read the trace
-// One trace-read batch is up to 14 records (~3.9 KB) in a single reply — far larger than the other replies. Give
+// One trace-read batch is as many records as fit a single frame (~4 KB) — far larger than the other replies. Give
 // it a longer timeout and retry a couple of times, so a slow or dropped large reply does not fail the whole read.
 async function traceBatch(first) {
   let lastErr;

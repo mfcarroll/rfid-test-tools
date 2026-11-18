@@ -8,8 +8,11 @@ Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/hitag-modes/ (Chro
 
 ## What the modes change
 
-Each slot has three independent mode bits, so eight combinations. Slot _n_ gets combination _n_ by default (slot 1
-baseline, slot 8 all three on), so one walk past a reader compares them all.
+Each slot has four independent mode bits, so sixteen combinations — more than the eight slots. **Default setup** keeps
+**scale** on in every slot (accurate timing) and sweeps the other three bits through all eight ways, from slot 1 (scale
+only) to slot 8 (all four on), so one walk past a reader compares alt-delay, every-second and rest-unloaded, and their
+combinations, with the carrier timed correctly. A combination the default leaves out (anything with scale off) is still
+reachable by hand in a slot's Mode menu, which offers all sixteen.
 
 - **scale**: the CU measures the reader's carrier at the start of each field and times the answer's bits and delay in
   that reader's carrier periods. Without it, a carrier period is taken as 8 µs (125 kHz), so the answer drifts against
@@ -19,6 +22,9 @@ baseline, slot 8 all three on), so one walk past a reader compares them all.
 - **every-second**: the tag answers only every second START_AUTH. The HT2 datasheet (rev 2.1, 4.2.2) says a second
   START_AUTH resets a genuine tag's state machine, so it answers only every second one. A reader that relies on that
   may reject a tag that answers every time.
+- **rest-unloaded**: after each answer the tag holds the load off for one bit before it listens again, as a genuine tag
+  rests unloaded. Without it the CU listens with the load on at once, so the frame ends a bit later than a real tag's. A
+  reader that watches the end of the answer may need the earlier end.
 
 The modes are kept in retained RAM. They survive sleep, so a test runs at a reader on battery, but reset to baseline on
 a power-on reset or a flash. Saving the slots does not save the modes, so the page sets them again whenever it copies.
@@ -28,10 +34,10 @@ use the [Interactive LF emulation page](../interactive/), which records the exch
 
 ## Firmware
 
-- `firmware/lf-hitag-modes-271eaf55-ultra-dfu-app.zip`: built from
-  [`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes), commit `271eaf55`.
-  Reports `v2.3.0-53-g271eaf5`. It's the interactive LF engine (a listen-and-respond Hitag 2 tag in password mode)
-  plus per-slot answer timing and the three research modes. Command 3188 reads and sets the eight slot modes. The
+- `firmware/lf-hitag-modes-87d54b75-ultra-dfu-app.zip`: built from
+  [`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes), commit `87d54b75`.
+  Reports `v2.3.0-59-g87d54b7`. It's the interactive LF engine (a listen-and-respond Hitag 2 tag in password mode)
+  plus per-slot answer timing and the four research modes. Command 3188 reads and sets the eight slot modes. The
   same build drives the [Interactive LF emulation](../interactive/) page, including its reader answer timing.
 - `../common/firmware/stock-v2.3.0-ultra-dfu-app.zip`: the official v2.3.0 application package, unchanged, for flashing
   back. It has no Hitag 2 emulation.

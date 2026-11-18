@@ -146,9 +146,15 @@
       <details class="fold" id="modes">
         <summary><h2>What the modes do</h2></summary>
         <p class="note">
-          Each slot has three independent mode bits, so eight combinations. Slot
-          <i>n</i> gets combination <i>n</i> by default (slot 1 baseline, slot 8
-          all three on), so one walk past a reader compares them all.
+          Each slot has four independent mode bits, so sixteen combinations —
+          more than the eight slots. <b>Default setup</b> can't fit them all, so
+          it keeps <b>scale</b> on in every slot (accurate timing) and sweeps
+          the other three bits through all eight ways, from slot 1 (scale only)
+          to slot 8 (all four on). One walk past a reader then compares
+          alt-delay, every-second and rest-unloaded, and their combinations, all
+          with the reader's carrier timed correctly. To test a combination the
+          default leaves out (anything with scale off), pick it by hand in a
+          slot's Mode menu, which offers all sixteen.
         </p>
         <ul class="note">
           <li>
@@ -167,6 +173,13 @@
             The HT2 datasheet (rev 2.1, 4.2.2) says a second START_AUTH resets a
             genuine tag's state machine, so it answers only every second one. A
             reader that relies on that may reject a tag that answers every time.
+          </li>
+          <li>
+            <b>rest-unloaded</b>: after each answer the tag holds the load off
+            for one bit before it listens again, as a genuine tag rests
+            unloaded. Without it the CU listens with the load on at once, so the
+            frame ends a bit later than a real tag's. A reader that watches the
+            end of the answer may need the earlier end.
           </li>
         </ul>
         <p class="note">
@@ -231,7 +244,7 @@
           <li>
             Command 3188 reads the eight slot modes (send nothing), or sets them
             (send eight bytes, one per slot, the LF_IA_MODE_ flags: 0x01 scale,
-            0x02 alt-delay, 0x04 every-second).
+            0x02 alt-delay, 0x04 every-second, 0x08 rest-unloaded).
           </li>
           <li>
             Copying a card reads the source slot's Hitag 2 data with command
@@ -262,11 +275,11 @@
           "../common/flash-ui.js": "../common/flash-ui.js?v=04945afa76",
           "../common/session.js": "../common/session.js?v=cd63fa21a7",
           "../common/slots.js": "../common/slots.js?v=ca14c3948d",
-          "./hitag-modes.js": "./hitag-modes.js?v=10a06178a6",
+          "./hitag-modes.js": "./hitag-modes.js?v=40397344a3",
           "../../common/page.js": "../../common/page.js?v=dc505804aa"
         }
       }
     </script>
-    <script type="module" src="main.js?v=24aa3825b0"></script>
+    <script type="module" src="main.js?v=6a516289b6"></script>
   </body>
 </html>

@@ -7,24 +7,31 @@ const check = (ok, what) => {
   if (!ok) failed++;
 };
 
-// The eight combinations are 0..7 of three bits.
-check(H.CHOICES.length === 8, "eight mode combinations");
+// The sixteen combinations are 0..15 of four bits.
+check(H.CHOICES.length === 16, "sixteen mode combinations");
 check(
-  H.MODE_BITS === (H.SCALE | H.ALT_DELAY | H.ALT_PROTOCOL),
-  "the mode bits cover scale, alt-delay and every-second",
+  H.MODE_BITS === (H.SCALE | H.ALT_DELAY | H.ALT_PROTOCOL | H.REST_UNLOADED),
+  "the mode bits cover scale, alt-delay, every-second and rest-unloaded",
 );
 check(H.modeName(0) === "baseline", "mode 0 is baseline");
 check(
   H.modeName(H.SCALE | H.ALT_PROTOCOL) === "scale + every-second",
   "mode names join the set flags",
 );
-check(H.modeName(7) === "scale + alt-delay + every-second", "mode 7 names all");
+check(
+  H.modeName(15) === "scale + alt-delay + every-second + rest-unloaded",
+  "mode 15 names all four",
+);
 check(H.modeNick(0) === "Hitag 2 base", "baseline nickname");
 check(
   H.modeNick(H.SCALE | H.ALT_PROTOCOL) === "Hitag 2 S+E",
   "nickname abbreviates the flags",
 );
-check(H.DEFAULT_MODES.join(",") === "0,1,2,3,4,5,6,7", "default plan is 0..7");
+check(H.modeNick(15) === "Hitag 2 S+D+E+R", "all-four nickname");
+check(
+  H.DEFAULT_MODES.join(",") === "1,3,5,7,9,11,13,15",
+  "default plan keeps scale on and sweeps the other three bits",
+);
 
 // Command 3188: parse the eight returned modes, build the eight-byte request.
 const wire = Uint8Array.of(0, 1, 2, 3, 4, 5, 6, 7, 99); // a trailing byte must be ignored

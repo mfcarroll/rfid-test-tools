@@ -527,7 +527,8 @@ export function fieldSeenText(c) {
   if (!seen) return "field never seen after the command";
   // The watch sees up to about 35 µs before the answer's end (conversion and smoothing lag).
   if (seen >= c.tTxEndUs - 50) return `field still on at the answer's end`;
-  if (seen < c.tTxUs) return `field gone ${c.tTxUs - seen} µs before the answer started`;
+  if (seen < c.tTxUs)
+    return `field gone ${c.tTxUs - seen} µs before the answer started`;
   const bitUs = (c.tTxEndUs - c.tTxUs) / Math.max(c.nTxBits, 1);
   const bit = Math.floor((seen - c.tTxUs) / bitUs);
   return `field gone during the answer: last seen ${seen - c.tTxUs} µs in, in bit ${bit} of ${c.nTxBits}`;
