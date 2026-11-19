@@ -63,7 +63,7 @@ export const modeFlags = (m) => {
   if (m & 1) f.push("scale");
   if (m & 2) f.push("alt-delay");
   if (m & 4) f.push("every-second");
-  if (m & 8) f.push("rest-unloaded");
+  if (m & 8) f.push("rest-loaded");
   return f.length ? f.join("+") : "baseline";
 };
 export const FLAG = {

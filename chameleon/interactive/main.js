@@ -19,9 +19,9 @@ import * as P from "./interactive.js";
 cuConnectCard();
 
 const TEST_FW = {
-  zip: "firmware/lf-hitag-modes-802a3a6d-ultra-dfu-app.zip",
-  name: "experimental 802a3a6d",
-  version: "v2.3.0-61-g802a3a6",
+  zip: "firmware/lf-hitag-modes-f7eab3fb-ultra-dfu-app.zip",
+  name: "experimental f7eab3fb",
+  version: "v2.3.0-64-gf7eab3f",
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",

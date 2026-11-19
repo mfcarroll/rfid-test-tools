@@ -6,8 +6,9 @@
 //   SCALE (0x01):         time the answer's bits and delay in the reader's measured carrier, not a fixed 125 kHz.
 //   ALT_DELAY (0x02):     answer in the middle of the reader's listening window, not a genuine fob's timing.
 //   ALT_PROTOCOL (0x04):  answer only every second START_AUTH, as the HT2 datasheet says a genuine tag does.
-//   REST_UNLOADED (0x08): after each answer, hold the load off for one bit before listening, so the frame ends where
-//                         a genuine tag's does.
+//   REST_LOADED (0x08):   after each answer, listen with the load on at once (the old default). Without it the tag
+//                         holds the load off for 56 periods first, as a genuine tag does. Firmware 802a3a6d and
+//                         earlier used this bit the other way round, as rest-unloaded.
 // The four bits give sixteen combinations, more than the eight slots hold. Command 3188 reads all eight slots' modes,
 // or sets them from eight bytes. The modes live in retained RAM: they survive sleep (a test runs at a reader on
 // battery) but reset to 0 on a power-on reset or a flash.
@@ -49,12 +50,12 @@ export const SLOTS = 8;
 export const SCALE = 0x01;
 export const ALT_DELAY = 0x02;
 export const ALT_PROTOCOL = 0x04;
-export const REST_UNLOADED = 0x08;
-export const MODE_BITS = SCALE | ALT_DELAY | ALT_PROTOCOL | REST_UNLOADED;
+export const REST_LOADED = 0x08;
+export const MODE_BITS = SCALE | ALT_DELAY | ALT_PROTOCOL | REST_LOADED;
 // Every combination a slot can be set to by hand: the sixteen values of the four bits, in counting order.
 export const CHOICES = Array.from({ length: 16 }, (_, i) => i);
 // The default plan can't fit all sixteen in eight slots, so it keeps scale on in every slot (accurate timing) and
-// sweeps the other three bits (alt-delay, every-second, rest-unloaded) through all eight ways: the odd values 1..15.
+// sweeps the other three bits (alt-delay, every-second, rest-loaded) through all eight ways: the odd values 1..15.
 // One walk then reads each of those three bits and their interactions, all with the reader's carrier timed correctly.
 export const DEFAULT_MODES = [1, 3, 5, 7, 9, 11, 13, 15];
 
@@ -63,7 +64,7 @@ const FLAGS = [
   [SCALE, "scale"],
   [ALT_DELAY, "alt-delay"],
   [ALT_PROTOCOL, "every-second"],
-  [REST_UNLOADED, "rest-unloaded"],
+  [REST_LOADED, "rest-loaded"],
 ];
 // A mode's name, e.g. "scale + every-second", or "baseline" for 0.
 export const modeName = (m) => {
@@ -76,7 +77,7 @@ const SHORT = [
   [SCALE, "S"],
   [ALT_DELAY, "D"],
   [ALT_PROTOCOL, "E"],
-  [REST_UNLOADED, "R"],
+  [REST_LOADED, "L"],
 ];
 export const modeNick = (m) => {
   const on = SHORT.filter(([bit]) => m & bit).map(([, c]) => c);

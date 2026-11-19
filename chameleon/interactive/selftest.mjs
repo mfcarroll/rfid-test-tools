@@ -604,7 +604,7 @@ check(
     P.fieldSeenText(base) === null,
     "a 290-byte record says nothing about the field",
   );
-  check(P.modeFlags(8) === "rest-unloaded", "mode 8 is rest-unloaded");
+  check(P.modeFlags(8) === "rest-loaded", "mode 8 is rest-loaded");
 }
 // The base 276-byte record parses with no timing attached.
 check(

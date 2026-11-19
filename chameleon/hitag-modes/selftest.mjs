@@ -10,8 +10,8 @@ const check = (ok, what) => {
 // The sixteen combinations are 0..15 of four bits.
 check(H.CHOICES.length === 16, "sixteen mode combinations");
 check(
-  H.MODE_BITS === (H.SCALE | H.ALT_DELAY | H.ALT_PROTOCOL | H.REST_UNLOADED),
-  "the mode bits cover scale, alt-delay, every-second and rest-unloaded",
+  H.MODE_BITS === (H.SCALE | H.ALT_DELAY | H.ALT_PROTOCOL | H.REST_LOADED),
+  "the mode bits cover scale, alt-delay, every-second and rest-loaded",
 );
 check(H.modeName(0) === "baseline", "mode 0 is baseline");
 check(
@@ -19,7 +19,7 @@ check(
   "mode names join the set flags",
 );
 check(
-  H.modeName(15) === "scale + alt-delay + every-second + rest-unloaded",
+  H.modeName(15) === "scale + alt-delay + every-second + rest-loaded",
   "mode 15 names all four",
 );
 check(H.modeNick(0) === "Hitag 2 base", "baseline nickname");
@@ -27,7 +27,7 @@ check(
   H.modeNick(H.SCALE | H.ALT_PROTOCOL) === "Hitag 2 S+E",
   "nickname abbreviates the flags",
 );
-check(H.modeNick(15) === "Hitag 2 S+D+E+R", "all-four nickname");
+check(H.modeNick(15) === "Hitag 2 S+D+E+L", "all-four nickname");
 check(
   H.DEFAULT_MODES.join(",") === "1,3,5,7,9,11,13,15",
   "default plan keeps scale on and sweeps the other three bits",
