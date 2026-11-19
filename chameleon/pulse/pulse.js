@@ -73,7 +73,69 @@ export function trimText(p, s) {
     : "not learned";
 }
 
-// Plain text for pasting into a chat: one line per slot that matters.
+// Command 3130 with 0xF1 (read) or 0xF0 (clear): the field log, one record per field the CU saw, oldest first.
+// Firmware without the field log answers 0xF1 with the ordinary reply, so the entry size tells the two
+// apart (that reply's second byte is the active slot, 0-7). Returns null for that firmware.
+export const reqFieldLog = () => Uint8Array.of(0xf1);
+export const reqFieldLogClear = () => Uint8Array.of(0xf0);
+const FIELD_END = [
+  "on",
+  "long check",
+  "short check",
+  "watchdog",
+  "measure",
+  "stopped",
+];
+export function parseFieldLog(d) {
+  const v = new DataView(d.buffer, d.byteOffset, d.byteLength);
+  const size = d[1];
+  if (d.length < 6 || d[0] !== 1 || size !== 24 || (d.length - 6) % size)
+    return null;
+  const log = { total: v.getUint16(2), wake: v.getUint16(4), fields: [] };
+  for (let n = 6; n < d.length; n += size)
+    log.fields.push({
+      wake: v.getUint16(n),
+      slot: d[n + 2],
+      end: FIELD_END[d[n + 3]] ?? `other (${d[n + 3]})`,
+      startMs: v.getUint32(n + 4),
+      ms: v.getUint16(n + 8),
+      frames: v.getUint16(n + 10),
+      longHigh: v.getUint16(n + 12),
+      shortHigh: v.getUint16(n + 14),
+      level: [d[n + 16], d[n + 17] === 0xff ? 0 : d[n + 17], d[n + 18]],
+      measured: d[n + 19] >> 4,
+      noLine: d[n + 19] & 15,
+      watchdog: d[n + 20],
+      measuredLevel: v.getUint16(n + 22),
+    });
+  return log;
+}
+
+// One line per field. The gap is the time since the previous field of the same wake ended: a short gap inside one hold
+// means the CU lost the field and found it again.
+export function fieldLogReport(log) {
+  if (!log) return "";
+  const lines = [
+    `Field log: ${log.total} field(s) since it was cleared, ${log.fields.length} kept, ${log.wake} wake(s)`,
+  ];
+  let prev = null;
+  for (const f of log.fields) {
+    const gap =
+      prev && prev.wake === f.wake
+        ? `, ${f.startMs - (prev.startMs + prev.ms)} ms after the last`
+        : "";
+    let l = `wake ${f.wake} slot ${f.slot + 1}: ${f.ms} ms${gap}, ${f.frames} frames, ended at ${f.end}`;
+    if (f.level[2]) l += `, level ${f.level[1]}-${f.level[2]}`;
+    if (f.measured || f.noLine)
+      l += `, measured ${f.measured} + ${f.noLine} without a line (level ${f.measuredLevel})`;
+    if (f.watchdog) l += `, watchdog ${f.watchdog}`;
+    lines.push(l);
+    prev = f;
+  }
+  return lines.join("\n");
+}
+
+// Plain text for pasting into a chat: one line per slot that matters, then the field log.
 export function report(r, firmware, p) {
   const lines = [`CU firmware ${firmware}, active slot ${r.active + 1}`];
   for (const s of r.slots) {
@@ -86,7 +148,8 @@ export function report(r, firmware, p) {
       l += ` (${q.measures} measurement(s), ${q.fails} without a line${q.haveLast ? `, last ${q.lastSnr.toFixed(0)} dB` : ""})`;
     lines.push(l);
   }
-  return lines.join("\n");
+  const f = fieldLogReport(p?.fieldLog);
+  return f ? lines.join("\n") + "\n\n" + f : lines.join("\n");
 }
 
 // Slot 8 (index 7) is emptied and disabled for the test, so the CU's buttons skip it.

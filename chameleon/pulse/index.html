@@ -280,6 +280,13 @@
             short fields. <code>0xC1</code> to either clears the results.
           </li>
           <li>
+            Command 3130 with <code>0xF1</code> reads the field log: one record
+            per field the CU saw, the last 64, kept while the CU sleeps. Each
+            record says which slot, how long, how many frames the CU played,
+            how the field ended and a rough field level. <code>0xF0</code>
+            clears it. Start testing clears it with the other results.
+          </li>
+          <li>
             Command 3100 at offset <code>0xFFFE</code> reads the event log: the
             last 32 events, kept while the CU sleeps. Offset
             <code>0xFFFC</code> clears it.

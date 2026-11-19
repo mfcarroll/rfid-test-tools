@@ -12,9 +12,9 @@ fskPage({
   presets: X,
   firmware: {
     test: {
-      zip: "firmware/fsk-pulse-2ca24315-ultra-dfu-app.zip",
-      name: "pulse test firmware (2ca24315)",
-      version: "v2.3.0-28-g2ca2431",
+      zip: "firmware/fsk-pulse-fd981f70-ultra-dfu-app.zip",
+      name: "pulse test firmware (fd981f70)",
+      version: "v2.3.0-31-gfd981f7",
     },
     stock: {
       zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
@@ -34,7 +34,14 @@ fskPage({
         ),
         { noSupport: true },
       );
-    return X.parsePulse(r.data);
+    const p = X.parsePulse(r.data);
+    // The field log clears with the other results (req is reqClear() then).
+    const l = await cu.cmd(
+      X.CMD_PULSE,
+      req.length ? X.reqFieldLogClear() : X.reqFieldLog(),
+    );
+    p.fieldLog = l.status === STATUS_SUCCESS ? X.parseFieldLog(l.data) : null;
+    return p;
   },
   // The pulse test firmware fixes the slots' modes, so it has no setMode, and a restore leaves the modes as they are.
   emptyInactive: true,

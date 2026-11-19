@@ -20,7 +20,8 @@ On a Proxmark3 switching its field on for 50 ms and off for 100 ms or more (40 p
 | pulse timing | 40 of 40                     |
 | T5577        | 40 of 40                     |
 
-The current firmware (`2ca24315`), with a Paradox card, on a Proxmark3 switching its field on for 77 ms or 49 ms and off
+The current firmware (`fd981f70`) plays as `2ca24315` did, with a field log added, and slots 4 and 5 measure the reader
+without the CU playing over the measurement. `2ca24315`, with a Paradox card, on a Proxmark3 switching its field on for 77 ms or 49 ms and off
 for 173 ms (a Paradox door reader's timing):
 
 |                                          | 77 ms pulses | 49 ms pulses |
@@ -63,6 +64,9 @@ set for a reader 5200 ppm away from the PM3, so its drive beats against the PM3'
 - 3120: each slot's mode and fields seen (as on the self-trim page); `0xC1` clears.
 - 3130: per slot, what it learned from the reader's pulses: learned flag and ppm, the last measurement and its SNR,
   measurements, measurements without a line, and short fields (fields gone within about 300 ms). `0xC1` clears.
+- 3130 with `0xF1`: the field log, one 24-byte record per field (the last 64, kept through sleep): wake, slot, start and
+  length in ms, frames played, field checks that saw the field, how the field ended, watchdog resets, trim measurements
+  and a field level from 1 to 4. `0xF0` clears it. The report lists one line per field.
 - 3100: the event log, as on the self-trim page.
 
 Source: [mfcarroll/ChameleonUltra `exp/fsk-selftrim-489-pulse`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/fsk-selftrim-489-pulse).
