@@ -37,8 +37,8 @@ use the [Interactive LF emulation page](../interactive/), which records the exch
 ## Firmware
 
 - `firmware/lf-hitag-modes-802a3a6d-ultra-dfu-app.zip`: built from
-  [`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes), commit `f7eab3fb`.
-  Reports `v2.3.0-64-gf7eab3f`. It's the interactive LF engine (a listen-and-respond Hitag 2 tag in password mode)
+  [`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes), commit `396fcf53`.
+  Reports `v2.3.0-65-g396fcf5`. It's the interactive LF engine (a listen-and-respond Hitag 2 tag in password mode)
   plus per-slot answer timing and the four research modes. Command 3188 reads and sets the eight slot modes. The
   same build drives the [Interactive LF emulation](../interactive/) page, including its reader answer timing.
 - `../common/firmware/stock-v2.3.0-ultra-dfu-app.zip`: the official v2.3.0 application package, unchanged, for flashing
