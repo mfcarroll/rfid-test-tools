@@ -62,7 +62,7 @@ export const MEAS = ["ok", "too few samples", "weak"];
 export const modeFlags = (m) => {
   const f = [];
   if (m & 1) f.push("scale");
-  if (m & 2) f.push("alt-delay");
+  if (m & 2) f.push("alt-delay"); // a later answer on builds before f559dee3, which later builds ignore
   if (m & 4) f.push("every-second");
   if (m & 8) f.push("rest-loaded");
   return f.length ? f.join("+") : "baseline";

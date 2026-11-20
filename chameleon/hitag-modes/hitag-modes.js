@@ -1,15 +1,15 @@
 // Hitag 2 slot modes: command 3188 on the interactive-LF test firmware (exp/lf-hitag-modes), copying a Hitag 2 card
 // between slots, and the slot backup. No DOM, no Web Serial in here.
 //
-// The firmware runs the interactive LF engine, whose first module is a Hitag 2 tag. Each slot carries four research
+// The firmware runs the interactive LF engine, whose first module is a Hitag 2 tag. Each slot carries three research
 // mode bits (lf_ia.h), a test of how the emulated tag should follow the reader:
 //   SCALE (0x01):         time the answer's bits and delay in the reader's measured carrier, not a fixed 125 kHz.
-//   ALT_DELAY (0x02):     answer in the middle of the reader's listening window, not a genuine fob's timing.
 //   ALT_PROTOCOL (0x04):  answer only every second START_AUTH, as the HT2 datasheet says a genuine tag does.
 //   REST_LOADED (0x08):   after each answer, listen with the load on at once (the old default). Without it the tag
 //                         holds the load off for 56 periods first, as a genuine tag does. Firmware 802a3a6d and
 //                         earlier used this bit the other way round, as rest-unloaded.
-// The four bits give sixteen combinations, more than the eight slots hold. Command 3188 reads all eight slots' modes,
+// Bit 0x02 has no meaning: firmware f559dee3 and later ignore it, and earlier builds answered later with it. The three
+// bits give eight combinations, one per slot. Command 3188 reads all eight slots' modes,
 // or sets them from eight bytes. The modes live in retained RAM: they survive sleep (a test runs at a reader on
 // battery) but reset to 0 on a power-on reset or a flash.
 
@@ -49,21 +49,22 @@ export const SLOTS = 8;
 // ---------------------------------------------------------------- modes
 
 export const SCALE = 0x01;
-export const ALT_DELAY = 0x02;
 export const ALT_PROTOCOL = 0x04;
 export const REST_LOADED = 0x08;
-export const MODE_BITS = SCALE | ALT_DELAY | ALT_PROTOCOL | REST_LOADED;
-// Every combination a slot can be set to by hand: the sixteen values of the four bits, in counting order.
-export const CHOICES = Array.from({ length: 16 }, (_, i) => i);
-// The default plan can't fit all sixteen in eight slots, so it keeps scale on in every slot (accurate timing) and
-// sweeps the other three bits (alt-delay, every-second, rest-loaded) through all eight ways: the odd values 1..15.
-// One walk then reads each of those three bits and their interactions, all with the reader's carrier timed correctly.
-export const DEFAULT_MODES = [1, 3, 5, 7, 9, 11, 13, 15];
+export const MODE_BITS = SCALE | ALT_PROTOCOL | REST_LOADED;
+// Every combination of the three bits, in counting order: 0, 1, 4, 5, 8, 9, 12, 13.
+export const CHOICES = [0, 1, 2, 3, 4, 5, 6, 7].map(
+  (i) =>
+    (i & 1 ? SCALE : 0) |
+    (i & 2 ? ALT_PROTOCOL : 0) |
+    (i & 4 ? REST_LOADED : 0),
+);
+// The default plan gives each slot one of the eight, so one walk past a reader tries every combination.
+export const DEFAULT_MODES = [...CHOICES];
 
 /** @type {[number, string][]} */
 const FLAGS = [
   [SCALE, "scale"],
-  [ALT_DELAY, "alt-delay"],
   [ALT_PROTOCOL, "every-second"],
   [REST_LOADED, "rest-loaded"],
 ];
@@ -76,7 +77,6 @@ export const modeName = (m) => {
 /** @type {[number, string][]} */
 const SHORT = [
   [SCALE, "S"],
-  [ALT_DELAY, "D"],
   [ALT_PROTOCOL, "E"],
   [REST_LOADED, "L"],
 ];

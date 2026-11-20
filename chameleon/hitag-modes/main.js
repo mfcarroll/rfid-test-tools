@@ -87,7 +87,7 @@ async function readState() {
   }
   active = (await cu.ok(H.CMD.GET_ACTIVE_SLOT)).data[0];
   // The mode selects start from what the CU actually has, so the table reflects reality.
-  for (let s = 0; s < H.SLOTS; s++) planModes[s] = modes[s];
+  for (let s = 0; s < H.SLOTS; s++) planModes[s] = modes[s] & H.MODE_BITS;
   render();
   renderDone();
 }
@@ -214,7 +214,7 @@ function render() {
     sel.value = String(planModes[s]);
     sel.onchange = () => (planModes[s] = Number(sel.value));
     const modeCell = td(sel);
-    if (modes[s] !== planModes[s])
+    if ((modes[s] & H.MODE_BITS) !== planModes[s])
       modeCell.append(
         Object.assign(document.createElement("span"), {
           className: "note dim",

@@ -146,15 +146,10 @@
       <details class="fold" id="modes">
         <summary><h2>What the modes do</h2></summary>
         <p class="note">
-          Each slot has four independent mode bits, so sixteen combinations —
-          more than the eight slots. <b>Default setup</b> can't fit them all, so
-          it keeps <b>scale</b> on in every slot (accurate timing) and sweeps
-          the other three bits through all eight ways, from slot 1 (scale only)
-          to slot 8 (all four on). One walk past a reader then compares
-          alt-delay, every-second and rest-loaded, and their combinations, all
-          with the reader's carrier timed correctly. To test a combination the
-          default leaves out (anything with scale off), pick it by hand in a
-          slot's Mode menu, which offers all sixteen.
+          Each slot has three independent mode bits, so eight combinations, one
+          per slot. <b>Default setup</b> gives each slot one of them, from slot
+          1 (baseline) to slot 8 (all three on). One walk past a reader then
+          compares scale, every-second and rest-loaded, and their combinations.
         </p>
         <ul class="note">
           <li>
@@ -162,11 +157,6 @@
             each field and times the answer's bits and delay in that reader's
             carrier periods. Without it, a carrier period is taken as 8 µs (125
             kHz), so the answer drifts against a reader whose clock is off.
-          </li>
-          <li>
-            <b>alt-delay</b>: the tag answers in the middle of the reader's
-            listening window, rather than at a genuine fob's timing. A reader
-            with a wide window may read either; a strict one may prefer one.
           </li>
           <li>
             <b>every-second</b>: the tag answers only every second START_AUTH.
@@ -244,7 +234,8 @@
           <li>
             Command 3188 reads the eight slot modes (send nothing), or sets them
             (send eight bytes, one per slot, the LF_IA_MODE_ flags: 0x01 scale,
-            0x02 alt-delay, 0x04 every-second, 0x08 rest-loaded).
+            0x04 every-second, 0x08 rest-loaded). The firmware ignores 0x02,
+            which older builds used for a later answer.
           </li>
           <li>
             Copying a card reads the source slot's Hitag 2 data with command
@@ -275,11 +266,11 @@
           "../common/flash-ui.js": "../common/flash-ui.js?v=04945afa76",
           "../common/session.js": "../common/session.js?v=cd63fa21a7",
           "../common/slots.js": "../common/slots.js?v=ca14c3948d",
-          "./hitag-modes.js": "./hitag-modes.js?v=adcf4ae4ca",
+          "./hitag-modes.js": "./hitag-modes.js?v=092f84aafa",
           "../../common/page.js": "../../common/page.js?v=dc505804aa"
         }
       }
     </script>
-    <script type="module" src="main.js?v=10160231b7"></script>
+    <script type="module" src="main.js?v=11bc294e99"></script>
   </body>
 </html>

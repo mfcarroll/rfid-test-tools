@@ -8,17 +8,13 @@ Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/hitag-modes/ (Chro
 
 ## What the modes change
 
-Each slot has four independent mode bits, so sixteen combinations — more than the eight slots. **Default setup** keeps
-**scale** on in every slot (accurate timing) and sweeps the other three bits through all eight ways, from slot 1 (scale
-only) to slot 8 (all four on), so one walk past a reader compares alt-delay, every-second and rest-loaded, and their
-combinations, with the carrier timed correctly. A combination the default leaves out (anything with scale off) is still
-reachable by hand in a slot's Mode menu, which offers all sixteen.
+Each slot has three independent mode bits, so eight combinations, one per slot. **Default setup** gives each slot one
+of them, from slot 1 (baseline) to slot 8 (all three on), so one walk past a reader compares scale, every-second and
+rest-loaded, and their combinations.
 
 - **scale**: the CU measures the reader's carrier at the start of each field and times the answer's bits and delay in
   that reader's carrier periods. Without it, a carrier period is taken as 8 µs (125 kHz), so the answer drifts against
   a reader whose clock is off nominal.
-- **alt-delay**: the tag answers in the middle of the reader's listening window, rather than at a genuine fob's timing.
-  A reader with a wide window may read either; a strict one may prefer one.
 - **every-second**: the tag answers only every second START_AUTH. The HT2 datasheet (rev 2.1, 4.2.2) says a second
   START_AUTH resets a genuine tag's state machine, so it answers only every second one. A reader that relies on that
   may reject a tag that answers every time.
@@ -39,7 +35,7 @@ use the [Interactive LF emulation page](../interactive/), which records the exch
 - `firmware/lf-hitag-modes-802a3a6d-ultra-dfu-app.zip`: built from
   [`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes), commit `147e9564`.
   Reports `v2.3.0-68-g147e956`. It's the interactive LF engine (a listen-and-respond Hitag 2 tag in password mode)
-  plus per-slot answer timing and the four research modes. Command 3188 reads and sets the eight slot modes. The
+  plus per-slot answer timing and the research modes. Command 3188 reads and sets the eight slot modes. The
   same build drives the [Interactive LF emulation](../interactive/) page, including its reader answer timing.
 - `../common/firmware/stock-v2.3.0-ultra-dfu-app.zip`: the official v2.3.0 application package, unchanged, for flashing
   back. It has no Hitag 2 emulation.
