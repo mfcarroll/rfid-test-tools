@@ -21,9 +21,9 @@ cuConnectCard({
 });
 
 const TEST_FW = {
-  zip: "firmware/lf-hitag-modes-147e9564-ultra-dfu-app.zip",
-  name: "Hitag 2 modes firmware (147e9564)",
-  version: "v2.3.0-68-g147e956",
+  zip: "firmware/lf-hitag-modes-f559dee3-ultra-dfu-app.zip",
+  name: "Hitag 2 modes firmware (f559dee3)",
+  version: "v2.3.0-72-gf559dee",
 };
 TEST_FW.label = `Flash the test firmware (${TEST_FW.version})`;
 const STOCK = {
