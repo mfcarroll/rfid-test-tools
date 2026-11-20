@@ -266,9 +266,11 @@ export function fskPage(variant) {
         for (const [t, mode] of targets) {
           $("planinfo").textContent = `slot ${t + 1}…`;
           if (t !== from.slot) {
+            // Make the slot active before setting its type. If the slot isn't active, setting its type loads its
+            // stored card over the active slot's card in RAM, and the switch away then skips saving the active slot.
+            await cu.ok(F.CMD.SET_ACTIVE_SLOT, F.reqSlot(t));
             await cu.ok(F.CMD.SET_SLOT_TAG_TYPE, F.reqSlotType(t, type));
             await cu.ok(F.CMD.SET_SLOT_DATA_DEFAULT, F.reqSlotType(t, type));
-            await cu.ok(F.CMD.SET_ACTIVE_SLOT, F.reqSlot(t));
             await cu.ok(set, card);
             await cu.ok(F.CMD.SET_SLOT_ENABLE, F.reqEnableLf(t));
           }
@@ -349,9 +351,9 @@ export function fskPage(variant) {
         return;
       }
       try {
+        await cu.ok(F.CMD.SET_ACTIVE_SLOT, F.reqSlot(t)); // before the type, as the copy does
         await cu.ok(F.CMD.SET_SLOT_TAG_TYPE, F.reqSlotType(t, found.type));
         await cu.ok(F.CMD.SET_SLOT_DATA_DEFAULT, F.reqSlotType(t, found.type));
-        await cu.ok(F.CMD.SET_ACTIVE_SLOT, F.reqSlot(t));
         await cu.ok(F.EMU_ID[found.type][1], found.card);
         await cu.ok(F.CMD.SET_SLOT_ENABLE, F.reqEnableLf(t));
         await cu.cmd(F.CMD.DELETE_SLOT_TAG_NICK, F.reqSlotLf(t)); // a nickname may name the old card's mode
@@ -605,12 +607,12 @@ export function fskPage(variant) {
             throw new Error(
               `slot ${e.slot + 1}: this firmware can't write ${F.lfName(e.lfType)}`,
             );
+          await cu.ok(F.CMD.SET_ACTIVE_SLOT, F.reqSlot(e.slot)); // before the type, as the copy does
           await cu.ok(F.CMD.SET_SLOT_TAG_TYPE, F.reqSlotType(e.slot, e.lfType));
           await cu.ok(
             F.CMD.SET_SLOT_DATA_DEFAULT,
             F.reqSlotType(e.slot, e.lfType),
           );
-          await cu.ok(F.CMD.SET_ACTIVE_SLOT, F.reqSlot(e.slot));
           let card = F.unhex(e.card);
           try {
             await cu.ok(io[1], card);

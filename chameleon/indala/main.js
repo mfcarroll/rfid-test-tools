@@ -283,9 +283,11 @@ async function loadTestCard() {
     )
   )
     return false;
+  // Make the slot active before setting its type. If the slot isn't active, setting its type loads its stored card
+  // over the active slot's card in RAM, and the switch away then skips saving the active slot.
+  await cu.ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(s));
   await cu.ok(X.CMD.SET_SLOT_TAG_TYPE, X.reqSlotType(s, p.type));
   await cu.ok(X.CMD.SET_SLOT_DATA_DEFAULT, X.reqSlotType(s, p.type));
-  await cu.ok(X.CMD.SET_ACTIVE_SLOT, X.reqSlot(s));
   await cu.ok(p.setEmu, X.TEST_FRAME);
   await cu.ok(X.CMD.SET_SLOT_ENABLE, X.reqEnableLf(s));
   await cu.ok(X.CMD.SET_SLOT_TAG_NICK, X.reqNickLf(s, X.TEST_NICK));
