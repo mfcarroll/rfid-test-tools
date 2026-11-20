@@ -561,6 +561,12 @@ $("setup").onclick = () =>
       P.CMD.SET_SLOT_TAG_TYPE,
       P.reqSetType(slotFw, P.TAG_TYPE_HITAG2),
     );
+    // The default data gives the slot a stored record. Without one, older firmware may skip saving the pages if
+    // another slot with the same pages was loaded last. The slot would then read back empty after a reboot.
+    await cu.ok(
+      P.CMD.SET_SLOT_DATA_DEFAULT,
+      P.reqSetType(slotFw, P.TAG_TYPE_HITAG2),
+    );
     await cu.ok(P.CMD.HITAG2_SET_EMU_DATA, pages);
     await cu.ok(
       P.CMD.SET_SLOT_ENABLE,

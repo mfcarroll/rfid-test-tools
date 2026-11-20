@@ -353,6 +353,12 @@ $("apply").onclick = () =>
             H.CMD.SET_SLOT_TAG_TYPE,
             H.reqSlotType(t, H.TAG_TYPE_HITAG2),
           );
+          // The default data gives the slot a stored record. Without one, older firmware may skip saving the
+          // copied card, since the source slot was loaded last. The slot would then read back empty after a reboot.
+          await cu.ok(
+            H.CMD.SET_SLOT_DATA_DEFAULT,
+            H.reqSlotType(t, H.TAG_TYPE_HITAG2),
+          );
           await cu.ok(H.CMD.SET_ACTIVE_SLOT, H.reqSlot(t));
           await cu.ok(H.CMD.HITAG2_SET_EMU_DATA, card);
           await cu.ok(H.CMD.SET_SLOT_ENABLE, H.reqEnable(t, H.SENSE_LF, true));
@@ -489,6 +495,11 @@ $("restorefile").onchange = () =>
       } else if (e.lfType === H.TAG_TYPE_HITAG2) {
         await cu.ok(
           H.CMD.SET_SLOT_TAG_TYPE,
+          H.reqSlotType(e.slot, H.TAG_TYPE_HITAG2),
+        );
+        // Give the slot a stored record first, as the copy above does.
+        await cu.ok(
+          H.CMD.SET_SLOT_DATA_DEFAULT,
           H.reqSlotType(e.slot, H.TAG_TYPE_HITAG2),
         );
         await cu.ok(H.CMD.SET_ACTIVE_SLOT, H.reqSlot(e.slot));
