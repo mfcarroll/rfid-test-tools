@@ -352,6 +352,7 @@ $("apply").onclick = () =>
       throw new Error(
         `slot ${from + 1} sent ${card.length} bytes, expected ${H.HITAG2_DATA_SIZE}`,
       );
+    const bad = []; // the slots that read back without the card
     try {
       for (const t of targets) {
         $("planinfo").textContent = `slot ${t + 1}…`;
@@ -380,17 +381,42 @@ $("apply").onclick = () =>
           `slot ${t + 1}: ${t === from ? "kept its card" : "card copied"}, mode ${H.modeName(planModes[t])}`,
         );
       }
+      await cu.ok(H.CMD.LF_IA_SLOT_MODES, H.reqSetModes(planModes));
+      // Read every slot back. Making a slot active saves the slot that was active and loads this one from flash,
+      // so the check sees what the slot will hold after a reboot.
+      $("planinfo").textContent = "checking the slots…";
+      for (const t of targets) {
+        await cu.ok(H.CMD.SET_ACTIVE_SLOT, H.reqSlot(t));
+        const r = await cu.cmd(H.CMD.HITAG2_GET_EMU_DATA);
+        const got = r.status === H.STATUS_SUCCESS ? r.data : null;
+        const held = H.checkCopy(got, card);
+        got?.fill(0);
+        if (held !== "card") bad.push({ slot: t, held });
+      }
     } finally {
       card.fill(0);
       card = null;
     }
-    await cu.ok(H.CMD.LF_IA_SLOT_MODES, H.reqSetModes(planModes));
     await cu.ok(H.CMD.SET_ACTIVE_SLOT, H.reqSlot(targets[0]));
     await cu.ok(H.CMD.SLOT_DATA_CONFIG_SAVE);
     log(`modes set; slot ${targets[0] + 1} is active`);
     await readState();
-    $("doneinfo").textContent =
-      `Copied the card into slot${targets.length > 1 ? "s" : ""} ${targets.map((t) => t + 1).join(", ")} and set the modes. Slot ${targets[0] + 1} is active.`;
+    const copied = `Copied the card into slot${targets.length > 1 ? "s" : ""} ${targets.map((t) => t + 1).join(", ")} and set the modes. Slot ${targets[0] + 1} is active.`;
+    if (bad.length) {
+      const list = bad
+        .map(
+          (b) =>
+            `slot ${b.slot + 1} (${b.held === "default" ? "the firmware's made-up card" : "other data"})`,
+        )
+        .join(", ");
+      log(`⚠ read back without the card: ${list}`);
+      $("doneinfo").textContent =
+        `${copied} ⚠ These slots don't hold the card: ${list}. Don't test with them. Run the setup again, and if they still fail, send the page's log.`;
+    } else {
+      log("every slot read back with the card");
+      $("doneinfo").textContent =
+        `${copied} Every slot read back with the card.`;
+    }
     setState("done");
   });
 

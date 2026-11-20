@@ -116,6 +116,21 @@ export const hex = (b) =>
 export const unhex = (h) =>
   Uint8Array.from(h.match(/../g) ?? [], (x) => parseInt(x, 16));
 
+// The made-up card that set slot data default writes into a Hitag 2 slot (the firmware's
+// lf_tag_hitag2_data_factory()).
+export const DEFAULT_CARD = unhex(
+  "010203040a0b0c0d02020202060e0f1004040404050505050606060607070707",
+);
+
+// What a slot read back after a copy holds: "card" (the copied card), "default" (DEFAULT_CARD) or "other". got is
+// the slot's Hitag 2 data, or null if the slot didn't send any.
+export function checkCopy(got, card) {
+  if (!got || got.length < HITAG2_DATA_SIZE) return "other";
+  const same = (a) => a.every((x, i) => got[i] === x);
+  if (same(card)) return "card";
+  return same(DEFAULT_CARD) ? "default" : "other";
+}
+
 // ---------------------------------------------------------------- backup
 
 // A backup file holds each slot's LF side: card type, Hitag 2 card data, whether LF and HF are enabled, the

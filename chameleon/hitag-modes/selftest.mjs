@@ -1,4 +1,5 @@
-// node selftest.mjs: the mode names and nicknames, the command 3188 parse and request, and the backup check.
+// node selftest.mjs: the mode names and nicknames, the command 3188 parse and request, the backup check and the
+// copy's read-back.
 import * as H from "./hitag-modes.js";
 
 let failed = 0;
@@ -77,6 +78,28 @@ for (const bad of [
     rej = true;
   }
   check(rej, "checkBackup rejects a bad file");
+}
+
+// The copy's read-back: the card, the firmware's made-up card, or anything else.
+{
+  const card = Uint8Array.from(
+    { length: H.HITAG2_DATA_SIZE },
+    (_, i) => 0x40 + i,
+  );
+  const longer = Uint8Array.from([...card, 0, 0]); // a reply may carry trailing bytes
+  check(H.checkCopy(longer, card) === "card", "checkCopy finds the card");
+  check(
+    H.checkCopy(H.DEFAULT_CARD, card) === "default",
+    "checkCopy names the firmware's made-up card",
+  );
+  const near = card.slice();
+  near[31] ^= 1;
+  check(H.checkCopy(near, card) === "other", "checkCopy rejects one bit off");
+  check(H.checkCopy(null, card) === "other", "checkCopy rejects no data");
+  check(
+    H.checkCopy(card.slice(0, 16), card) === "other",
+    "checkCopy rejects short data",
+  );
 }
 
 process.exit(failed ? 1 : 0);
