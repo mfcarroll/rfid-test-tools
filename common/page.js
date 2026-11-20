@@ -1,5 +1,7 @@
 // Small helpers every tool page uses: the page's elements, its log, and sleeping that survives a hidden tab.
 
+import { PAGE } from "./version.js";
+
 // The page element with this id. Typed any: the pages look up inputs, selects and canvases by id.
 /** @type {(id: string) => any} */
 export const $ = (id) => document.getElementById(id);
@@ -93,36 +95,30 @@ export function connectCard({
   $("connectcard").replaceChildren(h2, p, row);
 }
 
-// The page's <footer>: what happens to the device's data, and the site's version.
+// "2026-11-20 07:31 UTC", from an ISO 8601 time.
+/** @param {string} iso */
+export const utcTime = (iso) =>
+  new Date(iso).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+
+// The page's <footer>: what happens to the device's data, and the page's version, "Page 142 (55f9bc7, 2026-11-20
+// 17:05 UTC)". On <owner>.github.io/<repo>/ the hash links to the commit.
 export function showFooter() {
   const privacy = document.createElement("p");
   privacy.textContent =
     "The page sends your device's data nowhere: it stays in this browser until you press Copy or Download.";
   const version = document.createElement("p");
   $("footer").replaceChildren(privacy, version);
-  showSiteCommit(version);
-}
-
-// The commit GitHub Pages serves this site from: the head of main, read from the GitHub API. A page served from
-// anywhere other than <owner>.github.io/<repo>/ shows nothing.
-export async function showSiteCommit(el) {
+  if (!PAGE) {
+    version.textContent = "This copy of the page has no version number.";
+    return;
+  }
   const owner = location.hostname.match(/^([\w-]+)\.github\.io$/)?.[1];
   const repo = location.pathname.split("/")[1];
-  if (!owner || !repo) return;
-  try {
-    const r = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/commits/main`,
-      {
-        headers: { Accept: "application/vnd.github.sha" },
-        cache: "no-store",
-      },
-    );
-    const sha = r.ok ? (await r.text()).trim() : "";
-    if (!/^[0-9a-f]{40}$/.test(sha)) return;
-    el.innerHTML = `Page version: <a href="https://github.com/${owner}/${repo}/commit/${sha}">${sha.slice(0, 7)}</a>`;
-  } catch {
-    // offline or rate-limited: leave the line empty
-  }
+  const hash = document.createElement(owner && repo ? "a" : "span");
+  if (hash instanceof HTMLAnchorElement)
+    hash.href = `https://github.com/${owner}/${repo}/commit/${PAGE.commit}`;
+  hash.textContent = PAGE.commit.slice(0, 7);
+  version.append(`Page ${PAGE.number} (`, hash, `, ${utcTime(PAGE.time)})`);
 }
 
 // Says so on #connectinfo and in the log if the browser has no Web Serial.

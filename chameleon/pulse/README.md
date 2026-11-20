@@ -20,7 +20,8 @@ On a Proxmark3 switching its field on for 50 ms and off for 100 ms or more (40 p
 | pulse timing | 40 of 40                     |
 | T5577        | 40 of 40                     |
 
-The current firmware (`fd981f70`) plays as `2ca24315` did, with a field log added, and slots 4 and 5 measure the reader
+The current firmware, `v2.3.0-31-gfd981f7` (2026-11-19 07:26 UTC), plays as `2ca24315` did, with a field log added,
+and slots 4 and 5 measure the reader
 without the CU playing over the measurement. `2ca24315`, with a Paradox card, on a Proxmark3 switching its field on for 77 ms or 49 ms and off
 for 173 ms (a Paradox door reader's timing):
 

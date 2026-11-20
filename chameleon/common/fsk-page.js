@@ -3,7 +3,7 @@
 // get. Each page passes what differs as its variant:
 //   name:       the report file's prefix
 //   presets:    the page's module: presetName(p), presetNick(lfType, p, slot), report(r, fw, more)
-//   firmware:   { test: { zip, name, version }, stock: { zip, name } }
+//   firmware:   { test: { zip, name, version, time }, stock: { zip, name } }
 //   lacks:      what a firmware without command 3120 lacks, after "this firmware" ("has no self-trim support")
 //   flashIt:    what to flash then, after "Flash" ("the test firmware")
 //   plan:       each slot's preset when the page opens, slot 1 first
@@ -24,7 +24,12 @@
 //   saveExtra(page): more keys for the saved report
 
 import { STATUS_SUCCESS, STATUS_INVALID_CMD } from "./cu.js";
-import { bindFlashButtons, showFirmware } from "./flash-ui.js";
+import {
+  bindFlashButtons,
+  buildText,
+  isBuild,
+  showFirmware,
+} from "./flash-ui.js";
 import { openCU, cuConnectCard } from "./session.js";
 import * as F from "./fsk.js";
 import {
@@ -32,6 +37,7 @@ import {
   log,
   saveJson,
   showFooter,
+  utcTime,
   showState,
   oneAtATime,
 } from "../../common/page.js";
@@ -42,8 +48,8 @@ export function fskPage(variant) {
   cuConnectCard({
     extra: "It works with the Chameleon Ultra only, not the Lite.",
   });
-  // The device's own version string (git describe), on its flash button, to match the connected-firmware line.
-  V.firmware.test.label = `Flash the test firmware (${V.firmware.test.version})`;
+  // The device's own version string (git describe), to match the connected-firmware line, and its commit time.
+  V.firmware.test.label = `Flash the test firmware (${buildText(V.firmware.test)})`;
 
   let cu = null,
     fw = "",
@@ -106,13 +112,13 @@ export function fskPage(variant) {
       support = false;
       last = null;
     }
-    const current = fw.includes(V.firmware.test.version);
+    const current = isBuild(fw, V.firmware.test);
     showFirmware(
       !support
         ? `Firmware ${fw} ${V.lacks}. Flash ${V.flashIt} below, then connect again.`
         : current
-          ? `Firmware ${fw}, the current test build.`
-          : `Firmware ${fw}, an older test build. Flash the current one below before testing.`,
+          ? `Firmware ${fw}, this page's test build (${utcTime(V.firmware.test.time)}).`
+          : `Firmware ${fw}, not this page's test build (${buildText(V.firmware.test)}). Flash the test firmware below before testing.`,
       !(support && current),
     );
     $("setup").hidden = !support;

@@ -94,6 +94,7 @@ read finds nothing on it, and the page's frame check reports the frame with "CRC
   captures for `lf sniff` (up to 28672 bytes in 4000-byte slices, 16-bit samples, sample rate, phase and gain), the
   chip probe (3140) with the T55xx trace and configuration reads, the EM4x05 read of word 0 and the Hitag 2 start
   command, PR 489's Paradox read (3022) and PR 509's Indala read (3035), both merged unchanged.
+  Reports `v2.3.0-54-gaa05875` (2026-11-07 06:29 UTC).
 - `../common/firmware/stock-v2.3.0-ultra-dfu-app.zip`: stock v2.3.0. With it the page runs the named reads and the
   HF check only.
 

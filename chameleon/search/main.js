@@ -1,7 +1,11 @@
 // The card search page (index.html): connecting the CU, running the reads and chip checks, and the report.
 
 import { STATUS_SUCCESS } from "../common/cu.js";
-import { bindFlashButtons, showFirmware } from "../common/flash-ui.js";
+import {
+  bindFlashButtons,
+  buildText,
+  showFirmware,
+} from "../common/flash-ui.js";
 import { openCU, cuConnectCard } from "../common/session.js";
 import {
   $,
@@ -29,12 +33,13 @@ const IDENTIFY = {
   zip: "firmware/lf-search-aa05875a-ultra-dfu-app.zip",
   name: "experimental aa05875",
   version: "v2.3.0-54-gaa05875",
+  time: "2026-11-07T06:29:10Z", // the commit time, in UTC
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
 };
-IDENTIFY.label = `Flash the experimental firmware (${IDENTIFY.version})`;
+IDENTIFY.label = `Flash the experimental firmware (${buildText(IDENTIFY)})`;
 
 let cu = null,
   long = false; // the firmware has long captures and the chip check

@@ -1,7 +1,12 @@
 // The Hitag 2 modes page (index.html): connecting the CU, copying a Hitag 2 card into the slots, setting each slot's
 // mode (command 3188), and slot backups. The logic with no DOM is in hitag-modes.js.
 
-import { bindFlashButtons, showFirmware } from "../common/flash-ui.js";
+import {
+  bindFlashButtons,
+  buildText,
+  isBuild,
+  showFirmware,
+} from "../common/flash-ui.js";
 import { openCU, watchDisconnect, cuConnectCard } from "../common/session.js";
 import {
   $,
@@ -12,6 +17,7 @@ import {
   oneAtATime,
   saveJson,
   showFooter,
+  utcTime,
 } from "../../common/page.js";
 import { parseSlotInfo } from "../common/slots.js";
 import * as H from "./hitag-modes.js";
@@ -24,8 +30,9 @@ const TEST_FW = {
   zip: "firmware/lf-hitag-modes-f559dee3-ultra-dfu-app.zip",
   name: "Hitag 2 modes firmware (f559dee3)",
   version: "v2.3.0-72-gf559dee",
+  time: "2026-11-20T07:31:51Z", // the commit time, in UTC
 };
-TEST_FW.label = `Flash the test firmware (${TEST_FW.version})`;
+TEST_FW.label = `Flash the test firmware (${buildText(TEST_FW)})`;
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
@@ -100,13 +107,13 @@ async function connect() {
   // Command 3188 is the probe: a firmware without the engine answers "invalid command".
   const probe = await cu.cmd(H.CMD.LF_IA_SLOT_MODES);
   support = probe.status === H.STATUS_SUCCESS;
-  const current = fw.includes(TEST_FW.version);
+  const current = isBuild(fw, TEST_FW);
   showFirmware(
     !support
       ? `Firmware ${fw} has no Hitag 2 modes. Flash the test firmware below, then connect again.`
       : current
-        ? `Firmware ${fw}, the current test build.`
-        : `Firmware ${fw}, an older test build. Flash the current one below before testing.`,
+        ? `Firmware ${fw}, this page's test build (${utcTime(TEST_FW.time)}).`
+        : `Firmware ${fw}, not this page's test build (${buildText(TEST_FW)}). Flash the test firmware below before testing.`,
     !(support && current),
   );
   $("setup").hidden = !support;

@@ -29,6 +29,7 @@ const page = fskPage({
       zip: "firmware/fsk-selftrim-489-0609420c-ultra-dfu-app.zip",
       name: "test firmware (fsk-selftrim-489 0609420c)",
       version: "v2.3.0-26-g0609420",
+      time: "2026-10-31T06:49:34Z", // the commit time, in UTC
     },
     stock: {
       zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",

@@ -11,7 +11,19 @@
 //   done(fw):  called after a flash succeeds, with the firmware flashed
 
 import { Flasher, loadFlashLib } from "./cu.js";
-import { $, log, hasWebSerial } from "../../common/page.js";
+import { $, log, hasWebSerial, utcTime } from "../../common/page.js";
+
+// A firmware entry's version string (git describe) and its commit's time, if it has one:
+// "v2.3.0-72-gf559dee, 2026-11-20 07:31 UTC".
+/** @param {{ version: string, time?: string }} f */
+export const buildText = (f) =>
+  f.time ? `${f.version}, ${utcTime(f.time)}` : f.version;
+
+// Whether version, the CU's own version string, names the build in firmware entry f. The number in a version string
+// counts commits since v2.3.0 on that build's branch, so it can't order builds of different branches. The pages say
+// "this build" or "another build", never older or newer.
+/** @param {string} version @param {{ version: string }} f */
+export const isBuild = (version, f) => version.includes(f.version);
 
 // Asks for a DFU package from the computer through the hidden <input id="fwfile">. Returns { name, data }, or null
 // if the person cancels.

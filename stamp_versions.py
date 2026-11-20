@@ -2,17 +2,24 @@
 """Stamp each page's scripts and stylesheet with a hash of their contents, so a browser never mixes a new page
 with old cached modules (GitHub Pages lets browsers keep a file for 10 minutes).
 
-    python3 stamp_versions.py           # rewrite the pages
-    python3 stamp_versions.py --check   # exit 1 if a page is out of date (run before pushing)
+    python3 stamp_versions.py                  # rewrite the pages
+    python3 stamp_versions.py --check          # exit 1 if a page is out of date (run before pushing)
+    python3 stamp_versions.py --page-version   # the deploy workflow: also write HEAD into common/version.js
 
 Each page's module script (<script type="module" src="main.js">) and stylesheet links get "?v=<hash>". The page
 also gets an import map that sends every module the script imports, imports of imports included, to
 "<module>?v=<hash>". A file's URL changes only when the file does.
+
+--page-version writes HEAD's number on main, hash and UTC commit time into common/version.js before stamping, for
+the pages' footer. A commit can't hold its own hash, so only the deploy workflow does this, on the copy it
+publishes. --check fails if common/version.js is stamped, so a stamped copy never reaches git.
 """
 
+import datetime
 import hashlib
 import os
 import re
+import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -20,6 +27,8 @@ IMPORT = re.compile(r"""(?:\bimport\b[^"';]*?\bfrom\s*|\bimport\s*|\bexport\b[^"
 MODULE_SCRIPT = re.compile(r'(<script type="module" src=")([^"?]+)(?:\?v=[0-9a-f]+)?("></script>)')
 IMPORT_MAP = re.compile(r'\n?( *)<script type="importmap">.*?</script>', re.S)
 STYLESHEET = re.compile(r'(<link rel="stylesheet" href=")([^"?]+)(?:\?v=[0-9a-f]+)?(")')
+PAGE_VERSION = os.path.join(ROOT, "common", "version.js")
+UNSTAMPED = "export const PAGE = null;"
 
 
 def file_hash(path):
@@ -73,8 +82,25 @@ def stamp(page):
     return html, stamped
 
 
+def write_page_version():
+    git = lambda *args: subprocess.run(["git", *args], cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
+    commit = git("rev-parse", "HEAD")
+    number = int(git("rev-list", "--count", "HEAD"))
+    time = datetime.datetime.fromtimestamp(int(git("log", "-1", "--format=%ct", "HEAD")), datetime.timezone.utc)
+    stamped = f'export const PAGE = {{ number: {number}, commit: "{commit}", time: "{time:%Y-%m-%dT%H:%M:%SZ}" }};'
+    with open(PAGE_VERSION, encoding="utf-8") as f:
+        text = f.read()
+    if UNSTAMPED not in text:
+        sys.exit(f"{PAGE_VERSION} has no '{UNSTAMPED}' line to stamp")
+    with open(PAGE_VERSION, "w", encoding="utf-8") as f:
+        f.write(text.replace(UNSTAMPED, stamped))
+    print(f"page version: {number} ({commit[:7]}, {time:%Y-%m-%d %H:%M} UTC)")
+
+
 def main():
     check = "--check" in sys.argv[1:]
+    if "--page-version" in sys.argv[1:]:
+        write_page_version()
     stale = []
     for directory, _, files in os.walk(ROOT):
         if "/." in directory or "node_modules" in directory:
@@ -89,6 +115,11 @@ def main():
                         f.write(stamped)
     for page in stale:
         print(("out of date: " if check else "stamped: ") + page)
+    if check:
+        with open(PAGE_VERSION, encoding="utf-8") as f:
+            if UNSTAMPED not in f.read():
+                stale.append(PAGE_VERSION)
+                print(f"stamped by --page-version, restore it with git: {os.path.relpath(PAGE_VERSION, ROOT)}")
     return 1 if check and stale else 0
 
 

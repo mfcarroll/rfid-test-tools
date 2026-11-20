@@ -33,7 +33,7 @@ possible cards. The page's "What is this?" link under the checkbox says so.
 ## Firmware
 
 - `firmware/pr509-7bba4118-ultra-dfu-app.zip`: #509 (`feat/lf-indala`) at `7bba4118`, built with
-  `firmware/build.sh`. Rebuild it when the PR moves.
+  `firmware/build.sh`. Reports `v2.3.0-34-g7bba411` (2026-11-02 19:20 UTC). Rebuild it when the PR moves.
 - `../common/firmware/stock-v2.3.0-ultra-dfu-app.zip`: stock v2.3.0, which has no Indala.
 - **Flash a file** takes any application DFU package from the computer, such as a nieldk release. The page doesn't
   host other people's firmware.

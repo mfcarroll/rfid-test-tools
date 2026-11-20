@@ -1,7 +1,12 @@
 // The Indala test page (index.html): connecting the CU, loading the test card, and timing the reads.
 
 import { STATUS_INVALID_CMD } from "../common/cu.js";
-import { bindFlashButtons, showFirmware } from "../common/flash-ui.js";
+import {
+  bindFlashButtons,
+  buildText,
+  isBuild,
+  showFirmware,
+} from "../common/flash-ui.js";
 import { openCU } from "../common/session.js";
 import { SerialFlipper } from "../../flipper/crystal/flipper.js";
 import {
@@ -22,12 +27,13 @@ const PR = {
   zip: "firmware/pr509-7bba4118-ultra-dfu-app.zip",
   name: "#509 7bba411",
   version: "v2.3.0-34-g7bba411",
+  time: "2026-11-02T19:20:30Z", // the commit time, in UTC
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
 };
-PR.label = `Flash #509 (${PR.version})`;
+PR.label = `Flash #509 (${buildText(PR)})`;
 
 let cu = null,
   fl = null,
@@ -185,12 +191,12 @@ const connectCU = () =>
     loaded = null;
     const p = await detectProfile();
     $("profile").value = p;
-    const old = p === "pr509" && !fw.includes(PR.version);
+    const old = p === "pr509" && !isBuild(fw, PR);
     showFirmware(
       p
         ? `Firmware ${fw}.` +
             (old
-              ? ` This isn't #509's current build (${PR.name.replace("#509 ", "")}). To test that build, use Flash #509 below.`
+              ? ` This isn't the #509 build this page has (${buildText(PR)}). To test that build, use Flash #509 below.`
               : "")
         : `Firmware ${fw} has no Indala commands this page knows. Flash #509 below, then connect again.`,
       !p || old,

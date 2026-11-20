@@ -12,10 +12,10 @@ Each published build replaces `firmware/daily.json` and the DFU here, force-push
 [`daily`](https://github.com/mfcarroll/ChameleonUltra/tree/daily) as one commit on upstream `main` with the same
 source, and adds a `fw-daily-<commit>` release. The page reads `daily.json`, so it needs no edits for a new build.
 
-`daily.json` holds the version the firmware reports, the commit, the publish time, the DFU's file name, the upstream
-commit it builds on, the fork commit with its source, and the changes: each one's title, PR number and link (or
-none), and state: `open`, `merged` or `closed` for a PR, `not upstreamed yet` for a change meant for upstream with no PR, or
-`personal preference`.
+`daily.json` holds the version the firmware reports, the commit, its commit time in UTC (`committed`), the publish time,
+the DFU's file name, the upstream commit it builds on, the fork commit with its source, and the changes: each one's
+title, PR number and link (or none), and state: `open`, `merged` or `closed` for a PR, `not upstreamed yet` for a change
+meant for upstream with no PR, or `personal preference`.
 
 ## Files
 

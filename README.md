@@ -22,6 +22,18 @@ firmware is built from branches of [mfcarroll/ChameleonUltra](https://github.com
 build also has a release here, tagged `fw-<branch>-<commit>`. The pages flash with
 [chameleon-ultra.js](https://github.com/taichunmin/chameleon-ultra.js) (MIT), loaded from jsDelivr.
 
+## Versions
+
+Each page's footer gives the page's version, such as "Page 142 (55f9bc7, 2026-11-20 17:05 UTC)": the commit's number
+on `main`, its hash, and its commit time in UTC. A higher number is a newer page.
+
+A Chameleon Ultra firmware version such as `v2.3.0-72-gf559dee` counts the commits since v2.3.0 on the branch the
+build came from (72 here). The count orders builds of one branch only. The daily firmware, `v2.3.0-154-g63d5027`,
+comes from another branch, and 154 doesn't make it newer than 72. The pages give each build's commit time in UTC
+beside its version, as in `v2.3.0-72-gf559dee (2026-11-20 07:31 UTC)`. A later time is a newer build, but a build
+from another branch can still lack a change. When you connect, the Hitag 2 modes, self-trim, pulse and Indala pages
+say whether the CU runs the page's own test build. If it doesn't, flash that build from the page.
+
 ## Flipper Zero
 
 | tool                                   | what it does                                                                                                                                         | app                                                                     |
@@ -39,6 +51,11 @@ build also has a release here, tagged `fw-<branch>-<commit>`. The pages flash wi
 
 ## Publishing
 
+GitHub Actions publishes `main` to the site with [`.github/workflows/pages.yml`](.github/workflows/pages.yml). It
+needs Settings > Pages > Source set to GitHub Actions. The workflow runs `python3 stamp_versions.py --page-version`,
+which writes the commit's number, hash and time into `common/version.js` for the pages' footer. A commit can't hold
+its own hash, so only the published copy has them. The copy in git stays `null`, and `--check` fails if it isn't.
+
 After changing a page or a script, run `python3 stamp_versions.py` before pushing. It stamps each page's
 modules and stylesheet with a hash of their contents, so a browser never pairs a new page with old cached files.
 `python3 stamp_versions.py --check` reports any page that is out of date.
@@ -47,6 +64,6 @@ modules and stylesheet with a hash of their contents, so a browser never pairs a
 
 `npm install` once, then `npm test` runs every tool's selftest, type-checks the pages' modules from their JSDoc
 comments (`jsconfig.json`; `chameleon/search/` is left out for now) and runs `stamp_versions.py --check`. The site
-itself needs no build: the browser loads the same files. `npm run format` runs Prettier.
+needs no build beyond the version stamp: the browser loads the same files. `npm run format` runs Prettier.
 
 GPL-3.0.

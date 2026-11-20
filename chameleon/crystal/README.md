@@ -21,7 +21,7 @@ count the crystal's ticks.
 
 - `firmware/hfxo-count-4e494589-ultra-dfu-app.zip`: stock v2.3.0 plus command 3125, nothing else. Source:
   [`feat/hfxo-count`](https://github.com/mfcarroll/ChameleonUltra/tree/feat/hfxo-count), commit `4e494589`. Reports
-  `v2.3.0-5-g4e49458`.
+  `v2.3.0-5-g4e49458` (2026-10-27 03:22 UTC).
 - `../common/firmware/stock-v2.3.0-ultra-dfu-app.zip`: the official v2.3.0 application package, unchanged, for flashing back.
 
 The [FSK self-trim](../selftrim/) test firmware (`0609420c` and later) has command 3125 too. A CU on it can be measured

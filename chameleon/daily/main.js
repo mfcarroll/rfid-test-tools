@@ -1,8 +1,8 @@
 // The daily firmware page (index.html): what the current build adds to upstream, and flashing it. The build's
 // publish step (publish-daily.py, next to build-daily.sh in rfid-research) writes firmware/daily.json and the DFU.
 
-import { bindFlashButtons } from "../common/flash-ui.js";
-import { $, log, showFooter } from "../../common/page.js";
+import { bindFlashButtons, buildText } from "../common/flash-ui.js";
+import { $, log, showFooter, utcTime } from "../../common/page.js";
 
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
@@ -18,12 +18,14 @@ const STATE = {
   "personal preference": ["badge", "personal preference"],
 };
 
+// daily.json's version string and the build commit's time in UTC (committed), as buildText() takes them. If
+// daily.json has no committed time, buildText() gives the version alone.
+const build = (d) => ({ version: d.version, time: d.committed });
+
 function showChanges(d) {
-  const date = new Date(d.published).toLocaleDateString([], {
-    dateStyle: "medium",
-  });
+  const committed = d.committed ? ` (${utcTime(d.committed)})` : "";
   $("build").textContent =
-    `Version ${d.version}, published ${date}. Upstream main ${d.upstream.commit}, plus:`;
+    `Version ${d.version}${committed}, published ${utcTime(d.published)}. Upstream main ${d.upstream.commit}, plus:`;
   for (const c of d.changes) {
     const li = document.createElement("li");
     if (c.url) {
@@ -60,7 +62,7 @@ try {
       test: {
         zip: `firmware/${d.zip}`,
         name: `daily firmware ${d.version}`,
-        label: `Flash the daily firmware (${d.version})`,
+        label: `Flash the daily firmware (${buildText(build(d))})`,
       },
       stock: STOCK,
     },

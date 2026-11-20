@@ -15,6 +15,7 @@ fskPage({
       zip: "firmware/fsk-pulse-fd981f70-ultra-dfu-app.zip",
       name: "pulse test firmware (fd981f70)",
       version: "v2.3.0-31-gfd981f7",
+      time: "2026-11-19T07:26:37Z", // the commit time, in UTC
     },
     stock: {
       zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",

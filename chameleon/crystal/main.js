@@ -1,7 +1,11 @@
 // The crystal offset page (index.html): connecting the CU, checking its firmware, and the measurement run.
 
 import * as H from "./hfxo.js";
-import { bindFlashButtons, showFirmware } from "../common/flash-ui.js";
+import {
+  bindFlashButtons,
+  buildText,
+  showFirmware,
+} from "../common/flash-ui.js";
 import { openCU, cuConnectCard } from "../common/session.js";
 import {
   $,
@@ -28,14 +32,15 @@ const FIRMWARE = {
     zip: "firmware/hfxo-count-4e494589-ultra-dfu-app.zip",
     name: "test firmware (hfxo-count 4e494589)",
     version: "v2.3.0-5-g4e49458",
+    time: "2026-10-27T03:22:16Z", // the commit time, in UTC
   },
   stock: {
     zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
     name: "stock v2.3.0",
   },
 };
-// The device's own version string (git describe), on its flash button, to match the connected-firmware line.
-FIRMWARE.test.label = `Flash the test firmware (${FIRMWARE.test.version})`;
+// The device's own version string (git describe), to match the connected-firmware line, and its commit time.
+FIRMWARE.test.label = `Flash the test firmware (${buildText(FIRMWARE.test)})`;
 
 let cu = null,
   counter = false, // the connected firmware has command 3125

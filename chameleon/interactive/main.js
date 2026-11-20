@@ -1,6 +1,10 @@
 // The interactive LF emulation page (index.html): connecting the CU, the Hitag 2 test tag, and reading its trace.
 
-import { bindFlashButtons, showFirmware } from "../common/flash-ui.js";
+import {
+  bindFlashButtons,
+  buildText,
+  showFirmware,
+} from "../common/flash-ui.js";
 import { openCU, watchDisconnect, cuConnectCard } from "../common/session.js";
 import {
   $,
@@ -22,12 +26,13 @@ const TEST_FW = {
   zip: "firmware/lf-hitag-modes-f559dee3-ultra-dfu-app.zip",
   name: "experimental f559dee3",
   version: "v2.3.0-72-gf559dee",
+  time: "2026-11-20T07:31:51Z", // the commit time, in UTC
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
 };
-TEST_FW.label = `Flash the experimental firmware (${TEST_FW.version})`;
+TEST_FW.label = `Flash the experimental firmware (${buildText(TEST_FW)})`;
 let cu = null,
   has = false, // the firmware has the interactive engine
   hasTiming = false, // the firmware has LF_RDR_LAST (3189), for a single answer's timing

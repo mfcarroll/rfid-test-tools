@@ -74,6 +74,8 @@ reader in low-power card detection does.
 
 ## Firmware
 
+The page flashes `e67be65e`, which reports `v2.3.0-73-ge67be65` (2026-11-14 19:28 UTC).
+
 [`exp/field-measure`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/field-measure): the card search page's
 `lf-search` firmware with field measurement added. Commands 3160–3165:
 

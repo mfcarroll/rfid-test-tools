@@ -39,7 +39,7 @@ reader that restarts its carrier without dropping the field.
 
 - `firmware/fsk-selftrim-489-0609420c-ultra-dfu-app.zip`: built from
   [`exp/fsk-selftrim-489`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/fsk-selftrim-489), commit `0609420c`.
-  Reports `v2.3.0-26-g0609420`. It's the Paradox pull request
+  Reports `v2.3.0-26-g0609420` (2026-10-31 06:49 UTC). It's the Paradox pull request
   ([#489](https://github.com/RfidResearchGroup/ChameleonUltra/pull/489)) at its current head, plus fixes for answering
   a reader that wakes the CU (from [#514](https://github.com/RfidResearchGroup/ChameleonUltra/pull/514) and
   [#515](https://github.com/RfidResearchGroup/ChameleonUltra/pull/515)), plus the self-trim research code. Since the

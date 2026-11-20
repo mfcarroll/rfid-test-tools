@@ -1,6 +1,10 @@
 // The field measurement page (index.html): connecting the CU, setting up a measurement, and reading its log.
 
-import { bindFlashButtons, showFirmware } from "../common/flash-ui.js";
+import {
+  bindFlashButtons,
+  buildText,
+  showFirmware,
+} from "../common/flash-ui.js";
 import { openCU, watchDisconnect, cuConnectCard } from "../common/session.js";
 import {
   $,
@@ -20,12 +24,13 @@ const MEASURE_FW = {
   zip: "firmware/field-measure-e67be65e-ultra-dfu-app.zip",
   name: "experimental e67be65e",
   version: "v2.3.0-73-ge67be65",
+  time: "2026-11-14T19:28:50Z", // the commit time, in UTC
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
   name: "stock v2.3.0",
 };
-MEASURE_FW.label = `Flash the experimental firmware (${MEASURE_FW.version})`;
+MEASURE_FW.label = `Flash the experimental firmware (${buildText(MEASURE_FW)})`;
 
 let cu = null,
   has = false, // the firmware has field measurement
