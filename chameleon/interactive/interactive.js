@@ -1,7 +1,7 @@
 // Interactive LF emulation page: the CU's interactive engine, its Hitag 2 slot, and what its exchange trace says
 // about a reader. No DOM in here.
 //
-// The firmware (exp/lf-interactive) runs a listen-and-respond LF tag engine. Its first module is Hitag 2 in password
+// The firmware (exp/lf-hitag-modes) runs a listen-and-respond LF tag engine. Its first module is Hitag 2 in password
 // mode. While a reader works the CU, the engine records each command it hears and each answer it sends, in a trace
 // that survives the CU's sleep, so the CU can be taken to a reader on battery and read here afterwards.
 //

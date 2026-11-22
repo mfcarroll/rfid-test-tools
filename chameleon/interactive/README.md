@@ -94,9 +94,9 @@ without reading any secret.
 The page flashes the [Hitag 2 modes](../hitag-modes/) page's build, `60fc87c9`. It reports `v2.3.0-85-g60fc87c`
 (2026-11-22 04:58 UTC).
 
-[`exp/lf-interactive`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-interactive): the interactive LF
-engine (a protocol-agnostic listen-and-respond loop), the Hitag 2 password-mode module, a Hitag 2 reader, and the
-retained exchange trace, on top of upstream `main`. Commands the page uses:
+[`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes): the interactive LF
+engine (a protocol-agnostic listen-and-respond loop), the Hitag 2 password-mode module, a Hitag 2 reader, the slot
+modes, and the exchange log in flash, on top of upstream `main`. Commands the page uses:
 
 | command               | request                                        | reply                                                                                                                                   |
 | --------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
