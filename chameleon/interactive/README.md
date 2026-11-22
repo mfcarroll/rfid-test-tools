@@ -32,13 +32,19 @@ tag and saves it. Flashing keeps the slots; writing the tag overwrites the chose
 
 ## What it reports
 
-While a reader works the CU, the engine records each command it hears and each answer it sends, in a trace in
-retained RAM that survives the CU's sleep. So you can clear the trace, unplug the CU, hold it to a reader on
-battery, and read the trace back here afterwards. Each wake from sleep is a new boot in the report.
+While a reader works the CU, the engine records each presentation, each command it hears and each answer it sends,
+in a log. The CU keeps the log in RAM while a reader's field is present and saves it to a 192 KB flash area while
+none is, so it survives sleep and a power loss. That holds about two days of testing like 20 November's. So you can
+clear the log, unplug the CU, test every slot at the readers on battery, and read the log back here afterwards. Each
+wake from sleep is a new boot in the report. Read the log out before flashing other firmware: a build with a
+different log format erases it. Firmware from before the flash log keeps a 48-record trace in RAM instead, and the
+page reads that.
 
 The report splits in two, like the field page:
 
-- **Safe to share.** Per field session: whether a reader's field appeared, whether it sent START_AUTH and the CU
+- **Safe to share.** With the flash log, a table per slot and per mode: presentations, how far each got (accepted,
+  password answered, password not matched, UID only, nothing decoded, no command), the median time to acceptance,
+  and which START_AUTH the accepted password followed. Then per field session: whether a reader's field appeared, whether it sent START_AUTH and the CU
   answered its UID, whether it sent a 32-bit password command (password mode) or a 64-bit command (crypto mode,
   which this emulation does not support), and how many pages it read. It gives the emulated UID and counts of
   commands and answers, and, if the reader's password was recovered, says so — without the value. It never gives the
@@ -70,8 +76,9 @@ without reading any secret.
 - Checked against a Proxmark3 acting as the reader: `lf hitag reader` read the UID, and `lf hitag read --ht2`
   authenticated with the placeholder password and read all eight pages. The retained trace survived the CU's sleep
   across several wakes on battery. Not yet checked against a commercial Hitag 2 reader.
-- The trace keeps the first 8 records since a clear and the latest 24; a long run at a polling reader overwrites the
-  middle, and the report says so.
+- If the log fills, it keeps each slot's first success and first failure and drops the other presentations. The
+  report says so. Builds before the flash log keep the first 8 records and the latest 40, and a long run overwrites
+  the middle.
 - While a slot emulates the interactive tag, that slot answers nothing else on LF.
 - The UID the CU presents is whatever you set. A reader that checks more than the UID (its own password, crypto)
   won't complete, and the report shows how far it got.
@@ -95,14 +102,18 @@ retained exchange trace, on top of upstream `main`. Commands the page uses:
 | 3038 Hitag 2 scan     | –                                              | the tag's UID, 4 bytes (status `LF_TAG_OK`, else `LF_TAG_NO_FOUND`)                                                                     |
 | 5040 set Hitag 2 data | 32 bytes: eight pages, page 0 first, MSB first | –                                                                                                                                       |
 | 5041 get Hitag 2 data | –                                              | the active slot's 32 bytes, if its LF type is Hitag 2                                                                                   |
-| 3180 trace read       | first record index (BE16)                      | total (u32 LE), record size (u16 LE), count (u8), first kept (u8), boot (u16 LE), then the records                                      |
-| 3181 trace clear      | –                                              | –                                                                                                                                       |
+| 3180 trace read       | first record index (BE16)                      | builds before the flash log: total (u32 LE), record size (u16 LE), count (u8), first kept (u8), boot (u16 LE), then the records         |
+| 3181 trace clear      | –                                              | builds before the flash log: –                                                                                                          |
+| 3192 log info         | –                                              | `lf_ia_trace_info_t`, 68 bytes LE: format, state, space used, counters                                                                  |
+| 3193 log read         | stream offset (u32 LE), most bytes (u16 LE)    | the offset (u32 LE), the stream's end (u32 LE), then the bytes                                                                          |
+| 3194 log clear        | –                                              | –; the CU then erases the log a page at a time while no field is present, and 3192 counts the pages left                                |
 | 3184 counters         | –                                              | the 14-byte tuning struct, then seven u32 counters (sessions, commands, answers, late, ADC ticks, slips, longest tick)                  |
 
 3037 and 3038 are reader commands: the firmware rejects them unless the CU is already in reader mode (command 1001,
 argument 1), returning a device-mode error. The page switches to reader mode around each read and back to tag mode
 after, so the slot keeps emulating.
 
-The record layout is `lf_ia_trace_rec_t` in `lf_ia_trace.h`, packed and little-endian, 276 bytes. The page reads the
-10-byte reply header, then the records, asking for the next batch until it has them all. `node selftest.mjs` checks
-the parser, the session grouping and verdicts, and that the safe report never contains a decoded command's bits.
+The log's entry format is the comment at the top of `lf_ia_trace.c`: each entry has a header word and a CRC trailer,
+and the page skips an entry that fails its CRC and reports it. The old trace's record is `lf_ia_trace_rec_t`, packed
+and little-endian, 276 to 294 bytes. `node selftest.mjs` checks both parsers, the session grouping, the outcomes and
+tables, and that the safe report never contains a decoded command's bits.

@@ -35,7 +35,7 @@
       <ol class="steps" aria-label="Progress">
         <li id="step-connect"><span>1</span>Connect</li>
         <li id="step-setup"><span>2</span>Set up</li>
-        <li id="step-read"><span>3</span>Read the trace</li>
+        <li id="step-read"><span>3</span>Read the log</li>
       </ol>
 
       <section class="flow" aria-live="polite">
@@ -218,25 +218,31 @@
           </div>
 
           <div class="gap-top">
-            <div class="title">2. Clear the trace, then go to the reader</div>
+            <div class="title">2. Clear the log, then go to the readers</div>
             <p class="note">
-              Clear the trace, unplug the CU, and hold it to the reader. The
-              trace survives the CU's sleep, so you can read it back here
-              afterwards. Each wake is a new boot in the report.
+              Clear the log, unplug the CU, and take it to the readers. The CU
+              logs every presentation in its flash, which holds about two days
+              of testing on every slot and keeps it through sleep and a flat
+              battery. Read it back here afterwards. Each wake is a new boot in
+              the report.
+            </p>
+            <p class="note">
+              Read the log out before you flash other firmware: a build with a
+              different log format erases it.
             </p>
             <div class="row gap-top">
-              <button id="clear">Clear the trace</button>
+              <button id="clear">Clear the log</button>
               <span class="note" id="clearinfo"></span>
             </div>
           </div>
 
           <div class="gap-top">
-            <div class="title">3. Read the trace</div>
+            <div class="title">3. Read the log</div>
             <p class="note">
               Back at the computer, connect again and read what the reader did.
             </p>
             <div class="row gap-top">
-              <button id="read" class="primary">Read the trace</button>
+              <button id="read" class="primary">Read the log</button>
               <span class="note" id="readinfo"></span>
             </div>
           </div>
@@ -278,7 +284,11 @@
           <pre class="cmd gap-top" id="private"></pre>
         </details>
         <div class="row gap-top">
-          <button id="download">Download the trace</button>
+          <button id="download">Download the log</button>
+          <span class="note"
+            >The file holds the card's pages and the reader's password: keep it
+            private.</span
+          >
         </div>
       </section>
 
@@ -296,13 +306,17 @@
             password matches the stored one it serves the data pages.
           </li>
           <li>
-            Each command and answer goes into a trace in retained RAM, which
-            survives the CU's sleep. Every wake from sleep is a new boot.
+            Each presentation and each command goes into a log. The CU keeps it
+            in RAM while a reader's field is present and saves it to flash while
+            none is, so it survives sleep and a power loss. Every wake from
+            sleep is a new boot. Firmware before the log keeps only the first 8
+            and the latest 40 records, in RAM.
           </li>
           <li>
             The safe report says whether the reader engaged and how far it got,
-            by command length, never by content. The private details hold the
-            decoded bits, the reader's password among them.
+            by command length, never by content, with a table per slot and per
+            mode. The private details hold the decoded bits, the reader's
+            password among them.
           </li>
         </ol>
       </details>
@@ -321,12 +335,12 @@
           "../common/flash-ui.js": "../common/flash-ui.js?v=a8f34fdb9a",
           "../common/session.js": "../common/session.js?v=cd63fa21a7",
           "../common/slots.js": "../common/slots.js?v=ca14c3948d",
-          "./interactive.js": "./interactive.js?v=44fe2d13d1",
+          "./interactive.js": "./interactive.js?v=8ecc342398",
           "../../common/page.js": "../../common/page.js?v=e16076ac75",
           "../../common/version.js": "../../common/version.js?v=dc0bc06847"
         }
       }
     </script>
-    <script type="module" src="main.js?v=00e600c297"></script>
+    <script type="module" src="main.js?v=8810c6cdba"></script>
   </body>
 </html>

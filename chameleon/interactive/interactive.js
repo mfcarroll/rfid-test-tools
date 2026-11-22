@@ -21,9 +21,12 @@ export const CMD = {
   HITAG2_READ: 3037, // read a tag's eight pages with a password (reader mode)
   HITAG2_SET_EMU_DATA: 5040,
   HITAG2_GET_EMU_DATA: 5041,
-  LF_IA_TRACE_READ: 3180,
+  LF_IA_TRACE_READ: 3180, // the 48-record trace, on builds before the flash log
   LF_IA_TRACE_CLEAR: 3181,
   LF_IA_TUNING: 3184,
+  LF_IA_LOG_INFO: 3192, // the flash log's summary; a build without the log answers "invalid command"
+  LF_IA_LOG_READ: 3193, // the log's stream, in pieces
+  LF_IA_LOG_CLEAR: 3194, // restart the log; the erase runs afterwards
   LF_RDR_CAPTURE: 3186, // the last reader answer's raw envelope samples
   HITAG2_READER_LINK: 3187, // the Hitag 2 reader's link timing, for context in a saved record
   LF_RDR_LAST: 3189, // the last reader answer: bits, envelope levels and load runs
@@ -548,6 +551,345 @@ export function parseTraceReply(d) {
   return { total, size, n, keep, boot, recs };
 }
 
+// ---------------------------------------------------------------- the flash log
+
+// lf_ia_trace_info_t (lf_ia_trace.h): 40 bytes, then the seven u32 counters.
+export const LOG_FORMAT = 1;
+export const LOG_STATE = { 1: "erasing", 2: "ready", 3: "full", 4: "broken" };
+export function parseLogInfo(d) {
+  if (d.length < 68) return null;
+  const v = new DataView(d.buffer, d.byteOffset);
+  const u32 = (i) => v.getUint32(i, true);
+  return {
+    format: d[0],
+    state: d[1],
+    recovered: !!(d[2] & 1), // the counters came from flash at the last power-on
+    filling: !!(d[2] & 2), // the log keeps only each slot's first success and failure
+    eraseLeft: v.getUint16(4, true),
+    boot: v.getUint16(6, true),
+    session: u32(8),
+    capacity: u32(12),
+    saved: u32(16),
+    pending: u32(20),
+    ramSize: u32(24),
+    dropped: u32(28),
+    notKept: u32(32),
+    slotDone: v.getUint16(36, true),
+    recoverBad: v.getUint16(38, true),
+    counters: {
+      sessions: u32(40),
+      commands: u32(44),
+      responses: u32(48),
+      late: u32(52),
+      buffers: u32(56),
+      bufferSlips: u32(60),
+      maxHandlerUs: u32(64),
+    },
+  };
+}
+// The read request: the stream offset (u32 LE) and the most bytes to send (u16 LE).
+export const reqLogRead = (offset, max = 4088) => {
+  const b = new Uint8Array(6);
+  const v = new DataView(b.buffer);
+  v.setUint32(0, offset, true);
+  v.setUint16(4, max, true);
+  return b;
+};
+// The reply: the offset (u32), the stream's end (u32), then the bytes.
+export function parseLogReadReply(d) {
+  const v = new DataView(d.buffer, d.byteOffset);
+  return {
+    offset: v.getUint32(0, true),
+    end: v.getUint32(4, true),
+    bytes: d.subarray(8),
+  };
+}
+
+// CRC-16/CCITT-FALSE, as each entry's trailer carries it.
+export function crc16(b, n) {
+  let c = 0xffff;
+  for (let i = 0; i < n; i++) {
+    c ^= b[i] << 8;
+    for (let k = 0; k < 8; k++)
+      c = c & 0x8000 ? ((c << 1) ^ 0x1021) & 0xffff : (c << 1) & 0xffff;
+  }
+  return c;
+}
+
+const E = { HEADER: 1, FIELD_OFF: 2, COMMAND: 3, TOTALS: 4 };
+const CF = {
+  LATE: 1,
+  GAPS_DROPPED: 2,
+  ENCODE_FAILED: 4,
+  MEASURED: 8,
+  GAPS: 16,
+  TX: 32,
+};
+const ENTRY_MAGIC = 0xa0 + LOG_FORMAT;
+
+// The log's stream (the format comment in lf_ia_trace.c) as records in the trace's shape, so the report reads both.
+// A presentation with no command still gives its field-off record. An entry that fails its checksum is skipped word
+// by word; `bad` counts each such run once.
+export function parseLogStream(buf) {
+  const v = new DataView(buf.buffer, buf.byteOffset, buf.length);
+  const u16 = (i) => v.getUint16(i, true);
+  const u32 = (i) => v.getUint32(i, true);
+  const recs = [];
+  let bad = 0,
+    orphans = 0,
+    inBad = false,
+    head = null, // the current presentation: its header and its records
+    totals = null;
+  const close = () => {
+    if (!head) return;
+    // The measurement comes with the field-off record, so the commands' timing is filled in at the end.
+    const off = head.recs.find((r) => r.type === TR.FIELD_OFF);
+    for (const r of head.recs) {
+      const measured = r.type === TR.FIELD_OFF || r.measured;
+      const fc = off?.fcMeasuredHz ?? 0;
+      r.timing = {
+        fcUsedHz: head.mode & 1 && measured && fc ? fc : 125000,
+        fcMeasuredHz: measured ? fc : 0,
+        measSnrDb: off?.measSnrDb ?? 0,
+        measStatus: off?.measStatus ?? 255,
+        mode: head.mode,
+        slot: head.slot,
+        measUs: off?.measUs ?? 0,
+      };
+      recs.push(r);
+    }
+    head = null;
+  };
+  let pos = 0;
+  while (pos + 8 <= buf.length) {
+    const n = 4 * buf[pos + 2];
+    const ok =
+      buf[pos] === ENTRY_MAGIC &&
+      buf[pos + 2] >= 2 &&
+      pos + n <= buf.length &&
+      buf[pos + n - 2] === buf[pos + 2] &&
+      u16(pos + n - 4) === crc16(buf.subarray(pos), n - 4);
+    if (!ok) {
+      if (!inBad) bad++;
+      inBad = true;
+      pos += 4;
+      continue;
+    }
+    inBad = false;
+    const type = buf[pos + 1],
+      p = pos + 4;
+    if (type === E.HEADER) {
+      close();
+      head = {
+        boot: u16(p),
+        session: u16(p + 2),
+        tSessionUs: u32(p + 4),
+        slot: buf[p + 8],
+        mode: buf[p + 9],
+        recs: [],
+        done: false,
+      };
+    } else if (type === E.COMMAND || type === E.FIELD_OFF) {
+      if (!head || head.done || u16(p) !== head.session) {
+        orphans++;
+      } else if (type === E.FIELD_OFF) {
+        head.recs.push({
+          type: TR.FIELD_OFF,
+          flags: buf[p + 2],
+          measStatus: buf[p + 3],
+          tUs: u32(p + 4),
+          level: u16(p + 8),
+          measSnrDb: v.getInt16(p + 10, true) / 10,
+          fcMeasuredHz: u32(p + 12) / 10,
+          measUs: buf[p + 16] * 32,
+          boot: head.boot,
+          session: head.session,
+          tSessionUs: head.tSessionUs,
+        });
+        head.done = true;
+      } else {
+        const f = buf[p + 2],
+          t = u32(p + 4);
+        const nGaps = buf[p + 20],
+          nBits = buf[p + 21],
+          nTxBits = u16(p + 22);
+        let q = p + 34;
+        const nb = (Math.min(nBits, 128) + 7) >> 3,
+          nt = (Math.min(nTxBits, 128) + 7) >> 3;
+        const bits = bitsStr(buf.subarray(q, q + nb), nBits);
+        const txBits = bitsStr(buf.subarray(q + nb, q + nb + nt), nTxBits);
+        q += nb + nt;
+        const gaps = [];
+        if (f & CF.GAPS)
+          for (let i = 0; i < Math.min(nGaps, 48); i++, q += 4)
+            gaps.push({ startUs: u16(q), widthUs: u16(q + 2) });
+        const due = t + u16(p + 12);
+        const tx = f & CF.TX ? due + v.getInt16(p + 14, true) : 0;
+        const seen = u16(p + 18);
+        head.recs.push({
+          type: TR.COMMAND,
+          verdict: buf[p + 3] & 15,
+          decode: buf[p + 3] >> 4,
+          flags:
+            (f & CF.LATE ? FLAG.LATE : 0) |
+            (f & CF.GAPS_DROPPED ? FLAG.GAPS_DROPPED : 0) |
+            (f & CF.ENCODE_FAILED ? FLAG.ENCODE_FAILED : 0),
+          measured: !!(f & CF.MEASURED),
+          tUs: t,
+          tDetectUs: t + u16(p + 8),
+          tReadyUs: u16(p + 10) ? t + u16(p + 10) : 0,
+          tDueUs: u16(p + 12) ? due : 0,
+          tTxUs: tx,
+          tTxEndUs: tx ? tx + u16(p + 16) : 0,
+          tFieldSeenUs: seen === 0xffff ? 0 : t + seen,
+          nGaps,
+          nBits,
+          nTxBits,
+          split: u16(p + 24),
+          level: u16(p + 26),
+          nNoise: u16(p + 28),
+          maxGapUs: u16(p + 30),
+          nRuns: u16(p + 32),
+          bits,
+          txBits,
+          gaps,
+          boot: head.boot,
+          session: head.session,
+          tSessionUs: head.tSessionUs,
+        });
+      }
+    } else if (type === E.TOTALS) {
+      totals = { boot: u16(p), session: u32(p + 4) };
+    }
+    pos += n;
+  }
+  close();
+  return { recs, bad, orphans, totals };
+}
+
+// ---------------------------------------------------------------- outcomes per slot and per mode
+
+// A field reset shows as a gap this wide or wider (about 292 µs at the testers' readers); a bit's pulse is far shorter.
+export const RESET_GAP_US = 250;
+export const OUTCOMES = [
+  "accepted",
+  "password answered, reader restarted",
+  "password didn't match",
+  "UID sent, no password",
+  "decoded, not answered",
+  "nothing decoded",
+  "no command",
+];
+
+// How far one presentation got, and which START_AUTH the accepted password followed (its number among the session's
+// START_AUTHs, and whether the CU answered it). Hitag 2 in password mode: a page read answered means accepted.
+export function presentationOutcome(s) {
+  const cmds = s.commands;
+  const kind = (c) => (c.decode === 0 ? classifyCommand(c)?.kind : null);
+  const ans = (c) => c.verdict === 1;
+  const reads = cmds.filter((c) => kind(c) === "read" && ans(c));
+  let outcome;
+  if (!cmds.length) outcome = "no command";
+  else if (reads.length) outcome = "accepted";
+  else if (cmds.some((c) => kind(c) === "password" && ans(c)))
+    outcome = "password answered, reader restarted";
+  else if (cmds.some((c) => kind(c) === "password"))
+    outcome = "password didn't match";
+  else if (cmds.some((c) => kind(c) === "start" && ans(c)))
+    outcome = "UID sent, no password";
+  else if (cmds.some((c) => c.decode === 0)) outcome = "decoded, not answered";
+  else outcome = "nothing decoded";
+  let afterStart = null;
+  if (reads.length) {
+    const iRead = cmds.indexOf(reads[0]);
+    let iPw = -1;
+    for (let i = iRead - 1; i >= 0; i--)
+      if (kind(cmds[i]) === "password" && ans(cmds[i])) {
+        iPw = i;
+        break;
+      }
+    for (let i = iPw - 1; i >= 0; i--)
+      if (kind(cmds[i]) === "start") {
+        const starts = cmds.filter((c) => kind(c) === "start");
+        afterStart = {
+          n: starts.indexOf(cmds[i]) + 1,
+          answered: ans(cmds[i]),
+        };
+        break;
+      }
+  }
+  return {
+    outcome,
+    afterStart,
+    acceptMs: reads.length ? (reads[0].tUs - s.tSessionUs) / 1000 : null,
+    resets: cmds.filter(
+      (c) =>
+        (c.maxGapUs ?? Math.max(0, ...c.gaps.map((g) => g.widthUs))) >=
+        RESET_GAP_US,
+    ).length,
+  };
+}
+
+// Rows of outcome counts grouped by key(session), with the median time to acceptance and the START_AUTH numbers that
+// acceptance followed. Counts only: nothing here holds a command's content.
+export function outcomeTable(ss, key) {
+  const groups = new Map();
+  for (const s of ss) {
+    const k = key(s);
+    if (k === null) continue;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push({ s, o: presentationOutcome(s) });
+  }
+  const rows = [];
+  for (const [k, g] of [...groups].sort((a, b) =>
+    String(a[0]).localeCompare(String(b[0]), undefined, { numeric: true }),
+  )) {
+    const counts = Object.fromEntries(OUTCOMES.map((n) => [n, 0]));
+    const starts = {};
+    for (const { o } of g) {
+      counts[o.outcome]++;
+      if (o.afterStart) {
+        const sk = `${o.afterStart.n}${o.afterStart.answered ? "" : " (unanswered)"}`;
+        starts[sk] = (starts[sk] || 0) + 1;
+      }
+    }
+    const ms = g
+      .map(({ o }) => o.acceptMs)
+      .filter((x) => x !== null)
+      .sort((a, b) => a - b);
+    rows.push({
+      key: k,
+      presentations: g.length,
+      counts,
+      medianAcceptMs: ms.length ? ms[ms.length >> 1] : null,
+      starts,
+    });
+  }
+  return rows;
+}
+
+function tableMarkdown(title, rows) {
+  const short = ["acc", "pw ok", "pw bad", "uid", "dec", "none", "no cmd"];
+  const L = [
+    `**${title}**`,
+    "",
+    `| | pres | ${short.join(" | ")} | accept ms | accepted after START_AUTH # |`,
+    `|---|---|${short.map(() => "---").join("|")}|---|---|`,
+  ];
+  for (const r of rows)
+    L.push(
+      `| ${r.key} | ${r.presentations} | ${OUTCOMES.map((n) => r.counts[n]).join(" | ")} | ${r.medianAcceptMs === null ? "–" : r.medianAcceptMs.toFixed(1)} | ${
+        Object.entries(r.starts)
+          .map(([k, n]) => `${k}: ${n}`)
+          .join(", ") || "–"
+      } |`,
+    );
+  return L.join("\n");
+}
+
+const slotOf = (s) => (s.off ?? s.commands[0])?.timing?.slot ?? null;
+const modeOf = (s) => (s.off ?? s.commands[0])?.timing?.mode ?? null;
+
 // ---------------------------------------------------------------- what the trace means
 
 // A Hitag 2 reader frame is 5, 10, 32 or 64 bits. Group a session's commands by what the reader was doing.
@@ -701,6 +1043,22 @@ export function safeMarkdown(r) {
     L.push(
       `- Reader password: recovered from ${pw.count} matching attempts (value in the private details)`,
     );
+  if (r.log) {
+    const g = r.log;
+    L.push(
+      `- Log: ${LOG_STATE[g.state] ?? g.state}, ${Math.round(g.saved / 1024)} of ${Math.round(g.capacity / 1024)} KB saved, ${g.pending} bytes not yet saved` +
+        (g.bad
+          ? `, ⚠ ${g.bad} entr${g.bad === 1 ? "y" : "ies"} skipped for a bad checksum`
+          : "") +
+        (g.dropped ? `, ⚠ ${g.dropped} entries lost while RAM was full` : "") +
+        (g.filling
+          ? `, ⚠ nearly full: ${g.notKept} presentation(s) not kept, only each slot's first success and failure`
+          : "") +
+        (g.recovered
+          ? ", counters recovered from flash after a power loss"
+          : ""),
+    );
+  }
   if (r.total > r.recs.length)
     L.push(
       `- ⚠ ${r.total} records were made and ${r.recs.length} kept: the first ${r.keep} and the latest, with ${r.total - r.recs.length} in between overwritten`,
@@ -714,6 +1072,22 @@ export function safeMarkdown(r) {
     );
     return L.join("\n");
   }
+  if (r.log) {
+    L.push(
+      "",
+      tableMarkdown(
+        "Per slot",
+        outcomeTable(ss, (s) => (slotOf(s) ? `slot ${slotOf(s)}` : null)),
+      ),
+      "",
+      tableMarkdown(
+        "Per mode",
+        outcomeTable(ss, (s) =>
+          modeOf(s) === null ? null : `${modeOf(s)} ${modeFlags(modeOf(s))}`,
+        ),
+      ),
+    );
+  }
   L.push("", "**What the reader did**");
   for (const s of ss) {
     const v = sessionVerdict(s);
@@ -725,6 +1099,12 @@ export function safeMarkdown(r) {
     if (v.reads) extra.push(`${v.reads} page read(s)`);
     if (v.late) extra.push("⚠ an answer was late");
     if (v.failed) extra.push(`${v.failed} not decoded`);
+    const o = presentationOutcome(s);
+    if (o.afterStart)
+      extra.push(
+        `accepted after START_AUTH ${o.afterStart.n}${o.afterStart.answered ? "" : " (not answered)"}, ${o.acceptMs.toFixed(1)} ms after the field came on`,
+      );
+    if (o.resets) extra.push(`${o.resets} field reset(s)`);
     L.push(`  (${extra.join("; ")})`);
   }
   return L.join("\n");

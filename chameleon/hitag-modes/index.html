@@ -139,6 +139,11 @@
             you're done, flash stock back, or use "Flash a file" for another
             application DFU package (a .zip).
           </p>
+          <p class="note">
+            If the CU holds a log of reader tests, read it out on the
+            <a href="../interactive/">Interactive LF emulation</a> page before
+            you flash. A build with a different log format erases it.
+          </p>
           <div id="flash"></div>
         </div>
       </section>
@@ -199,8 +204,10 @@
             results back. To see what a reader actually sent, how the tag
             answered, and which mode each session ran in, open the
             <a href="../interactive/">Interactive LF emulation</a> page and read
-            the trace. It works with this same firmware — no reflash — and its
-            trace now records each session's slot, mode and carrier.
+            the log. It works with this same firmware, with no reflash. It
+            records each presentation's slot, mode and carrier, and gives a
+            table per slot and per mode. On firmware with the flash log, one
+            clear holds a day of testing on every slot.
           </li>
         </ol>
       </details>

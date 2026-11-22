@@ -37,6 +37,7 @@ let cu = null,
   has = false, // the firmware has the interactive engine
   hasTiming = false, // the firmware has LF_RDR_LAST (3189), for a single answer's timing
   hasTrace = false, // the firmware has LF_RDR_TRACE_READ (3190), for the whole exchange
+  hasLog = false, // the firmware keeps the exchange log in flash (LF_IA_LOG_INFO, 3192), not the 48-record trace
   slotTypes = null, // each slot's LF card type, once read
   firmware = "",
   report = null,
@@ -115,6 +116,8 @@ async function checkFirmware() {
   hasTiming = !!t && t.status !== P.STATUS.INVALID_CMD;
   const tr = hasTiming ? await cu.cmd(P.CMD.LF_RDR_TRACE_READ) : null;
   hasTrace = !!tr && tr.status !== P.STATUS.INVALID_CMD;
+  const li = has ? await cu.cmd(P.CMD.LF_IA_LOG_INFO) : null;
+  hasLog = li?.status === P.STATUS.SUCCESS;
   showFirmware(
     has
       ? `Firmware ${fw}, with the interactive LF engine.`
@@ -125,7 +128,7 @@ async function checkFirmware() {
   log(
     `connected: ${fw}, interactive engine ${has ? "yes" : "no"}` +
       (has
-        ? `, answer timing ${hasTrace ? "full exchange" : hasTiming ? "last answer only" : "no"}`
+        ? `, answer timing ${hasTrace ? "full exchange" : hasTiming ? "last answer only" : "no"}, ${hasLog ? "flash log" : "48-record trace"}`
         : ""),
   );
   return fw;
@@ -150,6 +153,7 @@ watchDisconnect(
     cu = null;
     hasTiming = false;
     hasTrace = false;
+    hasLog = false;
     clearExchange();
     setState("connect");
   },
@@ -618,11 +622,32 @@ $("loadslot").onclick = () =>
 $("clear").onclick = () =>
   run("clear", async () => {
     need();
-    await cu.ok(P.CMD.LF_IA_TRACE_CLEAR);
-    $("clearinfo").textContent =
-      "Trace cleared. Unplug the CU and hold it to the reader.";
     $("resultbox").hidden = true;
-    log("trace cleared");
+    if (!hasLog) {
+      await cu.ok(P.CMD.LF_IA_TRACE_CLEAR);
+      $("clearinfo").textContent =
+        "Trace cleared. Unplug the CU and hold it to the reader.";
+      log("trace cleared");
+      return;
+    }
+    // The CU erases the log's flash a page at a time after the clear. Wait for it, so the log saves from the start.
+    await cu.ok(P.CMD.LF_IA_LOG_CLEAR);
+    const t0 = Date.now();
+    let info;
+    for (;;) {
+      info = P.parseLogInfo((await cu.ok(P.CMD.LF_IA_LOG_INFO)).data);
+      if (!info || info.state !== 1 || Date.now() - t0 > 60000) break;
+      $("clearinfo").textContent =
+        `Erasing the log: ${info.eraseLeft} page(s) to go…`;
+      await new Promise((ok) => setTimeout(ok, 500));
+    }
+    $("clearinfo").textContent =
+      info?.state === 2
+        ? `Log cleared: ${Math.round(info.capacity / 1024)} KB free. Unplug the CU and take it to the readers.`
+        : `Log cleared, but its state is ${P.LOG_STATE[info?.state] ?? "unknown"}. Read the log to check.`;
+    log(
+      `log cleared in ${((Date.now() - t0) / 1000).toFixed(1)} s, ${P.LOG_STATE[info?.state] ?? "?"}`,
+    );
   });
 
 // ---------------------------------------------------------------- read the trace
@@ -659,6 +684,46 @@ async function readTrace() {
   }
   return { total, keep, boot, recs };
 }
+// The flash log: its summary, then its stream in pieces of up to ~4 KB, each retried like a trace batch.
+async function readLog() {
+  const info = P.parseLogInfo((await cu.ok(P.CMD.LF_IA_LOG_INFO)).data);
+  if (!info || info.format !== P.LOG_FORMAT)
+    throw new Error(
+      `log format ${info?.format}, this page reads ${P.LOG_FORMAT}: firmware and page differ`,
+    );
+  const parts = [];
+  let have = 0;
+  for (;;) {
+    let r, lastErr;
+    for (let attempt = 1; attempt <= 3 && !r; attempt++) {
+      try {
+        r = await cu.ok(P.CMD.LF_IA_LOG_READ, P.reqLogRead(have), 8);
+      } catch (e) {
+        lastErr = e;
+        log(`log read from ${have}: attempt ${attempt} ${e.message}`);
+      }
+    }
+    if (!r) throw lastErr;
+    const part = P.parseLogReadReply(r.data);
+    if (!part.bytes.length) break;
+    parts.push(part.bytes.slice());
+    have += part.bytes.length;
+    if (have >= part.end) break;
+  }
+  const stream = new Uint8Array(have);
+  let o = 0;
+  for (const b of parts) stream.set(b, (o += b.length) - b.length);
+  const parsed = P.parseLogStream(stream);
+  return {
+    total: parsed.recs.length,
+    keep: 0,
+    boot: info.boot,
+    recs: parsed.recs,
+    counters: info.counters,
+    log: { ...info, bad: parsed.bad, orphans: parsed.orphans },
+    streamHex: [...stream].map((x) => x.toString(16).padStart(2, "0")).join(""),
+  };
+}
 $("read").onclick = () =>
   run("read", async () => {
     need();
@@ -668,8 +733,14 @@ $("read").onclick = () =>
       emuR.status === P.STATUS.SUCCESS
         ? emuR.data.slice(0, P.HITAG2_DATA_SIZE)
         : null;
-    const t = await readTrace();
-    report = { firmware, counters, emu, ...t };
+    const t = hasLog ? await readLog() : await readTrace();
+    report = {
+      firmware,
+      counters,
+      emu,
+      readAt: new Date().toISOString(),
+      ...t,
+    };
     $("safe").textContent = P.safeMarkdown(report);
     $("private").textContent = P.privateMarkdown(report);
     $("resultbox").hidden = false;
@@ -682,7 +753,10 @@ $("read").onclick = () =>
       updateAscii();
     }
     $("readinfo").textContent =
-      `${t.recs.length} record(s) over ${counters.sessions} session(s).` +
+      `${t.recs.length} record(s) over ${counters.sessions} session(s)` +
+      (t.log
+        ? `, ${Math.round(t.log.saved / 1024)} of ${Math.round(t.log.capacity / 1024)} KB of the log used.`
+        : ".") +
       (pw
         ? ` Reader password ${pw.hex} recovered into page 1 — write it to the slot to authenticate.`
         : "");
@@ -692,8 +766,15 @@ $("read").onclick = () =>
     $("resultbox").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
+// The whole log, raw stream included, so lfia.py can analyse it again. It holds the card's pages and the reader's
+// password: keep it private.
 $("download").onclick = () => {
-  if (report) saveJson("cu-interactive-trace.json", report);
+  if (!report) return;
+  const day = (report.readAt ?? new Date().toISOString()).slice(0, 10);
+  saveJson(
+    report.log ? `cu-flash-log-${day}.json` : "cu-interactive-trace.json",
+    report,
+  );
 };
 
 // ---------------------------------------------------------------- firmware flashing

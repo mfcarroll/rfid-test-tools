@@ -843,5 +843,217 @@ check(
   "buildExchangeRecord keeps every transaction, the last envelope and the link",
 );
 
+// ---------------------------------------------------------------- the flash log
+
+// Frame a payload as a log entry: header word, payload padded to words, trailer with the CRC (lf_ia_trace.c).
+function entry(type, payload) {
+  const words = 2 + Math.ceil(payload.length / 4);
+  const b = new Uint8Array(words * 4);
+  b.set([0xa1, type, words, 0], 0);
+  b.set(payload, 4);
+  const c = P.crc16(b, b.length - 4);
+  b.set([c & 0xff, c >> 8, words, 0], b.length - 4);
+  return b;
+}
+function le(n, ...vals) {
+  const b = new Uint8Array(n.reduce((a, x) => a + x, 0));
+  const v = new DataView(b.buffer);
+  let o = 0;
+  n.forEach((size, i) => {
+    if (size === 1) v.setUint8(o, vals[i]);
+    else if (size === 2) v.setUint16(o, vals[i], true);
+    else v.setUint32(o, vals[i], true);
+    o += size;
+  });
+  return b;
+}
+const cat = (...a) => {
+  const out = new Uint8Array(a.reduce((n, x) => n + x.length, 0));
+  let o = 0;
+  for (const x of a) out.set(x, (o += x.length) - x.length);
+  return out;
+};
+const packN = (str) => packBits(str).slice(0, Math.ceil(str.length / 8));
+// A command entry: the 34 fixed bytes, then bits, sent bits, and gaps if given.
+function logCmd({
+  session,
+  t,
+  bits,
+  answered,
+  decode = 0,
+  tx = "",
+  gaps = null,
+  maxGap = 60,
+}) {
+  const flags = 0x08 | (answered ? 0x20 : 0) | (gaps ? 0x10 : 0);
+  const fixed = le(
+    [2, 1, 1, 4, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2],
+    session,
+    flags,
+    (answered ? 1 : 0) | (decode << 4),
+    t,
+    400,
+    answered ? 600 : 0,
+    answered ? 1568 : 0,
+    answered ? 2 : 0,
+    answered ? 9472 : 0,
+    answered ? 9450 : 0xffff,
+    gaps ? gaps.length : bits.length + 1,
+    bits.length,
+    tx.length,
+    200,
+    1500,
+    0,
+    maxGap,
+    0,
+  );
+  const g = gaps
+    ? cat(...gaps.map(([s0, w]) => le([2, 2], s0, w)))
+    : new Uint8Array(0);
+  return entry(3, cat(fixed, packN(bits), packN(tx), g));
+}
+const logHeader = (boot, session, tOn, slot, mode) =>
+  entry(1, le([2, 2, 4, 1, 1, 2], boot, session, tOn, slot, mode, 0));
+const logOff = (session, t, n) =>
+  entry(
+    2,
+    le(
+      [2, 1, 1, 4, 2, 2, 4, 1, 1, 2],
+      session,
+      0,
+      0,
+      t,
+      1400,
+      120,
+      1250123,
+      20,
+      2,
+      n,
+    ),
+  );
+
+const SA = "11000";
+const READ0 = "1100000111";
+const UIDA = "11111" + "0".repeat(32);
+const stream = cat(
+  // Slot 1, mode 1: START_AUTH, password, read: accepted after the first START_AUTH.
+  logHeader(3, 7, 1000, 1, 1),
+  logCmd({
+    session: 7,
+    t: 6000,
+    bits: SA,
+    answered: true,
+    tx: UIDA,
+    gaps: [[0, 50]],
+  }),
+  logCmd({ session: 7, t: 16000, bits: PWD, answered: true, tx: UIDA }),
+  logCmd({ session: 7, t: 30000, bits: READ0, answered: true, tx: UIDA }),
+  logOff(7, 50000, 3),
+  // Slot 2, mode 5: the password answered for the second START_AUTH, which the CU left unanswered; then a reset gap.
+  logHeader(3, 8, 60000, 2, 5),
+  logCmd({ session: 8, t: 66000, bits: SA, answered: true, tx: UIDA }),
+  logCmd({ session: 8, t: 76000, bits: SA, answered: false }),
+  logCmd({ session: 8, t: 86000, bits: PWD, answered: true, tx: UIDA }),
+  logCmd({ session: 8, t: 99000, bits: READ0, answered: true, tx: UIDA }),
+  logCmd({
+    session: 8,
+    t: 120000,
+    bits: "",
+    answered: false,
+    decode: 2,
+    gaps: [[0, 292]],
+    maxGap: 292,
+  }),
+  logOff(8, 140000, 5),
+  // A damaged entry, then slot 2 again with no command.
+  Uint8Array.of(0xa1, 3, 9, 0, 1, 2, 3, 4),
+  logHeader(4, 9, 500, 2, 5),
+  logOff(9, 900, 0),
+);
+const L = P.parseLogStream(stream);
+check(
+  L.bad === 1 && L.orphans === 0,
+  `the damaged entry is skipped once (${L.bad})`,
+);
+const lss = P.sessions(L.recs);
+check(lss.length === 3, `three presentations from the log (${lss.length})`);
+check(lss[0].commands[1].bits === PWD, "a logged password decodes to its bits");
+check(
+  lss[0].commands[0].gaps.length === 1 && lss[0].commands[1].gaps.length === 0,
+  "gaps come back only where the log kept them",
+);
+check(
+  lss[0].commands[0].tTxUs - lss[0].commands[0].tDueUs === 2 &&
+    lss[0].commands[0].tFieldSeenUs === 6000 + 9450,
+  "answer times are rebuilt from the deltas",
+);
+check(
+  lss[0].off.timing.fcMeasuredHz === 125012.3 &&
+    lss[0].commands[0].timing.slot === 1,
+  "the field-off's measurement and the header's slot reach every record",
+);
+const o1 = P.presentationOutcome(lss[0]);
+const o2 = P.presentationOutcome(lss[1]);
+const o3 = P.presentationOutcome(lss[2]);
+check(
+  o1.outcome === "accepted" && o1.afterStart.n === 1 && o1.acceptMs === 29,
+  "slot 1 accepted after START_AUTH 1",
+);
+check(
+  o2.afterStart.n === 2 && !o2.afterStart.answered && o2.resets === 1,
+  "slot 2 accepted after START_AUTH 2, which went unanswered; one field reset",
+);
+check(
+  o3.outcome === "no command",
+  "a presentation with no command still shows",
+);
+const bySlot = P.outcomeTable(
+  lss,
+  (s) => `slot ${(s.off ?? s.commands[0]).timing.slot}`,
+);
+check(
+  bySlot.length === 2 &&
+    bySlot[1].presentations === 2 &&
+    bySlot[1].counts["no command"] === 1,
+  "the per-slot table counts each presentation",
+);
+const lr = {
+  firmware: "v2.3.0-74-gc514d78",
+  emu: P.pagesWithUid("11223344"),
+  counters: { sessions: 9, commands: 8, responses: 7, late: 0 },
+  boot: 4,
+  total: L.recs.length,
+  keep: 0,
+  recs: L.recs,
+  log: {
+    state: 2,
+    saved: 1024,
+    capacity: 196592,
+    pending: 0,
+    bad: L.bad,
+    dropped: 0,
+    filling: false,
+  },
+};
+const lsafe = P.safeMarkdown(lr);
+check(
+  lsafe.includes("**Per slot**") &&
+    lsafe.includes("**Per mode**") &&
+    lsafe.includes("5 scale+every-second"),
+  "the safe report has the per-slot and per-mode tables",
+);
+check(
+  lsafe.includes("skipped for a bad checksum"),
+  "the safe report says an entry was skipped",
+);
+check(
+  !lsafe.includes(PWD) && !lsafe.includes(READ0),
+  "the safe report holds no logged command bits",
+);
+check(
+  P.privateMarkdown(lr).includes(PWD),
+  "the private details hold the logged password",
+);
+
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exit(failed ? 1 : 0);
