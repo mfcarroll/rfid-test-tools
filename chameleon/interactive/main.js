@@ -298,8 +298,9 @@ async function resetTrace() {
 // macOS loses bytes of replies that large now and then, and the reply then never completes. A whole reply arrives in
 // milliseconds, so over USB a read-out waits USB_READ_TIMEOUT_S before it tries again. Over USB, each read-out also
 // asks for pieces of about 1 KB, a size that has arrived whole every time. Bluetooth keeps the longer timeouts and the
-// firmware's largest pieces, because its speed hasn't been measured. A firmware that takes no piece size for the
-// capture or the reader trace (before v2.3.0-86 on exp/lf-hitag-modes) ignores the request's extra bytes.
+// firmware's largest pieces: it hasn't lost bytes of 4 KB replies, and each extra piece costs a round trip of about
+// 60 ms. A firmware that takes no piece size for the capture or the reader trace (before v2.3.0-86 on
+// exp/lf-hitag-modes) ignores the request's extra bytes.
 const USB_READ_TIMEOUT_S = 2;
 const USB_LOG_PAGE = 1024; // bytes
 const USB_CAPTURE_PAGE = 500; // samples, 1014-byte replies
