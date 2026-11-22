@@ -447,7 +447,11 @@ async function captureExchange(action, extra) {
     ];
   } else return;
   if (!txns.length) return;
-  const cap = await readCapture();
+  // The envelope is extra detail. If its read-out fails three times, the exchange still shows, without it.
+  const cap = await readCapture().catch((e) => {
+    log(`answer envelope not read: ${e.message}`);
+    return { total: 0, count: 0, samples: [] };
+  });
   const linkR = await cu.cmd(P.CMD.HITAG2_READER_LINK);
   const link =
     linkR.status === P.STATUS.SUCCESS ? P.parseReaderLink(linkR.data) : null;
