@@ -296,10 +296,14 @@ async function resetTrace() {
 
 // The trace, capture and log read-outs page replies of up to ~4 KB, far larger than the other replies. Web Serial on
 // macOS loses bytes of replies that large now and then, and the reply then never completes. A whole reply arrives in
-// milliseconds, so over USB a read-out waits USB_READ_TIMEOUT_S before it tries again, and the log reads in
-// USB_LOG_PAGE pieces. Bluetooth keeps the longer timeouts and 4 KB pieces, because its speed hasn't been measured.
+// milliseconds, so over USB a read-out waits USB_READ_TIMEOUT_S before it tries again. Over USB, each read-out also
+// asks for pieces of about 1 KB, a size that has arrived whole every time. Bluetooth keeps the longer timeouts and the
+// firmware's largest pieces, because its speed hasn't been measured. A firmware that takes no piece size for the
+// capture or the reader trace (before v2.3.0-86 on exp/lf-hitag-modes) ignores the request's extra bytes.
 const USB_READ_TIMEOUT_S = 2;
-const USB_LOG_PAGE = 1024;
+const USB_LOG_PAGE = 1024; // bytes
+const USB_CAPTURE_PAGE = 500; // samples, 1014-byte replies
+const USB_TRACE_PAGE = 4; // records, 863-byte replies
 const overUsb = () => cu instanceof SerialCU;
 
 // retried() calls send() up to three times, each with the timeout for the link (longS over Bluetooth), and logs each
@@ -318,14 +322,17 @@ async function retried(what, longS, send) {
   throw lastErr;
 }
 
-// LF_RDR_CAPTURE pages the samples; the offset is a big-endian u16.
+// LF_RDR_CAPTURE pages the samples. The request is the offset and the most samples to send (0 for all that fit), both
+// big-endian u16.
 async function readCapture() {
   const samples = [];
   let total = 0;
+  const max = overUsb() ? USB_CAPTURE_PAGE : 0;
   for (;;) {
     const off = samples.length;
+    const req = Uint8Array.of(off >> 8, off & 0xff, max >> 8, max & 0xff);
     const r = await retried(`capture read from ${off}`, 6, (t) =>
-      cu.cmd(P.CMD.LF_RDR_CAPTURE, Uint8Array.of(off >> 8, off & 0xff), t),
+      cu.cmd(P.CMD.LF_RDR_CAPTURE, req, t),
     );
     if (r.status !== P.STATUS.SUCCESS) break;
     const part = P.parseCapture(r.data);
@@ -338,19 +345,17 @@ async function readCapture() {
   return { total, count: samples.length, samples };
 }
 
-// Read every reader-transaction record, paging by record index (big-endian u16). total can exceed the records held if a
-// long read rolled some off, so stop on an empty batch too.
+// Read every reader-transaction record, paging by record index (big-endian u16), then the most records to send (u8, 0
+// for all that fit). total can exceed the records held if a long read rolled some off, so stop on an empty batch too.
 async function readReaderTrace() {
   const recs = [];
   let total = 0;
+  const max = overUsb() ? USB_TRACE_PAGE : 0;
   for (;;) {
     const first = recs.length;
+    const req = Uint8Array.of(first >> 8, first & 0xff, max);
     const r = await retried(`reader trace read from ${first}`, 6, (t) =>
-      cu.cmd(
-        P.CMD.LF_RDR_TRACE_READ,
-        Uint8Array.of(first >> 8, first & 0xff),
-        t,
-      ),
+      cu.cmd(P.CMD.LF_RDR_TRACE_READ, req, t),
     );
     if (r.status !== P.STATUS.SUCCESS) break;
     const part = P.parseReaderTraceReply(r.data);
