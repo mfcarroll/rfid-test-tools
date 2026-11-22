@@ -1,4 +1,5 @@
-// Chameleon Ultra over Web Serial: framing, a one-command-at-a-time client, and DFU flashing.
+// Chameleon Ultra over Web Serial: framing, a one-command-at-a-time client, and DFU flashing. ble.js has the
+// Bluetooth link.
 // No DOM in here. Pages pass callbacks for progress.
 
 const nowS = () => (performance.timeOrigin + performance.now()) / 1000;
@@ -68,38 +69,30 @@ export class FrameParser {
 
 // ---------------------------------------------------------------- client
 
-export class SerialCU {
-  async open(port) {
-    this.port = port;
-    // A large read buffer: the interactive trace reply is one ~3.9 KB frame, well over Web Serial's small default
-    // buffer, and a big burst over USB can outrun the read loop and drop bytes with the default. Other pages read in
-    // small pieces, so they never hit it.
-    await port.open({ baudRate: 115200, bufferSize: 1 << 16 });
-    this.reader = port.readable.getReader();
-    this.writer = port.writable.getWriter();
+// One command at a time over any link. A subclass sends bytes with send() and passes what arrives to feed().
+export class FrameClient {
+  constructor() {
     this.parser = new FrameParser();
     this.pending = null;
-    this.loop();
   }
-  async loop() {
-    try {
-      for (;;) {
-        const { value, done } = await this.reader.read();
-        if (done) break;
-        const ta = nowS();
-        for (const f of this.parser.push(value)) {
-          const p = this.pending;
-          if (p && f.cmd === p.cmd) {
-            this.pending = null;
-            clearTimeout(p.timer);
-            p.resolve({ ...f, ta });
-          }
-        }
+  feed(chunk) {
+    const ta = nowS();
+    for (const f of this.parser.push(chunk)) {
+      const p = this.pending;
+      if (p && f.cmd === p.cmd) {
+        this.pending = null;
+        clearTimeout(p.timer);
+        p.resolve({ ...f, ta });
       }
-    } catch (e) {
-      this.pending?.reject(e);
-      this.pending = null;
     }
+  }
+  fail(e) {
+    this.pending?.reject(e);
+    this.pending = null;
+  }
+  /** @param {Uint8Array} bytes @returns {Promise<void>} */
+  async send(bytes) {
+    throw new Error("send() not implemented");
   }
   // The reply, with tb and ta: local times just before sending and when the reply arrived.
   async cmd(cmd, data = new Uint8Array(0), timeoutS = 3) {
@@ -116,7 +109,7 @@ export class SerialCU {
       };
     });
     const tb = nowS();
-    await this.writer.write(makeFrame(cmd, 0, data));
+    await this.send(makeFrame(cmd, 0, data));
     return { ...(await reply), tb };
   }
   // The reply, or an error if its status isn't success.
@@ -134,6 +127,34 @@ export class SerialCU {
       ? new TextDecoder().decode(r.data)
       : `? (status 0x${r.status.toString(16)})`;
   }
+}
+
+export class SerialCU extends FrameClient {
+  /** @param {SerialPort} port */
+  async open(port) {
+    this.port = port;
+    // A large read buffer: the interactive trace reply is one ~3.9 KB frame, well over Web Serial's small default
+    // buffer, and a big burst over USB can outrun the read loop and drop bytes with the default. Other pages read in
+    // small pieces, so they never hit it.
+    await port.open({ baudRate: 115200, bufferSize: 1 << 16 });
+    this.reader = port.readable.getReader();
+    this.writer = port.writable.getWriter();
+    this.loop();
+  }
+  async loop() {
+    try {
+      for (;;) {
+        const { value, done } = await this.reader.read();
+        if (done) break;
+        this.feed(value);
+      }
+    } catch (e) {
+      this.fail(e);
+    }
+  }
+  async send(bytes) {
+    await this.writer.write(bytes);
+  }
   async close() {
     try {
       this.reader.cancel();
@@ -146,33 +167,43 @@ export class SerialCU {
 
 // ---------------------------------------------------------------- flashing
 
-// chameleon-ultra.js does the Nordic DFU. The CU reboots into its bootloader, which is a different USB device with
-// its own permission. Chrome remembers the ports it has been allowed, and asks for the bootloader only the first
-// time. After that the flasher finds it. The library always opens the port picker, and connectTo() answers the
-// picker with a known port instead.
+// chameleon-ultra.js does the Nordic DFU, over USB or Bluetooth. The CU reboots into its bootloader, which is a
+// different device with its own permission. Over USB, Chrome remembers the ports it has been allowed and asks for the
+// bootloader only the first time. After that the flasher finds it. Over Bluetooth, the bootloader uses another
+// address, and the person picks it each time. The library always opens the browser's picker, and connectTo() answers
+// the picker with a known port or device instead.
 const CUJS = "https://cdn.jsdelivr.net/npm/chameleon-ultra.js@0.4.7";
 const DFU_USB = { usbVendorId: 0x1915, usbProductId: 0x521f };
 let lib = null;
 
 export async function loadFlashLib() {
   if (!lib) {
-    const [core, ws, dz] = await Promise.all([
+    const [core, ws, wb, dz] = await Promise.all([
       import(`${CUJS}/+esm`),
       import(`${CUJS}/plugin/WebserialAdapter/+esm`),
+      import(`${CUJS}/plugin/WebbleAdapter/+esm`),
       import(`${CUJS}/plugin/DfuZip/+esm`),
     ]);
-    lib = { ...core, WebserialAdapter: ws.default, DfuZip: dz.default };
+    lib = {
+      ...core,
+      WebserialAdapter: ws.default,
+      WebbleAdapter: wb.default,
+      DfuZip: dz.default,
+    };
   }
   return lib;
 }
 
-async function connectTo(ultra, port) {
-  if (!port) return await ultra.connect();
-  navigator.serial.requestPort = async () => port;
+// known is a SerialPort or a BluetoothDevice the page already has.
+async function connectTo(ultra, known) {
+  if (!known) return await ultra.connect();
+  const api = "gatt" in known ? navigator.bluetooth : navigator.serial;
+  const ask = "gatt" in known ? "requestDevice" : "requestPort";
+  api[ask] = async () => known;
   try {
     await ultra.connect();
   } finally {
-    delete navigator.serial.requestPort;
+    delete api[ask];
   }
 }
 
@@ -194,21 +225,27 @@ async function findBootloader(timeoutS = 10) {
   return null;
 }
 
-// One flash. start(knownPort) returns true once the firmware is written. start() returns false when the browser
-// needs the user to allow the bootloader, and then the page calls allowBootloader() from a click.
+// One flash. start(known) returns true once the firmware is written. start() returns false when the browser needs the
+// person to pick or allow the bootloader, and then the page calls allowBootloader() from a click. If a Bluetooth
+// flash stops part-way, allowBootloader() carries on from where the CU stopped.
 // fw is { name, zip } for a package the page serves, or { name, data } with the package's bytes (a file the person
-// picked).
+// picked). ble picks the link: Bluetooth if true, USB if false.
 export class Flasher {
-  constructor(fw, { log, status }) {
+  constructor(fw, { log, status, ble = false }) {
     this.fw = fw;
     this.log = log;
     this.status = status;
+    this.ble = ble;
+    // true once writing has started: the CU may now have no firmware until a flash finishes
+    this.writing = false;
   }
-  async start(knownPort) {
+  async start(known) {
     const L = await loadFlashLib();
     this.ultra = new L.ChameleonUltra();
-    await this.ultra.use(new L.WebserialAdapter());
-    await connectTo(this.ultra, knownPort); // with no known port, the picker needs the user's click
+    await this.ultra.use(
+      this.ble ? new L.WebbleAdapter() : new L.WebserialAdapter(),
+    );
+    await connectTo(this.ultra, known); // with nothing known, the picker needs the person's click
     const ab = this.fw.data ?? (await (await fetch(this.fw.zip)).arrayBuffer());
     const zip = new L.DfuZip(L.Buffer.fromView(new Uint8Array(ab)));
     this.image = await zip.getAppImage();
@@ -224,6 +261,7 @@ export class Flasher {
       `flash: CU on ${await this.ultra.cmdGetGitVersion()}, rebooting it into the bootloader`,
     );
     await this.ultra.cmdDfuEnter();
+    if (this.ble) return false;
     this.status("waiting for the bootloader…");
     const dfuPort = await findBootloader();
     if (!dfuPort) return false;
@@ -235,22 +273,29 @@ export class Flasher {
     await this.ultra.connect();
     if (!this.ultra.isDfu())
       throw new Error(
-        "that port is the CU itself, not its bootloader: try again",
+        this.ble
+          ? "that's the CU itself, not its bootloader (named CU): try again"
+          : "that port is the CU itself, not its bootloader: try again",
       );
     await this.write();
   }
   async write() {
     this.log(`flash: writing ${this.fw.name}, ${this.image.body.length} bytes`);
+    this.writing = true;
     const onProgress = (p) => {
       if (p.type === 2)
         this.status(`writing ${Math.floor((100 * p.offset) / p.size)} %`);
     };
     this.ultra.emitter.on("progress", onProgress);
+    // A phone that locks its screen drops the Bluetooth link, so the page keeps the screen on while it writes.
+    const awake = await navigator.wakeLock?.request("screen").catch(() => null);
     try {
       await this.ultra.dfuUpdateImage(this.image);
     } finally {
       this.ultra.emitter.removeListener("progress", onProgress);
+      awake?.release();
     }
+    this.writing = false;
     this.log(
       `flash: done; the CU restarts on ${this.fw.name}. Connect it again to check.`,
     );

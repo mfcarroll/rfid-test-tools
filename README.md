@@ -1,6 +1,8 @@
 # RFID test tools
 
-Tools for testing RFID devices in the browser (Chrome or Edge, over USB), with command-line versions. Each tool has
+Tools for testing RFID devices in the browser (Chrome or Edge, over USB), with command-line versions. The Chameleon
+pages also connect and flash over Bluetooth, in Chrome or Edge on a computer and in the Bluefy app on an iPhone.
+Chrome on Android should work too, but hasn't been tried. Each tool has
 its own folder and README.
 
 Pages: https://mfcarroll.github.io/rfid-test-tools/

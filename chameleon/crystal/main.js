@@ -25,7 +25,7 @@ import {
   redrawPlots,
 } from "../../common/timerun.js";
 
-cuConnectCard({ cli: true });
+cuConnectCard({ cli: true, ble: false }); // Bluetooth delays replies too unevenly to time them
 
 const FIRMWARE = {
   test: {

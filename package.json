@@ -8,6 +8,7 @@
   },
   "devDependencies": {
     "@types/w3c-web-serial": "1.0.9",
+    "@types/web-bluetooth": "0.0.22",
     "prettier": "3.10.1",
     "typescript": "5.9.3"
   }

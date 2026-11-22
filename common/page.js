@@ -66,17 +66,19 @@ export function saveJson(name, data) {
 
 // The Connect step's heading, instructions and button, in the page's <div id="connectcard">. device names what to
 // connect ("Chameleon Ultra") and short names it on the button ("CU"). prepare says what to plug in and close first.
-// extra adds a sentence of the page's own. cli says the page has a command-line version further down.
-/** @param {{ device: string, short: string, prepare: string, extra?: string, cli?: boolean }} card */
+// needs says which browsers work. extra adds a sentence of the page's own. cli says the page has a command-line version
+// further down.
+/** @param {{ device: string, short: string, prepare: string, needs?: string, extra?: string, cli?: boolean }} card */
 export function connectCard({
   device,
   short,
   prepare,
+  needs = "This page needs Chrome or Edge on a computer.",
   extra = "",
   cli = false,
 }) {
   const note =
-    `${prepare} This page needs Chrome or Edge on a computer.` +
+    `${prepare} ${needs}` +
     (cli ? " The command-line version is further down." : "") +
     (extra ? ` ${extra}` : "");
   const h2 = document.createElement("h2");
@@ -124,8 +126,11 @@ export function showFooter() {
 // Says so on #connectinfo and in the log if the browser has no Web Serial.
 export function hasWebSerial() {
   if ("serial" in navigator) return true;
+  // A Chameleon page has the #link list, and this browser may still reach the CU over Bluetooth.
   const msg =
-    "This browser can't reach USB devices. Use Chrome or Edge on a computer.";
+    $("link") && "bluetooth" in navigator
+      ? "This browser can't reach USB devices. Connect over Bluetooth instead."
+      : "This browser can't reach USB devices. Use Chrome or Edge on a computer.";
   if ($("connectinfo")) $("connectinfo").textContent = msg;
   log(msg);
   return false;
