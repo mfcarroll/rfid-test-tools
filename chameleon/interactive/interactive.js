@@ -381,6 +381,70 @@ export function parseTraceRecord(d, o = 0) {
   };
 }
 
+// Does the tag answer every START_AUTH, or only every second one? The datasheet's tag ignores a START_AUTH that comes
+// while it waits for the password, and the emulation's every-second mode copies that. Within one power-up (a record
+// with a power-up time starts one), look at each START_AUTH that follows an answered START_AUTH with nothing between:
+// answered again counts toward "every", no answer toward "every second". A tag that answers every second one never
+// answers two in a row, but a lost answer looks like a skip. Reading the UID sends START_AUTH until two answers agree,
+// so it shows this. Reading the pages sends one START_AUTH per power-up, which shows nothing.
+export const UID_ANSWER_BITS = 32;
+export function startAuthPattern(txns) {
+  const p = { again: 0, skipped: 0, unclear: 0 };
+  let prev = null; // the previous command's answer if it was a START_AUTH in this power-up, else null
+  for (const t of txns) {
+    if (t.powerUpUs) prev = null;
+    if (t.cmd !== "START_AUTH") {
+      prev = null;
+      continue;
+    }
+    const got =
+      t.nBits >= UID_ANSWER_BITS ? "full" : t.nBits > 0 ? "part" : "none";
+    if (prev === "full") {
+      if (got === "full") p.again++;
+      else if (got === "none") p.skipped++;
+      else p.unclear++;
+    }
+    prev = got;
+  }
+  return p;
+}
+
+// What the START_AUTH counts say, over one or more exchanges with the same tag.
+export function startAuthVerdict({ again, skipped, unclear }) {
+  const times = (n) => (n === 1 ? "once" : `${n} times`);
+  if (again && !skipped)
+    return {
+      kind: "every",
+      text: `START_AUTH: the tag answered two in a row (${times(again)}), so it answers every START_AUTH.`,
+    };
+  if (skipped && !again)
+    return {
+      kind: "every-second",
+      text:
+        `START_AUTH: after each answer the tag ignored the next START_AUTH (${times(skipped)}), so it looks like it ` +
+        `answers only every second one.` +
+        (skipped < 3
+          ? " A lost answer looks the same, so read the UID a few more times to be sure."
+          : ""),
+    };
+  if (again && skipped)
+    return {
+      kind: "every",
+      text:
+        `START_AUTH: the tag answered two in a row ${times(again)}, and ignored the one after an answer ` +
+        `${times(skipped)}. A tag that answers only every second START_AUTH never answers two in a row, so it ` +
+        `most likely answers every one, and the misses were lost answers.`,
+    };
+  return {
+    kind: "unknown",
+    text:
+      "START_AUTH: not enough to tell whether the tag answers every one or every second one." +
+      (unclear
+        ? " Some answers were only partly decoded. Read the UID again."
+        : " Read the UID to find out: reading the pages sends one START_AUTH at a time."),
+  };
+}
+
 // LF_RDR_TRACE_READ reply: total u16 (records since the clear), size u16 (record size), count u8, then count records.
 export function parseReaderTraceReply(d) {
   if (d.length < 5) return null;

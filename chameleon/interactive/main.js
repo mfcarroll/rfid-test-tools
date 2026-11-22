@@ -41,7 +41,8 @@ let cu = null,
   slotTypes = null, // each slot's LF card type, once read
   firmware = "",
   report = null,
-  timing = null; // the last exchange's timing record, for download
+  timing = null, // the last exchange's timing record, for download
+  startAuthTally = new Map(); // per tag UID: the START_AUTH counts over this visit's reads (P.startAuthPattern)
 
 // Step 3 (read the trace) is current once a trace has been read.
 const setState = (state) =>
@@ -441,6 +442,25 @@ async function captureExchange(action, extra) {
   );
   renderExchange(txns);
   log(P.exchangeLogText(txns));
+  showStartAuth(extra?.uid, txns);
+}
+
+// Whether the tag answers every START_AUTH or every second one, added up over this visit's reads of the same tag.
+function showStartAuth(uid, txns) {
+  const key = uid ?? "unknown";
+  const now = P.startAuthPattern(txns);
+  const sum = startAuthTally.get(key) ?? { again: 0, skipped: 0, unclear: 0 };
+  for (const k of Object.keys(sum)) sum[k] += now[k];
+  startAuthTally.set(key, sum);
+  const v = P.startAuthVerdict(sum);
+  $("sainfo").textContent = v.text;
+  $("sainfo").className = "note gap-top" + (v.kind === "unknown" ? "" : " ok");
+  $("sainfo").hidden = false;
+  if (timing) timing.startAuth = { thisRead: now, total: sum, verdict: v.kind };
+  log(
+    `START_AUTH after an answer: answered again ${now.again}, ignored ${now.skipped}, partly decoded ` +
+      `${now.unclear} (this tag so far: ${sum.again}, ${sum.skipped}, ${sum.unclear}; ${v.kind})`,
+  );
 }
 
 $("timingdownload").onclick = () => {

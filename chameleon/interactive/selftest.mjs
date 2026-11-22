@@ -1112,5 +1112,62 @@ check(
   "the safe report warns of two builds and splits the tables by build",
 );
 
+// START_AUTH: every one, or every second one. sa(n, up) is a START_AUTH whose answer decoded n bits; up starts a
+// power-up.
+{
+  const sa = (n, up = 0) => ({ cmd: "START_AUTH", nBits: n, powerUpUs: up });
+  const pw = { cmd: "password", nBits: 37, powerUpUs: 0 };
+  const every = P.startAuthPattern([sa(37, 2968), sa(37)]);
+  check(
+    every.again === 1 && every.skipped === 0,
+    "two answers in a row count once as answered again",
+  );
+  check(
+    P.startAuthVerdict(every).kind === "every",
+    "two in a row means every START_AUTH",
+  );
+  const second = P.startAuthPattern([sa(37, 2968), sa(0), sa(37)]);
+  check(
+    second.skipped === 1 && second.again === 0,
+    "an answer, a miss, an answer counts one skip",
+  );
+  const v1 = P.startAuthVerdict(second);
+  check(
+    v1.kind === "every-second" && v1.text.includes("to be sure"),
+    "one skip looks like every second one, and asks for more reads",
+  );
+  check(
+    !P.startAuthVerdict({ again: 0, skipped: 3, unclear: 0 }).text.includes(
+      "to be sure",
+    ),
+    "three skips need no more reads",
+  );
+  check(
+    P.startAuthVerdict({ again: 2, skipped: 1, unclear: 0 }).kind === "every",
+    "any two in a row outweighs skips, which a lost answer explains",
+  );
+  const firstMissed = P.startAuthPattern([sa(0, 2968), sa(37), sa(37)]);
+  check(
+    firstMissed.again === 1 && firstMissed.skipped === 0,
+    "a miss before the first answer after power-up doesn't count",
+  );
+  const read = P.startAuthPattern([sa(37, 2968), pw, sa(37, 2968), pw]);
+  check(
+    read.again + read.skipped + read.unclear === 0 &&
+      P.startAuthVerdict(read).kind === "unknown",
+    "a page read (one START_AUTH per power-up) tells nothing",
+  );
+  const reset = P.startAuthPattern([sa(37, 2968), sa(0, 2968)]);
+  check(
+    reset.skipped === 0,
+    "a START_AUTH after a power-up isn't compared with the one before it",
+  );
+  const part = P.startAuthPattern([sa(37, 2968), sa(12)]);
+  check(
+    part.unclear === 1 && part.again + part.skipped === 0,
+    "a partly decoded answer counts as unclear",
+  );
+}
+
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exit(failed ? 1 : 0);
