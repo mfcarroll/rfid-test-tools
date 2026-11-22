@@ -150,7 +150,7 @@ export function bindFlashButtons({
     const f = typeof entry === "function" ? await entry() : entry;
     if (!f) return;
     const keep = ble
-      ? "Keep this page open and the phone or computer near the CU until it's done."
+      ? "Keep this page open and in front, near the CU, until it's done."
       : "Keep it plugged in until it's done.";
     if (
       !confirm(`Flash ${f.name} to the CU? This replaces its firmware. ${keep}`)

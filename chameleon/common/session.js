@@ -129,7 +129,7 @@ export function cuConnectCard({ extra, cli, ble = true } = {}) {
     prepare:
       "For USB, plug the CU in. For Bluetooth, press a button on the CU to wake it. Close anything else using the CU, such as the CU app or the Python CLI.",
     needs:
-      "USB needs Chrome or Edge on a computer. Bluetooth works in Chrome or Edge on a computer or an Android phone, and on an iPhone only in the Bluefy app (not tried).",
+      "USB needs Chrome or Edge on a computer. Bluetooth works in Chrome or Edge on a computer, and on an iPhone in the Bluefy app. Chrome on Android should work too, but hasn't been tried.",
     extra,
     cli,
   });

@@ -6,7 +6,8 @@ import { FrameClient } from "./cu.js";
 export const NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const NUS_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // the page writes here
 const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // the CU notifies here
-export const DFU_SERVICE = 0xfe59; // the bootloader's Secure DFU service
+// The bootloader's Secure DFU service, 0xFE59, written out in full: Bluefy may lack BluetoothUUID.
+export const DFU_SERVICE = "0000fe59-0000-1000-8000-00805f9b34fb";
 
 // What the browser's device list shows: the CU, which advertises as "ChameleonUltra", and its bootloader, which
 // advertises as "CU" with the DFU service. The service filters cover Bluefy, which ignores name filters.
@@ -45,12 +46,11 @@ export class BleCU extends FrameClient {
     };
     device.addEventListener("gattserverdisconnected", this.onDisconnect);
     const gatt = await device.gatt.connect();
-    const services = await gatt.getPrimaryServices();
-    const nus = services.find((s) => s.uuid === NUS_SERVICE);
+    // Ask for each service by its UUID. In Bluefy 3.9.3, no service from getPrimaryServices() matched these strings.
+    const service = (uuid) => gatt.getPrimaryService(uuid).catch(() => null);
+    const nus = await service(NUS_SERVICE);
     if (!nus) {
-      const dfu = services.some(
-        (s) => s.uuid === BluetoothUUID.getService(DFU_SERVICE),
-      );
+      const dfu = (await service(DFU_SERVICE)) !== null;
       await this.close();
       throw new Error(
         dfu
@@ -75,6 +75,8 @@ export class BleCU extends FrameClient {
     for (let i = 0; i < bytes.length; i += WRITE_MAX)
       await write(bytes.slice(i, i + WRITE_MAX));
   }
+  // Resolves once the browser has reported the disconnect, or after a second. The flasher opens the same device next,
+  // and Bluefy delivers the disconnect event late: a late event would end the flasher's connection.
   async close() {
     this.closing = true;
     try {
@@ -83,7 +85,15 @@ export class BleCU extends FrameClient {
         "gattserverdisconnected",
         this.onDisconnect,
       );
+      if (!this.port.gatt.connected) return;
+      const gone = new Promise((resolve) => {
+        this.port.addEventListener("gattserverdisconnected", resolve, {
+          once: true,
+        });
+        setTimeout(resolve, 1000);
+      });
       this.port.gatt.disconnect();
+      await gone;
     } catch {}
   }
 }
