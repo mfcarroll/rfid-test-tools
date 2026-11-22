@@ -37,7 +37,9 @@ in a log. The CU keeps the log in RAM while a reader's field is present and save
 none is, so it survives sleep and a power loss. That holds about two days of testing like 20 November's. So you can
 clear the log, unplug the CU, test every slot at the readers on battery, and read the log back here afterwards. Each
 wake from sleep is a new boot in the report. Read the log out before flashing other firmware: a build with a
-different log format erases it. Firmware from before the flash log keeps a 48-record trace in RAM instead, and the
+different log format erases it. The log keeps going across a flash of a build with the same format, so it names the firmware behind each
+presentation, and the report splits its tables by build if there is more than one. **Download and clear the log**
+saves the log and then clears it, so the next test starts fresh. Firmware from before the flash log keeps a 48-record trace in RAM instead, and the
 page reads that.
 
 The report splits in two, like the field page:

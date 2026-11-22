@@ -1055,5 +1055,47 @@ check(
   "the private details hold the logged password",
 );
 
+// Two firmware builds in one log: each presentation names its build, and the report splits the tables by build.
+const fwEntry = (v) =>
+  entry(5, new TextEncoder().encode(v + "\0".repeat(4 - (v.length % 4))));
+const two = P.parseLogStream(
+  cat(
+    fwEntry("v2.3.0-74-gc514d78"),
+    logHeader(1, 1, 1000, 3, 1),
+    logOff(1, 2000, 0),
+    fwEntry("v2.3.0-75-gabcdef0"),
+    logHeader(1, 2, 1000, 3, 1),
+    logOff(2, 2000, 0),
+  ),
+);
+check(
+  two.firmwares.length === 2 &&
+    two.recs[0].firmware === "v2.3.0-74-gc514d78" &&
+    two.recs[1].firmware === "v2.3.0-75-gabcdef0",
+  "each presentation carries the firmware that made it",
+);
+const twoSafe = P.safeMarkdown({
+  firmware: "v2.3.0-75-gabcdef0",
+  counters: { sessions: 2, commands: 0, responses: 0, late: 0 },
+  boot: 1,
+  total: two.recs.length,
+  keep: 0,
+  recs: two.recs,
+  log: {
+    state: 2,
+    saved: 100,
+    capacity: 196592,
+    pending: 0,
+    bad: 0,
+    dropped: 0,
+    firmwares: two.firmwares,
+  },
+});
+check(
+  twoSafe.includes("spans 2 firmware builds") &&
+    twoSafe.includes("| v2.3.0-74-gc514d78 slot 3 |"),
+  "the safe report warns of two builds and splits the tables by build",
+);
+
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exit(failed ? 1 : 0);

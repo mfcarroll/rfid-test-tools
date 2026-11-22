@@ -616,7 +616,7 @@ export function crc16(b, n) {
   return c;
 }
 
-const E = { HEADER: 1, FIELD_OFF: 2, COMMAND: 3, TOTALS: 4 };
+const E = { HEADER: 1, FIELD_OFF: 2, COMMAND: 3, TOTALS: 4, FIRMWARE: 5 };
 const CF = {
   LATE: 1,
   GAPS_DROPPED: 2,
@@ -628,7 +628,8 @@ const CF = {
 const ENTRY_MAGIC = 0xa0 + LOG_FORMAT;
 
 // The log's stream (the format comment in lf_ia_trace.c) as records in the trace's shape, so the report reads both.
-// A presentation with no command still gives its field-off record. An entry that fails its checksum is skipped word
+// A presentation with no command still gives its field-off record. Each record carries the firmware that made it:
+// the log keeps going across a flash, and a firmware entry marks each start after one. An entry that fails its checksum is skipped word
 // by word; `bad` counts each such run once.
 export function parseLogStream(buf) {
   const v = new DataView(buf.buffer, buf.byteOffset, buf.length);
@@ -639,7 +640,9 @@ export function parseLogStream(buf) {
     orphans = 0,
     inBad = false,
     head = null, // the current presentation: its header and its records
-    totals = null;
+    totals = null,
+    firmware = null;
+  const firmwares = [];
   const close = () => {
     if (!head) return;
     // The measurement comes with the field-off record, so the commands' timing is filled in at the end.
@@ -656,14 +659,16 @@ export function parseLogStream(buf) {
         slot: head.slot,
         measUs: off?.measUs ?? 0,
       };
+      r.firmware = head.firmware;
       recs.push(r);
     }
     head = null;
   };
   let pos = 0;
-  while (pos + 8 <= buf.length) {
-    const n = 4 * buf[pos + 2];
+  while (pos < buf.length) {
+    const n = pos + 8 <= buf.length ? 4 * buf[pos + 2] : 0;
     const ok =
+      n > 0 &&
       buf[pos] === ENTRY_MAGIC &&
       buf[pos + 2] >= 2 &&
       pos + n <= buf.length &&
@@ -686,6 +691,7 @@ export function parseLogStream(buf) {
         tSessionUs: u32(p + 4),
         slot: buf[p + 8],
         mode: buf[p + 9],
+        firmware,
         recs: [],
         done: false,
       };
@@ -760,11 +766,19 @@ export function parseLogStream(buf) {
       }
     } else if (type === E.TOTALS) {
       totals = { boot: u16(p), session: u32(p + 4) };
+    } else if (type === E.FIRMWARE) {
+      close();
+      const raw = buf.subarray(p, pos + n - 4);
+      const end = raw.indexOf(0);
+      firmware = new TextDecoder().decode(
+        raw.subarray(0, end < 0 ? raw.length : end),
+      );
+      if (!firmwares.includes(firmware)) firmwares.push(firmware);
     }
     pos += n;
   }
   close();
-  return { recs, bad, orphans, totals };
+  return { recs, bad, orphans, totals, firmwares };
 }
 
 // ---------------------------------------------------------------- outcomes per slot and per mode
@@ -1059,6 +1073,10 @@ export function safeMarkdown(r) {
           : ""),
     );
   }
+  if (r.log?.firmwares?.length > 1)
+    L.push(
+      `- ⚠ The log spans ${r.log.firmwares.length} firmware builds (${r.log.firmwares.join(", ")}). The tables split by build. Clear the log after reading it, so the next test starts fresh.`,
+    );
   if (r.total > r.recs.length)
     L.push(
       `- ⚠ ${r.total} records were made and ${r.recs.length} kept: the first ${r.keep} and the latest, with ${r.total - r.recs.length} in between overwritten`,
@@ -1073,17 +1091,25 @@ export function safeMarkdown(r) {
     return L.join("\n");
   }
   if (r.log) {
+    const fw =
+      r.log.firmwares?.length > 1
+        ? (s) => `${(s.off ?? s.commands[0])?.firmware ?? "?"} `
+        : () => "";
     L.push(
       "",
       tableMarkdown(
         "Per slot",
-        outcomeTable(ss, (s) => (slotOf(s) ? `slot ${slotOf(s)}` : null)),
+        outcomeTable(ss, (s) =>
+          slotOf(s) ? `${fw(s)}slot ${slotOf(s)}` : null,
+        ),
       ),
       "",
       tableMarkdown(
         "Per mode",
         outcomeTable(ss, (s) =>
-          modeOf(s) === null ? null : `${modeOf(s)} ${modeFlags(modeOf(s))}`,
+          modeOf(s) === null
+            ? null
+            : `${fw(s)}${modeOf(s)} ${modeFlags(modeOf(s))}`,
         ),
       ),
     );

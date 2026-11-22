@@ -59,6 +59,7 @@ const CONTROLS = [
   "read",
   "reconnect",
   "timingdownload",
+  "downloadclear",
   "showenvelope",
   "flashTest",
   "flashStock",
@@ -619,36 +620,36 @@ $("loadslot").onclick = () =>
     log(`loaded slot ${slot + 1}'s Hitag 2 card, UID ${P.uidOf(data)}`);
   });
 
-$("clear").onclick = () =>
-  run("clear", async () => {
-    need();
-    $("resultbox").hidden = true;
-    if (!hasLog) {
-      await cu.ok(P.CMD.LF_IA_TRACE_CLEAR);
-      $("clearinfo").textContent =
-        "Trace cleared. Unplug the CU and hold it to the reader.";
-      log("trace cleared");
-      return;
-    }
-    // The CU erases the log's flash a page at a time after the clear. Wait for it, so the log saves from the start.
-    await cu.ok(P.CMD.LF_IA_LOG_CLEAR);
-    const t0 = Date.now();
-    let info;
-    for (;;) {
-      info = P.parseLogInfo((await cu.ok(P.CMD.LF_IA_LOG_INFO)).data);
-      if (!info || info.state !== 1 || Date.now() - t0 > 60000) break;
-      $("clearinfo").textContent =
-        `Erasing the log: ${info.eraseLeft} page(s) to go…`;
-      await new Promise((ok) => setTimeout(ok, 500));
-    }
+$("clear").onclick = () => run("clear", clearLog);
+async function clearLog() {
+  need();
+  $("resultbox").hidden = true;
+  if (!hasLog) {
+    await cu.ok(P.CMD.LF_IA_TRACE_CLEAR);
     $("clearinfo").textContent =
-      info?.state === 2
-        ? `Log cleared: ${Math.round(info.capacity / 1024)} KB free. Unplug the CU and take it to the readers.`
-        : `Log cleared, but its state is ${P.LOG_STATE[info?.state] ?? "unknown"}. Read the log to check.`;
-    log(
-      `log cleared in ${((Date.now() - t0) / 1000).toFixed(1)} s, ${P.LOG_STATE[info?.state] ?? "?"}`,
-    );
-  });
+      "Trace cleared. Unplug the CU and hold it to the reader.";
+    log("trace cleared");
+    return;
+  }
+  // The CU erases the log's flash a page at a time after the clear. Wait for it, so the log saves from the start.
+  await cu.ok(P.CMD.LF_IA_LOG_CLEAR);
+  const t0 = Date.now();
+  let info;
+  for (;;) {
+    info = P.parseLogInfo((await cu.ok(P.CMD.LF_IA_LOG_INFO)).data);
+    if (!info || info.state !== 1 || Date.now() - t0 > 60000) break;
+    $("clearinfo").textContent =
+      `Erasing the log: ${info.eraseLeft} page(s) to go…`;
+    await new Promise((ok) => setTimeout(ok, 500));
+  }
+  $("clearinfo").textContent =
+    info?.state === 2
+      ? `Log cleared: ${Math.round(info.capacity / 1024)} KB free. Unplug the CU and take it to the readers.`
+      : `Log cleared, but its state is ${P.LOG_STATE[info?.state] ?? "unknown"}. Read the log to check.`;
+  log(
+    `log cleared in ${((Date.now() - t0) / 1000).toFixed(1)} s, ${P.LOG_STATE[info?.state] ?? "?"}`,
+  );
+}
 
 // ---------------------------------------------------------------- read the trace
 // One trace-read batch is as many records as fit a single frame (~4 KB) — far larger than the other replies. Give
@@ -720,7 +721,12 @@ async function readLog() {
     boot: info.boot,
     recs: parsed.recs,
     counters: info.counters,
-    log: { ...info, bad: parsed.bad, orphans: parsed.orphans },
+    log: {
+      ...info,
+      bad: parsed.bad,
+      orphans: parsed.orphans,
+      firmwares: parsed.firmwares,
+    },
     streamHex: [...stream].map((x) => x.toString(16).padStart(2, "0")).join(""),
   };
 }
@@ -768,14 +774,26 @@ $("read").onclick = () =>
 
 // The whole log, raw stream included, so lfia.py can analyse it again. It holds the card's pages and the reader's
 // password: keep it private.
-$("download").onclick = () => {
+function downloadReport() {
   if (!report) return;
   const day = (report.readAt ?? new Date().toISOString()).slice(0, 10);
   saveJson(
     report.log ? `cu-flash-log-${day}.json` : "cu-interactive-trace.json",
     report,
   );
-};
+}
+$("download").onclick = downloadReport;
+// Clearing after a read keeps the next test's results apart from these, and keeps the full-log rule from dropping
+// a slot's later presentations. The download comes first, so nothing is lost.
+$("downloadclear").onclick = () =>
+  run("downloadclear", async () => {
+    if (!report) return;
+    downloadReport();
+    await clearLog();
+    $("readinfo").textContent =
+      "Downloaded and cleared. The report below stays until you leave the page.";
+    $("resultbox").hidden = false;
+  });
 
 // ---------------------------------------------------------------- firmware flashing
 bindFlashButtons({
