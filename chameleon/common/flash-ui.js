@@ -5,13 +5,23 @@
 //             "Flash <name>". An entry may instead be a function that returns the firmware ({ name, data } for a file
 //             the person picked), or null to cancel. A "file" button with no entry uses pickFile().
 //   buttons:  which button flashes which entry, { key: element id }. The default is test, stock and file as above.
-//   port():    the connected CU's port, reused so the browser doesn't ask again (or null)
+//   port():    the connected CU's SerialPort or BluetoothDevice, reused so the browser doesn't ask again (or null)
 //   release(): close the page's connection to the CU before flashing
 //   busy():    a reason not to flash now, or null
 //   done(fw):  called after a flash succeeds, with the firmware flashed
 
 import { Flasher, loadFlashLib } from "./cu.js";
+import { hasWebBluetooth } from "./ble.js";
 import { $, log, hasWebSerial, utcTime } from "../../common/page.js";
+
+// Whether to flash over Bluetooth: if the page's CU is connected over Bluetooth, if the Connect step's link list says
+// Bluetooth, or, on a page with no list, if the browser has Bluetooth and no USB access (a phone).
+function useBle(known) {
+  if (known) return "gatt" in known;
+  const link = /** @type {HTMLSelectElement | null} */ ($("link"));
+  if (link) return link.value === "ble";
+  return !("serial" in navigator) && hasWebBluetooth();
+}
 
 // A firmware entry's version string (git describe) and its commit's time, if it has one:
 // "v2.3.0-72-gf559dee, 2026-11-20 07:31 UTC".
@@ -89,7 +99,7 @@ export function showFirmware(text, needsFlash) {
  * @param {{
  *   firmware: Record<string, any>,
  *   buttons?: Record<string, string>,
- *   port: () => SerialPort | null,
+ *   port: () => SerialPort | BluetoothDevice | null,
  *   release: () => Promise<void>,
  *   busy?: () => string | null,
  *   done?: (fw: any) => void,
@@ -116,25 +126,42 @@ export function bindFlashButtons({
     if (msg !== undefined) $("flashinfo").textContent = msg;
   };
 
+  // The bootloader button's text and the status line while it waits, by link.
+  const askBootloader = (ble) => {
+    $("flashDfu").textContent = ble
+      ? "Pick the bootloader"
+      : "Allow the bootloader (first time only)";
+    $("flashDfu").hidden = false;
+    setFlashing(
+      true,
+      ble
+        ? "the CU restarted in its bootloader: pick it (named CU) in the list"
+        : "the CU restarted in its bootloader: allow it once (it may look the same as the CU in the list)",
+    );
+  };
+
   async function start(which) {
-    if (!hasWebSerial()) return;
+    const known = port();
+    const ble = useBle(known);
+    if (ble ? !hasWebBluetooth() : !hasWebSerial()) return;
     const why = busy();
     if (why) return log(why);
     const entry = firmware[which] ?? (which === "file" ? pickFile : null);
     const f = typeof entry === "function" ? await entry() : entry;
     if (!f) return;
+    const keep = ble
+      ? "Keep this page open and the phone or computer near the CU until it's done."
+      : "Keep it plugged in until it's done.";
     if (
-      !confirm(
-        `Flash ${f.name} to the CU? This replaces its firmware. Keep it plugged in until it's done.`,
-      )
+      !confirm(`Flash ${f.name} to the CU? This replaces its firmware. ${keep}`)
     )
       return;
-    const known = port();
     setFlashing(true, known ? "starting…" : "pick the CU…");
     await release();
     flash = new Flasher(f, {
       log,
       status: (m) => ($("flashinfo").textContent = m),
+      ble,
     });
     try {
       if (await flash.start(known)) {
@@ -143,16 +170,26 @@ export function bindFlashButtons({
         done(f);
         return;
       }
+      askBootloader(ble);
+    } catch (e) {
+      failed(e);
+    }
+  }
+
+  // A Bluetooth flash that stopped while writing leaves the CU in its bootloader, so the button offers to carry on.
+  function failed(e) {
+    log(`flash failed: ${e.message}`);
+    if (flash?.ble && flash.writing) {
+      $("flashDfu").textContent = "Pick the bootloader and carry on";
       $("flashDfu").hidden = false;
       setFlashing(
         true,
-        "the CU restarted in its bootloader: allow it once (it may look the same as the CU in the list)",
+        "the flash stopped part-way, and the CU waits in its bootloader: pick it (named CU) to carry on",
       );
-    } catch (e) {
-      log(`flash failed: ${e.message}`);
-      setFlashing(false, "flash failed: see the log");
-      flash = null;
+      return;
     }
+    setFlashing(false, "flash failed: see the log");
+    flash = null;
   }
 
   for (const [key, id] of Object.entries(buttons))
@@ -166,9 +203,15 @@ export function bindFlashButtons({
       flash = null;
       done(flashed);
     } catch (e) {
+      if (flash.ble && flash.writing) return failed(e);
       log(`flash failed: ${e.message}`);
       $("flashDfu").hidden = false;
-      setFlashing(true, "select the bootloader port to try again");
+      setFlashing(
+        true,
+        flash.ble
+          ? "pick the bootloader (named CU) to try again"
+          : "select the bootloader port to try again",
+      );
     }
   };
 }

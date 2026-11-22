@@ -7,7 +7,7 @@
     "module": "es2022",
     "moduleResolution": "bundler",
     "lib": ["es2023", "dom", "dom.iterable"],
-    "types": ["w3c-web-serial"]
+    "types": ["w3c-web-serial", "web-bluetooth"]
   },
   "include": [
     "common/*.js",
