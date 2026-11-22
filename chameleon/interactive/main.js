@@ -6,6 +6,7 @@ import {
   showFirmware,
 } from "../common/flash-ui.js";
 import { openCU, watchDisconnect, cuConnectCard } from "../common/session.js";
+import { SerialCU } from "../common/cu.js";
 import {
   $,
   log,
@@ -293,14 +294,22 @@ async function resetTrace() {
   if (hasTrace) await cu.cmd(P.CMD.LF_RDR_TRACE_CLEAR);
 }
 
-// The trace, capture and log read-outs page replies of up to ~4 KB, far larger than the other replies. Over USB, a
-// reply that large has lost bytes and never arrived. retried() calls send() up to three times and logs each failure
-// under what.
-async function retried(what, send) {
+// The trace, capture and log read-outs page replies of up to ~4 KB, far larger than the other replies. Web Serial on
+// macOS loses bytes of replies that large now and then, and the reply then never completes. A whole reply arrives in
+// milliseconds, so over USB a read-out waits USB_READ_TIMEOUT_S before it tries again, and the log reads in
+// USB_LOG_PAGE pieces. Bluetooth keeps the longer timeouts and 4 KB pieces, because its speed hasn't been measured.
+const USB_READ_TIMEOUT_S = 2;
+const USB_LOG_PAGE = 1024;
+const overUsb = () => cu instanceof SerialCU;
+
+// retried() calls send() up to three times, each with the timeout for the link (longS over Bluetooth), and logs each
+// failure under what.
+async function retried(what, longS, send) {
+  const timeoutS = overUsb() ? USB_READ_TIMEOUT_S : longS;
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      return await send();
+      return await send(timeoutS);
     } catch (e) {
       lastErr = e;
       log(`${what}: attempt ${attempt} ${e.message}`);
@@ -315,8 +324,8 @@ async function readCapture() {
   let total = 0;
   for (;;) {
     const off = samples.length;
-    const r = await retried(`capture read from ${off}`, () =>
-      cu.cmd(P.CMD.LF_RDR_CAPTURE, Uint8Array.of(off >> 8, off & 0xff), 6),
+    const r = await retried(`capture read from ${off}`, 6, (t) =>
+      cu.cmd(P.CMD.LF_RDR_CAPTURE, Uint8Array.of(off >> 8, off & 0xff), t),
     );
     if (r.status !== P.STATUS.SUCCESS) break;
     const part = P.parseCapture(r.data);
@@ -336,11 +345,11 @@ async function readReaderTrace() {
   let total = 0;
   for (;;) {
     const first = recs.length;
-    const r = await retried(`reader trace read from ${first}`, () =>
+    const r = await retried(`reader trace read from ${first}`, 6, (t) =>
       cu.cmd(
         P.CMD.LF_RDR_TRACE_READ,
         Uint8Array.of(first >> 8, first & 0xff),
-        6,
+        t,
       ),
     );
     if (r.status !== P.STATUS.SUCCESS) break;
@@ -693,7 +702,7 @@ async function clearLog() {
 }
 
 // ---------------------------------------------------------------- read the trace
-// One trace-read batch is as many records as fit a single frame (~4 KB), so it gets a longer timeout and retries.
+// One trace-read batch is as many records as fit a single frame (~4 KB).
 async function readTrace() {
   const recs = [];
   let total = 0,
@@ -701,8 +710,8 @@ async function readTrace() {
     boot = 0;
   for (;;) {
     const first = recs.length;
-    const r = await retried(`trace read from ${first}`, () =>
-      cu.ok(P.CMD.LF_IA_TRACE_READ, P.reqTraceRead(first), 8),
+    const r = await retried(`trace read from ${first}`, 8, (t) =>
+      cu.ok(P.CMD.LF_IA_TRACE_READ, P.reqTraceRead(first), t),
     );
     const part = P.parseTraceReply(r.data);
     if (!P.REC_SIZES.has(part.size))
@@ -716,7 +725,7 @@ async function readTrace() {
   }
   return { total, keep, boot, recs };
 }
-// The flash log: its summary, then its stream in pieces of up to ~4 KB, each retried like a trace batch.
+// The flash log: its summary, then its stream in pieces, each retried like a trace batch.
 async function readLog() {
   const info = P.parseLogInfo((await cu.ok(P.CMD.LF_IA_LOG_INFO)).data);
   if (!info || info.format !== P.LOG_FORMAT)
@@ -727,8 +736,12 @@ async function readLog() {
   let have = 0;
   for (;;) {
     const from = have;
-    const r = await retried(`log read from ${from}`, () =>
-      cu.ok(P.CMD.LF_IA_LOG_READ, P.reqLogRead(from), 8),
+    const r = await retried(`log read from ${from}`, 8, (t) =>
+      cu.ok(
+        P.CMD.LF_IA_LOG_READ,
+        P.reqLogRead(from, overUsb() ? USB_LOG_PAGE : undefined),
+        t,
+      ),
     );
     const part = P.parseLogReadReply(r.data);
     if (!part.bytes.length) break;
