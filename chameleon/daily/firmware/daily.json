@@ -1,16 +1,16 @@
 {
- "version": "v2.3.0-163-g1da3607",
- "commit": "1da36074",
- "committed": "2026-11-22T01:10:51Z",
- "published": "2026-11-22T01:38:04Z",
- "zip": "daily-1da36074-ultra-dfu-app.zip",
+ "version": "v2.3.0-175-g337e1e3",
+ "commit": "337e1e31",
+ "committed": "2026-11-22T05:41:49Z",
+ "published": "2026-11-22T05:49:22Z",
+ "zip": "daily-337e1e31-ultra-dfu-app.zip",
  "upstream": {
   "commit": "6009a5fb",
   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/commit/6009a5fb8adbb92d3efb548eaac9e501bd179801"
  },
  "source": {
-  "commit": "fcadc861",
-  "url": "https://github.com/mfcarroll/ChameleonUltra/tree/fcadc861451d435d7c8137deed19b99a7325e552"
+  "commit": "4a023772",
+  "url": "https://github.com/mfcarroll/ChameleonUltra/tree/4a023772993d628c96d739ac0b97ea6b8ccb0d84"
  },
  "changes": [
   {
