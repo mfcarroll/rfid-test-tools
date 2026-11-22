@@ -944,7 +944,14 @@ const stream = cat(
     bits: SA,
     answered: true,
     tx: UIDA,
-    gaps: [[0, 50]],
+    gaps: [
+      [0, 50],
+      [240, 50],
+      [480, 50],
+      [640, 50],
+      [800, 50],
+      [960, 50],
+    ],
   }),
   logCmd({ session: 7, t: 16000, bits: PWD, answered: true, tx: UIDA }),
   logCmd({ session: 7, t: 30000, bits: READ0, answered: true, tx: UIDA }),
@@ -979,7 +986,7 @@ const lss = P.sessions(L.recs);
 check(lss.length === 3, `three presentations from the log (${lss.length})`);
 check(lss[0].commands[1].bits === PWD, "a logged password decodes to its bits");
 check(
-  lss[0].commands[0].gaps.length === 1 && lss[0].commands[1].gaps.length === 0,
+  lss[0].commands[0].gaps.length === 6 && lss[0].commands[1].gaps.length === 0,
   "gaps come back only where the log kept them",
 );
 check(
@@ -1045,6 +1052,14 @@ check(
 check(
   lsafe.includes("skipped for a bad checksum"),
   "the safe report says an entry was skipped",
+);
+check(
+  lsafe.includes("**Timing per slot") &&
+    lsafe.includes("**Timing per mode**") &&
+    lsafe.includes("| slot 1 | 1 | 5.0 | 29.0 | 1.0 |") &&
+    lsafe.includes("gap to gap 160 µs for a 0 and 240 µs for a 1") &&
+    lsafe.includes("carrier 125.012 kHz"),
+  "the safe report carries the timing tables and the reader's timing",
 );
 check(
   !lsafe.includes(PWD) && !lsafe.includes(READ0),

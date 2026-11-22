@@ -46,7 +46,11 @@ The report splits in two, like the field page:
 
 - **Safe to share.** With the flash log, a table per slot and per mode: presentations, how far each got (accepted,
   password answered, password not matched, UID only, nothing decoded, no command), the median time to acceptance,
-  and which START_AUTH the accepted password followed. Then per field session: whether a reader's field appeared, whether it sent START_AUTH and the CU
+  and which START_AUTH the accepted password followed. A timing table per slot and per mode gives the medians of the time
+  to the first command and to acceptance, the reader's turnaround after the UID and after the password, the carrier
+  and the field level, and counts of late answers, undecoded commands, field resets and answers the field dropped
+  during. A line on the reader gives its carrier, pulse width and gap-to-gap times for a 0 and a 1. Timings and counts
+  only: none of it shows a command's content. Then per field session: whether a reader's field appeared, whether it sent START_AUTH and the CU
   answered its UID, whether it sent a 32-bit password command (password mode) or a 64-bit command (crypto mode,
   which this emulation does not support), and how many pages it read. It gives the emulated UID and counts of
   commands and answers, and, if the reader's password was recovered, says so — without the value. It never gives the

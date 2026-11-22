@@ -832,15 +832,86 @@ export function presentationOutcome(s) {
         break;
       }
   }
+  // The reader's turnaround: from the end of the CU's answer to the start of the reader's next command. A command's
+  // start is known only where the log kept its gaps (the first of each kind in a session).
+  const turn = { start: [], password: [] };
+  let fieldDrops = 0;
+  for (let i = 0; i < cmds.length; i++) {
+    const c = cmds[i];
+    if (!ans(c) || !c.tTxUs) continue;
+    if (c.tFieldSeenUs && c.tFieldSeenUs < c.tTxEndUs - 50) fieldDrops++;
+    const n = cmds[i + 1];
+    const k = kind(c);
+    if (n?.gaps?.length && (k === "start" || k === "password")) {
+      const g = n.gaps[n.gaps.length - 1];
+      turn[k].push(n.tUs - g.startUs - g.widthUs - c.tTxEndUs);
+    }
+  }
+  const off = s.off;
   return {
     outcome,
     afterStart,
     acceptMs: reads.length ? (reads[0].tUs - s.tSessionUs) / 1000 : null,
+    firstMs: cmds.length ? (cmds[0].tUs - s.tSessionUs) / 1000 : null,
+    starts: cmds.filter((c) => kind(c) === "start").length,
+    passwords: cmds.filter((c) => kind(c) === "password").length,
+    reads: cmds.filter((c) => kind(c) === "read").length,
+    late: cmds.filter((c) => c.flags & FLAG.LATE).length,
+    failed: cmds.filter((c) => c.decode !== 0).length,
+    fieldDrops,
     resets: cmds.filter(
       (c) =>
         (c.maxGapUs ?? Math.max(0, ...c.gaps.map((g) => g.widthUs))) >=
         RESET_GAP_US,
     ).length,
+    carrierHz: (off ?? cmds[0])?.timing?.fcMeasuredHz || null,
+    level: cmds.length ? cmds[0].level : (off?.level ?? null),
+    turnStartUs: turn.start,
+    turnPasswordUs: turn.password,
+  };
+}
+
+const median = (v) => {
+  const a = v
+    .filter((x) => x !== null && x !== undefined)
+    .sort((x, y) => x - y);
+  return a.length ? a[a.length >> 1] : null;
+};
+const fmt = (x, d = 0) => (x === null ? "–" : x.toFixed(d));
+
+// The reader's own timing over every presentation: its carrier, its pulse (gap) width, the gap-to-gap interval of a
+// 0 and of a 1, and its turnaround after the CU's answers. Medians only, so no command's content shows.
+export function readerTiming(ss) {
+  const widths = [],
+    zero = [],
+    one = [],
+    carrier = [],
+    tStart = [],
+    tPassword = [];
+  for (const s of ss) {
+    const o = presentationOutcome(s);
+    carrier.push(o.carrierHz);
+    tStart.push(...o.turnStartUs);
+    tPassword.push(...o.turnPasswordUs);
+    for (const c of s.commands) {
+      if (c.decode !== 0 || c.gaps.length < 2) continue;
+      for (let i = 0; i < c.gaps.length; i++) {
+        widths.push(c.gaps[i].widthUs);
+        if (i + 1 < c.gaps.length && i < c.bits.length)
+          (c.bits[i] === "1" ? one : zero).push(
+            c.gaps[i + 1].startUs - c.gaps[i].startUs,
+          );
+      }
+    }
+  }
+  return {
+    carrierHz: median(carrier),
+    gapUs: median(widths),
+    zeroUs: median(zero),
+    oneUs: median(one),
+    turnStartUs: median(tStart),
+    turnPasswordUs: median(tPassword),
+    samples: widths.length,
   };
 }
 
@@ -871,12 +942,23 @@ export function outcomeTable(ss, key) {
       .map(({ o }) => o.acceptMs)
       .filter((x) => x !== null)
       .sort((a, b) => a - b);
+    const sum = (f) => g.reduce((a, { o }) => a + f(o), 0);
     rows.push({
       key: k,
       presentations: g.length,
       counts,
       medianAcceptMs: ms.length ? ms[ms.length >> 1] : null,
       starts,
+      medianFirstMs: median(g.map(({ o }) => o.firstMs)),
+      startsPer: g.length ? sum((o) => o.starts) / g.length : 0,
+      late: sum((o) => o.late),
+      failed: sum((o) => o.failed),
+      resets: sum((o) => o.resets),
+      fieldDrops: sum((o) => o.fieldDrops),
+      carrierHz: median(g.map(({ o }) => o.carrierHz)),
+      level: median(g.map(({ o }) => o.level)),
+      turnStartUs: median(g.flatMap(({ o }) => o.turnStartUs)),
+      turnPasswordUs: median(g.flatMap(({ o }) => o.turnPasswordUs)),
     });
   }
   return rows;
@@ -897,6 +979,20 @@ function tableMarkdown(title, rows) {
           .map(([k, n]) => `${k}: ${n}`)
           .join(", ") || "–"
       } |`,
+    );
+  return L.join("\n");
+}
+
+function timingMarkdown(title, rows) {
+  const L = [
+    `**${title}**`,
+    "",
+    "| | pres | first cmd ms | accept ms | START_AUTH per pres | late | not decoded | field resets | field gone mid-answer | carrier kHz | level | turnaround after UID µs | after password µs |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+  ];
+  for (const r of rows)
+    L.push(
+      `| ${r.key} | ${r.presentations} | ${fmt(r.medianFirstMs, 1)} | ${fmt(r.medianAcceptMs, 1)} | ${r.startsPer.toFixed(1)} | ${r.late} | ${r.failed} | ${r.resets} | ${r.fieldDrops} | ${r.carrierHz ? (r.carrierHz / 1000).toFixed(3) : "–"} | ${fmt(r.level)} | ${fmt(r.turnStartUs)} | ${fmt(r.turnPasswordUs)} |`,
     );
   return L.join("\n");
 }
@@ -1050,7 +1146,7 @@ export function safeMarkdown(r) {
   const c = r.counters;
   if (c)
     L.push(
-      `- Trace: ${c.sessions} field session(s), ${c.commands} command(s), ${c.responses} answered, ${c.late} late, since the trace was cleared (boot ${r.boot})`,
+      `- ${r.log ? "Counters" : "Trace"}: ${c.sessions} field session(s), ${c.commands} command(s), ${c.responses} answered, ${c.late} late, since the ${r.log ? "log" : "trace"} was cleared (boot ${r.boot})`,
     );
   const pw = recoverPassword(r.recs);
   if (pw)
@@ -1112,7 +1208,29 @@ export function safeMarkdown(r) {
             : `${fw(s)}${modeOf(s)} ${modeFlags(modeOf(s))}`,
         ),
       ),
+      "",
+      timingMarkdown(
+        "Timing per slot (medians, and counts over all presentations)",
+        outcomeTable(ss, (s) =>
+          slotOf(s) ? `${fw(s)}slot ${slotOf(s)}` : null,
+        ),
+      ),
+      "",
+      timingMarkdown(
+        "Timing per mode",
+        outcomeTable(ss, (s) =>
+          modeOf(s) === null
+            ? null
+            : `${fw(s)}${modeOf(s)} ${modeFlags(modeOf(s))}`,
+        ),
+      ),
     );
+    const t = readerTiming(ss);
+    if (t.samples)
+      L.push(
+        "",
+        `**The reader** (medians): carrier ${t.carrierHz ? (t.carrierHz / 1000).toFixed(3) + " kHz" : "not measured"}, pulse (gap) ${fmt(t.gapUs)} µs, gap to gap ${fmt(t.zeroUs)} µs for a 0 and ${fmt(t.oneUs)} µs for a 1, turnaround ${fmt(t.turnStartUs)} µs after the UID and ${fmt(t.turnPasswordUs)} µs after the password.`,
+      );
   }
   L.push("", "**What the reader did**");
   for (const s of ss) {
@@ -1131,6 +1249,19 @@ export function safeMarkdown(r) {
         `accepted after START_AUTH ${o.afterStart.n}${o.afterStart.answered ? "" : " (not answered)"}, ${o.acceptMs.toFixed(1)} ms after the field came on`,
       );
     if (o.resets) extra.push(`${o.resets} field reset(s)`);
+    if (o.fieldDrops) extra.push(`field gone during ${o.fieldDrops} answer(s)`);
+    const tm = [];
+    if (o.firstMs !== null)
+      tm.push(
+        `first command ${o.firstMs.toFixed(1)} ms after the field came on`,
+      );
+    if (o.carrierHz) tm.push(`carrier ${(o.carrierHz / 1000).toFixed(3)} kHz`);
+    if (o.level !== null) tm.push(`level ${o.level}`);
+    if (o.turnStartUs.length)
+      tm.push(`turnaround after the UID ${o.turnStartUs.join(", ")} µs`);
+    if (o.turnPasswordUs.length)
+      tm.push(`after the password ${o.turnPasswordUs.join(", ")} µs`);
+    if (tm.length) extra.push(tm.join(", "));
     L.push(`  (${extra.join("; ")})`);
   }
   return L.join("\n");
