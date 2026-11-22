@@ -103,7 +103,10 @@ def main():
         write_page_version()
     stale = []
     for directory, _, files in os.walk(ROOT):
-        if "/." in directory or "node_modules" in directory:
+        # Hidden folders and node_modules hold no pages. Test the path below ROOT, which may itself sit in a hidden
+        # folder such as a .claude/worktrees checkout.
+        parts = os.path.relpath(directory, ROOT).split(os.sep)
+        if any(p.startswith(".") and p != "." for p in parts) or "node_modules" in parts:
             continue
         if "index.html" in files:
             page = os.path.join(directory, "index.html")
