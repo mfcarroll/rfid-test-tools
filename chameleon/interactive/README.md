@@ -91,8 +91,8 @@ without reading any secret.
 
 ## Firmware
 
-The page flashes the [Hitag 2 modes](../hitag-modes/) page's build, `60fc87c9`. It reports `v2.3.0-85-g60fc87c`
-(2026-11-22 04:58 UTC).
+The page flashes the [Hitag 2 modes](../hitag-modes/) page's build, `fefc6c00`. It reports `v2.3.0-86-gfefc6c0`
+(2026-11-22 07:16 UTC).
 
 [`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes): the interactive LF
 engine (a protocol-agnostic listen-and-respond loop), the Hitag 2 password-mode module, a Hitag 2 reader, the slot
