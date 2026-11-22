@@ -1,16 +1,16 @@
 {
- "version": "v2.3.0-154-g63d5027",
- "commit": "63d50278",
- "committed": "2026-11-19T06:17:05Z",
- "published": "2026-11-19T06:19:39Z",
- "zip": "daily-63d50278-ultra-dfu-app.zip",
+ "version": "v2.3.0-163-g1da3607",
+ "commit": "1da36074",
+ "committed": "2026-11-22T01:10:51Z",
+ "published": "2026-11-22T01:38:04Z",
+ "zip": "daily-1da36074-ultra-dfu-app.zip",
  "upstream": {
   "commit": "6009a5fb",
   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/commit/6009a5fb8adbb92d3efb548eaac9e501bd179801"
  },
  "source": {
-  "commit": "8ac61dcc",
-  "url": "https://github.com/mfcarroll/ChameleonUltra/tree/8ac61dcc8f27a73f925e85fe0ec372ba39af45ba"
+  "commit": "fcadc861",
+  "url": "https://github.com/mfcarroll/ChameleonUltra/tree/fcadc861451d435d7c8137deed19b99a7325e552"
  },
  "changes": [
   {
@@ -119,6 +119,18 @@
    "title": "fix(cli): close the connection after --command so the CLI exits",
    "pr": 562,
    "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/562",
+   "state": "open"
+  },
+  {
+   "title": "fix: save a slot's LF data when another slot already holds the same data",
+   "pr": 569,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/569",
+   "state": "open"
+  },
+  {
+   "title": "fix(cli): load emv cards into the slot given with --slot",
+   "pr": 570,
+   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/pull/570",
    "state": "open"
   },
   {
