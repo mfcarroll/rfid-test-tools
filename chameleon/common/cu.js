@@ -65,6 +65,10 @@ export class FrameParser {
     }
     return out;
   }
+  // Drop the bytes of a frame that hasn't completed.
+  reset() {
+    this.buf = [];
+  }
 }
 
 // ---------------------------------------------------------------- client
@@ -104,6 +108,9 @@ export class FrameClient {
         reject,
         timer: setTimeout(() => {
           this.pending = null;
+          // If the link lost bytes of a reply, the parser holds a frame that will never complete, and it would take
+          // every later reply as more of that frame. Web Serial on macOS has lost bytes of ~4 KB replies.
+          this.parser.reset();
           reject(new Error(`no reply to ${cmd}`));
         }, timeoutS * 1000),
       };

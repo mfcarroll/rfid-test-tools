@@ -293,16 +293,30 @@ async function resetTrace() {
   if (hasTrace) await cu.cmd(P.CMD.LF_RDR_TRACE_CLEAR);
 }
 
+// The trace, capture and log read-outs page replies of up to ~4 KB, far larger than the other replies. Over USB, a
+// reply that large has lost bytes and never arrived. retried() calls send() up to three times and logs each failure
+// under what.
+async function retried(what, send) {
+  let lastErr;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await send();
+    } catch (e) {
+      lastErr = e;
+      log(`${what}: attempt ${attempt} ${e.message}`);
+    }
+  }
+  throw lastErr;
+}
+
 // LF_RDR_CAPTURE pages the samples; the offset is a big-endian u16.
 async function readCapture() {
   const samples = [];
   let total = 0;
   for (;;) {
     const off = samples.length;
-    const r = await cu.cmd(
-      P.CMD.LF_RDR_CAPTURE,
-      Uint8Array.of(off >> 8, off & 0xff),
-      6,
+    const r = await retried(`capture read from ${off}`, () =>
+      cu.cmd(P.CMD.LF_RDR_CAPTURE, Uint8Array.of(off >> 8, off & 0xff), 6),
     );
     if (r.status !== P.STATUS.SUCCESS) break;
     const part = P.parseCapture(r.data);
@@ -321,10 +335,13 @@ async function readReaderTrace() {
   const recs = [];
   let total = 0;
   for (;;) {
-    const r = await cu.cmd(
-      P.CMD.LF_RDR_TRACE_READ,
-      Uint8Array.of(recs.length >> 8, recs.length & 0xff),
-      6,
+    const first = recs.length;
+    const r = await retried(`reader trace read from ${first}`, () =>
+      cu.cmd(
+        P.CMD.LF_RDR_TRACE_READ,
+        Uint8Array.of(first >> 8, first & 0xff),
+        6,
+      ),
     );
     if (r.status !== P.STATUS.SUCCESS) break;
     const part = P.parseReaderTraceReply(r.data);
@@ -672,27 +689,17 @@ async function clearLog() {
 }
 
 // ---------------------------------------------------------------- read the trace
-// One trace-read batch is as many records as fit a single frame (~4 KB) — far larger than the other replies. Give
-// it a longer timeout and retry a couple of times, so a slow or dropped large reply does not fail the whole read.
-async function traceBatch(first) {
-  let lastErr;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      return await cu.ok(P.CMD.LF_IA_TRACE_READ, P.reqTraceRead(first), 8);
-    } catch (e) {
-      lastErr = e;
-      log(`trace read from ${first}: attempt ${attempt} ${e.message}`);
-    }
-  }
-  throw lastErr;
-}
+// One trace-read batch is as many records as fit a single frame (~4 KB), so it gets a longer timeout and retries.
 async function readTrace() {
   const recs = [];
   let total = 0,
     keep = P.TRACE_KEEP,
     boot = 0;
   for (;;) {
-    const r = await traceBatch(recs.length);
+    const first = recs.length;
+    const r = await retried(`trace read from ${first}`, () =>
+      cu.ok(P.CMD.LF_IA_TRACE_READ, P.reqTraceRead(first), 8),
+    );
     const part = P.parseTraceReply(r.data);
     if (!P.REC_SIZES.has(part.size))
       throw new Error(
@@ -715,16 +722,10 @@ async function readLog() {
   const parts = [];
   let have = 0;
   for (;;) {
-    let r, lastErr;
-    for (let attempt = 1; attempt <= 3 && !r; attempt++) {
-      try {
-        r = await cu.ok(P.CMD.LF_IA_LOG_READ, P.reqLogRead(have), 8);
-      } catch (e) {
-        lastErr = e;
-        log(`log read from ${have}: attempt ${attempt} ${e.message}`);
-      }
-    }
-    if (!r) throw lastErr;
+    const from = have;
+    const r = await retried(`log read from ${from}`, () =>
+      cu.ok(P.CMD.LF_IA_LOG_READ, P.reqLogRead(from), 8),
+    );
     const part = P.parseLogReadReply(r.data);
     if (!part.bytes.length) break;
     parts.push(part.bytes.slice());
