@@ -88,6 +88,10 @@
               2 S+E". The modes apply to all eight slots whether or not a card
               is copied into them.
             </p>
+            <p class="note warn" id="planbaseline" hidden>
+              Every slot's mode above is baseline, with no timing modes. Press
+              <b>Default setup</b> to give each slot its own mode.
+            </p>
             <div class="row gap-top">
               <button id="apply" class="primary" disabled>
                 Back up, copy and set modes
@@ -119,6 +123,11 @@
             A slot's name reflects its mode (e.g. "Hitag 2 S+E"). Unplug the CU,
             hold each slot to the reader in turn, and note which read. Changing
             a mode here takes effect at once.
+          </p>
+          <p class="note">
+            <b>A flash or a flat battery sets every slot back to baseline.</b>
+            Before you go out to a reader, connect the CU here and check that
+            each slot still has its mode.
           </p>
           <div class="row gap-top">
             <button id="again" class="primary">Set up again</button>
@@ -179,8 +188,8 @@
         </ul>
         <p class="note">
           The modes are kept in retained RAM. They survive sleep, so a test runs
-          at a reader on battery, but reset to baseline on a power-on reset or a
-          flash. Saving the slots does not save the modes.
+          at a reader on battery, but go back to baseline after a flash or if
+          the battery runs flat. Saving the slots does not save the modes.
         </p>
       </details>
 
@@ -274,12 +283,12 @@
           "../common/flash-ui.js": "../common/flash-ui.js?v=755f47e0df",
           "../common/session.js": "../common/session.js?v=25bf2680ab",
           "../common/slots.js": "../common/slots.js?v=ca14c3948d",
-          "./hitag-modes.js": "./hitag-modes.js?v=fa48d20907",
+          "./hitag-modes.js": "./hitag-modes.js?v=5ee6c9a530",
           "../../common/page.js": "../../common/page.js?v=056254b68d",
           "../../common/version.js": "../../common/version.js?v=dc0bc06847"
         }
       }
     </script>
-    <script type="module" src="main.js?v=21ab97998c"></script>
+    <script type="module" src="main.js?v=ee087e3423"></script>
   </body>
 </html>

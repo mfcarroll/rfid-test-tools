@@ -154,6 +154,17 @@ function hitagSlots() {
 const slotNow = (s) =>
   H.lfName(slots[s].lf) + (slots[s].nick ? ` — ${slots[s].nick}` : "");
 
+// The note by the buttons that says the plan gives every slot baseline.
+const showBaseline = () =>
+  ($("planbaseline").hidden = !H.isAllBaseline(planModes));
+
+// Asks before a write that would set every slot to baseline. Returns true to go ahead.
+const baselineOk = () =>
+  !H.isAllBaseline(planModes) ||
+  confirm(
+    "Set every slot to baseline, with no timing modes?\n\nTo give each slot its own mode instead, press Cancel, then Default setup.",
+  );
+
 function syncButtons() {
   const src = $("src");
   const haveSrc = !src.disabled && src.value !== "";
@@ -219,7 +230,10 @@ function render() {
     const sel = document.createElement("select");
     for (const m of H.CHOICES) sel.append(new Option(H.modeName(m), String(m)));
     sel.value = String(planModes[s]);
-    sel.onchange = () => (planModes[s] = Number(sel.value));
+    sel.onchange = () => {
+      planModes[s] = Number(sel.value);
+      showBaseline();
+    };
     const modeCell = td(sel);
     if ((modes[s] & H.MODE_BITS) !== planModes[s])
       modeCell.append(
@@ -231,6 +245,7 @@ function render() {
 
     tb.append(tr);
   }
+  showBaseline();
   syncButtons();
 }
 
@@ -315,6 +330,7 @@ $("reread").onclick = () => run("read the slots", readState);
 
 $("apply").onclick = () =>
   run("set up the test", async () => {
+    if (!baselineOk()) return;
     const from = Number($("src").value);
     const targets = [...copy].sort((a, b) => a - b);
     const replaced = targets
@@ -422,6 +438,7 @@ $("apply").onclick = () =>
 
 $("setModes").onclick = () =>
   run("set the modes", async () => {
+    if (!baselineOk()) return;
     await cu.ok(H.CMD.LF_IA_SLOT_MODES, H.reqSetModes(planModes));
     // The nicknames name the modes, so keep each slot's nickname in step (only where it holds a card).
     for (let s = 0; s < H.SLOTS; s++)
@@ -433,7 +450,9 @@ $("setModes").onclick = () =>
     await cu.ok(H.CMD.SLOT_DATA_CONFIG_SAVE);
     log(`modes set: ${planModes.map((m) => H.modeName(m)).join(", ")}`);
     await readState();
-    $("doneinfo").textContent = "Modes set. The cards were not changed.";
+    $("doneinfo").textContent = H.isAllBaseline(planModes)
+      ? "Every slot is now baseline, with no timing modes. The cards were not changed."
+      : "Modes set. The cards were not changed.";
     setState("done");
   });
 

@@ -1,5 +1,5 @@
-// node selftest.mjs: the mode names and nicknames, the command 3188 parse and request, the backup check and the
-// copy's read-back.
+// node selftest.mjs: the mode names and nicknames, the baseline check, the command 3188 parse and request, the backup
+// check and the copy's read-back.
 import * as H from "./hitag-modes.js";
 
 let failed = 0;
@@ -36,6 +36,22 @@ check(
   H.DEFAULT_MODES.join(",") === "0,1,4,5,8,9,12,13",
   "default plan gives each slot one combination",
 );
+
+// The baseline check: a plan of all zeros is caught, and a plan with one slot at any mode is not.
+check(
+  H.isAllBaseline([0, 0, 0, 0, 0, 0, 0, 0]),
+  "an all-baseline plan is caught",
+);
+check(
+  H.isAllBaseline([0, 2, 0, 0, 0, 0, 0, 0]),
+  "bit 0x02 alone counts as baseline",
+);
+check(!H.isAllBaseline(H.DEFAULT_MODES), "the default plan is not baseline");
+for (const m of H.CHOICES.filter((m) => m)) {
+  const plan = [0, 0, 0, 0, 0, 0, 0, 0];
+  plan[7] = m;
+  check(!H.isAllBaseline(plan), `one slot at ${H.modeName(m)} is not baseline`);
+}
 
 // Command 3188: parse the eight returned modes, build the eight-byte request.
 const wire = Uint8Array.of(0, 1, 2, 3, 4, 5, 6, 7, 99); // a trailing byte must be ignored

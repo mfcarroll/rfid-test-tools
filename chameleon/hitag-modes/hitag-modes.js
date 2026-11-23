@@ -73,6 +73,9 @@ export const modeName = (m) => {
   const on = FLAGS.filter(([bit]) => m & bit).map(([, name]) => name);
   return on.length ? on.join(" + ") : "baseline";
 };
+// True if a plan sets every slot to baseline. The page asks before it writes such a plan: after a flash every slot
+// reads back as baseline, and a tester who skips Default setup would otherwise write no timing modes at all.
+export const isAllBaseline = (plan) => plan.every((m) => !(m & MODE_BITS));
 // A slot nickname for a mode, e.g. "Hitag 2 S+E" or "Hitag 2 base" (the CU allows 32 bytes).
 /** @type {[number, string][]} */
 const SHORT = [
