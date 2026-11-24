@@ -60,6 +60,15 @@ main {
   margin: 0 auto;
   padding: 24px 16px 48px;
 }
+/* a page with wide tables: the tables use the extra width, the text keeps its line length */
+main.wide {
+  max-width: 1240px;
+}
+main.wide p,
+main.wide .sub,
+main.wide .callout {
+  max-width: 848px;
+}
 h1 {
   font-size: 24px;
   margin: 0 0 4px;
