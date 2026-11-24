@@ -107,6 +107,96 @@ export const EMU_ID = {
   201: [5009, 5008, 16],
   203: [5015, 5014, 6],
 };
+// The card that set slot data default (1005) writes, per FSK type (the firmware's lf_tag_em.c). A copy that lost its
+// card leaves this one in the slot.
+export const DEFAULT_CARD = {
+  200: [0x01, 0, 0, 0, 0x64, 0, 0, 0, 0x51, 0x45, 0, 0, 0],
+  201: [
+    0x01, 0xaa, 0x30, 0x39, 0, 0x78, 0x6a, 0xa0, 0x33, 0x09, 0xcf, 0xef, 0, 0,
+    0, 0,
+  ],
+  203: [0, 0, 0x40, 0, 0x7a, 0xc0],
+};
+/** @param {ArrayLike<number> | null} a @param {ArrayLike<number> | null | undefined} b */
+const sameBytes = (a, b) =>
+  !!a &&
+  !!b &&
+  a.length >= b.length &&
+  Array.from(b).every((x, i) => a[i] === x);
+
+// Which card each slot holds, compared with ref, without the card's value. cards: [{slot, type, card}], where card is
+// null for a slot with no HID Prox, ioProx or Paradox card. ref: {type, card}, the card that was copied, or null to
+// compare with the card most slots hold (the lowest slot's on a tie). held is "card", "default" (the firmware's
+// made-up card), "other", "type" (another card type) or "empty".
+/**
+ * @param {{slot: number, type: number, card: Uint8Array | null}[]} cards
+ * @param {{type: number, card: Uint8Array | null} | null} ref
+ */
+export function checkCards(cards, ref = null) {
+  if (!ref) {
+    let best = 0;
+    for (const c of cards) {
+      if (!c.card || sameBytes(c.card, DEFAULT_CARD[c.type])) continue;
+      const n = cards.filter(
+        (d) => d.type === c.type && sameBytes(d.card, c.card),
+      ).length;
+      if (n > best) [best, ref] = [n, c];
+    }
+  }
+  return cards.map((c) => ({
+    slot: c.slot,
+    held: !c.type
+      ? "empty"
+      : !c.card || (ref && c.type !== ref.type)
+        ? "type"
+        : ref && sameBytes(c.card, ref.card)
+          ? "card"
+          : sameBytes(c.card, DEFAULT_CARD[c.type])
+            ? "default"
+            : "other",
+  }));
+}
+
+// "slot 1", "slots 1 and 4", "slots 1, 2 and 4", "slots 1–7" (the entries' slots are 0-based, in order). A run of
+// three or more slots is written as a range.
+/** @param {{slot: number}[]} xs */
+function slotList(xs) {
+  const runs = [];
+  for (const x of xs) {
+    const n = x.slot + 1,
+      r = runs.at(-1);
+    if (r && n === r[1] + 1) r[1] = n;
+    else runs.push([n, n]);
+  }
+  const parts = runs.flatMap(([a, b]) =>
+    b - a >= 2 ? [`${a}–${b}`] : a === b ? [`${a}`] : [`${a}`, `${b}`],
+  );
+  const single = parts.length === 1 && !parts[0].includes("–");
+  return single
+    ? `slot ${parts[0]}`
+    : `slots ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`}`;
+}
+const sentence = (s) => s[0].toUpperCase() + s.slice(1);
+const HELD = {
+  default: ["holds", "hold", "the firmware's made-up card"],
+  other: ["holds", "hold", "a different card"],
+  type: ["holds", "hold", "another card type"],
+  empty: ["has", "have", "no card"],
+};
+// One line for checkCards' result: whether the slots are ready to test.
+/** @param {{slot: number, held: string}[]} held */
+export function checkText(held) {
+  const bad = held.filter((h) => h.held !== "card");
+  if (!bad.length)
+    return `${sentence(slotList(held))} ${["holds", "holds", "both hold"][held.length] ?? "all hold"} the same card.`;
+  const parts = [];
+  for (const [k, [one, many, what]] of Object.entries(HELD)) {
+    const xs = bad.filter((h) => h.held === k);
+    if (xs.length)
+      parts.push(`${slotList(xs)} ${xs.length === 1 ? one : many} ${what}`);
+  }
+  return `⚠ ${sentence(parts.join("; "))}. Don't test with ${bad.length === 1 ? "it" : "them"}: copy the card into the slots again first.`;
+}
 
 // Reading a card on the CU's own antenna. The scan commands only run in reader mode, and each one listens for 500 ms.
 export const CHANGE_DEVICE_MODE = 1001; // 1 reader, 0 tag

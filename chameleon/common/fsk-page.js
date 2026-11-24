@@ -290,11 +290,13 @@ export function fskPage(variant) {
           );
         }
         await V.afterCopy?.(page);
-        await cu.ok(F.CMD.SET_ACTIVE_SLOT, F.reqSlot(targets[0][0]));
+        // Read every slot back, so the page says which slots hold the card after a restart.
+        $("planinfo").textContent = "checking the slots…";
+        last = await exp(F.reqQuery());
+        const c = await checkSlots({ type, card }, targets[0][0]);
         await cu.ok(F.CMD.SLOT_DATA_CONFIG_SAVE);
         log(`saved; slot ${targets[0][0] + 1} is active`);
-        $("planinfo").textContent =
-          `Done. Slot ${targets[0][0] + 1} is active.`;
+        planInfo(`Done. Slot ${targets[0][0] + 1} is active. ${c.text}`, c.ok);
       } finally {
         card.fill(0);
         card = null;
@@ -387,8 +389,69 @@ export function fskPage(variant) {
     else log("results cleared (this firmware has no event log)");
   }
 
+  // -------------------------------------------------------------- the slot check
+
+  // A copy that sets a slot's type before making the slot active leaves the firmware's made-up card in some slots.
+  // Older versions of this page did that, and other apps may. A slot like that never opens a door. The page checks
+  // the planned slots after a copy, before a test and on request. The check reads cards but shows or saves none.
+  let lastCheck = null; // {checked, ok, text, slots: [{slot, held}]}, for the report
+
+  function planInfo(text, ok = true) {
+    $("planinfo").textContent = text;
+    $("planinfo").className = ok ? "note" : "note bad";
+  }
+
+  // Reads the card in each planned slot, compares them with ref ({type, card}, or null for the card most slots hold),
+  // then makes slot back active. A slot change saves the slot that was active and loads the next one from flash, so
+  // each slot reads back as it will after a restart.
+  async function checkSlots(ref, back) {
+    const cards = [];
+    try {
+      for (const t of [...plan.keys()].sort((a, b) => a - b)) {
+        const type = last.slots[t].lfType,
+          io = F.EMU_ID[type];
+        let card = null;
+        if (io) {
+          await cu.ok(F.CMD.SET_ACTIVE_SLOT, F.reqSlot(t));
+          card = (await cu.ok(io[0])).data.slice(0, io[2]);
+        }
+        cards.push({ slot: t, type, card });
+      }
+      await cu.ok(F.CMD.SET_ACTIVE_SLOT, F.reqSlot(back));
+      const slots = F.checkCards(cards, ref);
+      lastCheck = {
+        checked: new Date().toISOString(),
+        ok: slots.every((s) => s.held === "card"),
+        text: F.checkText(slots),
+        slots,
+      };
+    } finally {
+      for (const c of cards) c.card?.fill(0);
+    }
+    log(`slot check: ${lastCheck.text}`);
+    return lastCheck;
+  }
+
+  const checkLine = () =>
+    lastCheck
+      ? `Slot check (${lastCheck.checked.slice(0, 16).replace("T", " ")} UTC): ${lastCheck.text}`
+      : "";
+
+  $("checkSlots").onclick = () =>
+    run("check the slots", async () => {
+      last = await exp(F.reqQuery());
+      const c = await checkSlots(null, last.active);
+      $("checkinfo").textContent = checkLine();
+      $("checkinfo").className = c.ok ? "note" : "note bad";
+    });
+
   $("toTest").onclick = () =>
     run("start the test", async () => {
+      planInfo("checking the slots…");
+      last = await exp(F.reqQuery());
+      const c = await checkSlots(null, last.active);
+      planInfo(c.text, c.ok);
+      if (!c.ok && !confirm(`${c.text}\n\nStart testing anyway?`)) return;
       await clearAll();
       $("testinfo").textContent = "";
       setState("run");
@@ -418,6 +481,10 @@ export function fskPage(variant) {
     more = await readMore();
     render(last);
     await readLog();
+    $("checkinfo").textContent =
+      checkLine() ||
+      "The slots weren't checked before this test. Check them before the next one.";
+    $("checkinfo").className = lastCheck?.ok ? "note" : "note bad";
     setState("done");
   }
 
@@ -476,6 +543,7 @@ export function fskPage(variant) {
 
   const fullReport = () =>
     X.report(last, fw, more) +
+    (lastCheck ? "\n\n" + checkLine() : "") +
     (lastLog ? "\n\n" + F.logReport(lastLog, fw) : "");
 
   $("copy").onclick = async () => {
@@ -504,6 +572,7 @@ export function fskPage(variant) {
         kept,
       })),
       ...V.saveExtra?.(page),
+      slotCheck: lastCheck,
       eventLog: lastLog,
     });
   };

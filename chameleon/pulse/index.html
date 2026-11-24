@@ -105,9 +105,10 @@
               <span id="planinfo" class="note"></span>
             </div>
             <p class="note gap-top">
-              Start testing clears the CU's earlier results and event log. The
-              results then come from the next reader alone. Slots and modes stay
-              as they are.
+              Start testing first checks that the slots all hold the same card,
+              then clears the CU's earlier results and event log. The results
+              then come from the next reader alone. Slots and modes stay as they
+              are.
             </p>
           </div>
         </div>
@@ -182,10 +183,13 @@
             <button id="saveReport">Download report</button>
             <button id="nextReader">Test at another reader</button>
             <button id="newSetup">Set up a new test</button>
+            <button id="checkSlots">Check the slots' cards</button>
           </div>
+          <p id="checkinfo" class="note gap-top"></p>
           <p class="note gap-top">
             Send the report with your notes on which slots read. It holds no
-            card data.
+            card data: the slot check says only whether each slot holds the same
+            card as the others.
           </p>
         </div>
 
@@ -282,8 +286,8 @@
           <li>
             Command 3130 with <code>0xF1</code> reads the field log: one record
             per field the CU saw, the last 64, kept while the CU sleeps. Each
-            record says which slot, how long, how many frames the CU played,
-            how the field ended and a rough field level. <code>0xF0</code>
+            record says which slot, how long, how many frames the CU played, how
+            the field ended and a rough field level. <code>0xF0</code>
             clears it. Start testing clears it with the other results.
           </li>
           <li>
@@ -315,8 +319,8 @@
           "../common/ble.js": "../common/ble.js?v=af8bf6900e",
           "../common/cu.js": "../common/cu.js?v=293c914aa1",
           "../common/flash-ui.js": "../common/flash-ui.js?v=755f47e0df",
-          "../common/fsk-page.js": "../common/fsk-page.js?v=17e6f94659",
-          "../common/fsk.js": "../common/fsk.js?v=2217b4fa05",
+          "../common/fsk-page.js": "../common/fsk-page.js?v=5b5c3236d7",
+          "../common/fsk.js": "../common/fsk.js?v=0c2a324d9a",
           "../common/session.js": "../common/session.js?v=25bf2680ab",
           "../common/slots.js": "../common/slots.js?v=ca14c3948d",
           "./pulse.js": "./pulse.js?v=cb09dfaeae",
