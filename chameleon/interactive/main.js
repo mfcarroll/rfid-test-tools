@@ -593,12 +593,12 @@ $("readtag").onclick = () =>
     });
   });
 
-// Whether a field gap resets the tag (P.resetProbeVerdict). Each command tries every gap twice, about 2 s with a tag.
+// How the tag handles a field gap (P.resetProbeVerdict). Each command tries every gap twice, about 2 s with a tag.
 const RESET_TEST_CALLS = 4;
 let resetTest = null; // the last result, for download
 
 $("resettest").onclick = () =>
-  run("reset test", async () => {
+  run("field gap test", async () => {
     need();
     $("resetinfo").hidden = true;
     $("resetsave").hidden = true;
@@ -625,7 +625,7 @@ $("resettest").onclick = () =>
     });
     if (r?.status === P.STATUS.INVALID_CMD) {
       setScan(
-        "This firmware has no reset test. Flash the test firmware above.",
+        "This firmware has no field gap test. Flash the test firmware above.",
         "bad",
       );
       return;
@@ -635,7 +635,7 @@ $("resettest").onclick = () =>
       return;
     }
     const v = P.resetProbeVerdict(sum);
-    setScan("Reset test done.", v.kind === "unknown" ? "warn" : "ok");
+    setScan("Field gap test done.", v.kind === "unknown" ? "warn" : "ok");
     $("resetinfo").textContent = v.text;
     $("resetinfo").className =
       "note gap-top" + (v.kind === "unknown" ? "" : " ok");
@@ -647,16 +647,16 @@ $("resettest").onclick = () =>
       waitUs: P.RESET_PROBE_WAIT_US,
       rows: sum,
       verdict: v.kind,
-      resetFromUs: v.resetFromUs,
-      keptToUs: v.keptToUs,
+      startsOverFromUs: v.startsOverFromUs,
+      carriesOnToUs: v.carriesOnToUs,
     };
-    log(`reset test: ${P.resetProbeRowsText(sum)}; ${v.kind}`);
+    log(`field gap test: ${P.resetProbeRowsText(sum)}; ${v.kind}`);
   });
 
 $("resetdownload").onclick = () => {
   if (!resetTest) return;
   const t = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  saveJson(`cu-hitag-reset-test-${t}.json`, resetTest);
+  saveJson(`cu-hitag-field-gap-test-${t}.json`, resetTest);
 };
 
 // ---------------------------------------------------------------- write the tag to the slot

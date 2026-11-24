@@ -446,19 +446,21 @@ export function startAuthVerdict({ again, skipped, unclear }) {
   };
 }
 
-// ---------------------------------------------------------------- does a field gap reset the tag?
-// Door readers reset the tag between authentications by turning their field off for about 290 µs. A tag that loses
-// power in the gap starts idle and answers the next START_AUTH. One that keeps its state, waiting for the password,
-// ignores it, as it ignores a second START_AUTH with no gap. HITAG2_RESET_PROBE gets the UID, makes each gap, and counts
-// the START_AUTHs answered after it. Gap 0 keeps the field on, the tag's own every-second behaviour. The longest gap
-// (20 ms) resets any tag, so its answers show how many get through at this distance.
+// ---------------------------------------------------------------- the field gap test
+// Between attempts, door readers turn their field off for about 290 µs. A tag that loses power in the gap starts over,
+// as after power-up, and answers the next START_AUTH. One that carries on where it was, waiting for the password,
+// ignores it, as it ignores a second START_AUTH with no gap. HITAG2_RESET_PROBE gets the UID, makes each gap, and
+// counts the START_AUTHs answered after it. It only reads: nothing on the tag changes. Gap 0 keeps the field on, the
+// tag's own every-second behaviour. Any tag starts over after the longest gap (20 ms), so its answers show how many get
+// through at this distance.
 export const RESET_PROBE_GAPS_US = [0, 100, 200, 290, 400, 600, 1000, 20000];
 export const RESET_PROBE_WAIT_US = 371 * 8; // field on after the gap, as after a power-up
 export const RESET_PROBE_ROUNDS = 2; // tries at each gap per command
-// Shown after a read that finds an every-second tag, the only kind the reset test can answer for.
+// Shown after a read that finds an every-second tag, the only kind the field gap test can answer for.
 export const RESET_TEST_PROMPT =
-  "Next, with the tag held still on the CU, run the reset test (Test whether a field gap resets the tag). It shows " +
-  "whether the field gap door readers use resets this tag, which decides how the emulation should treat that gap.";
+  "Next, with the tag held still on the CU, run the field gap test (Test how the tag handles a field gap). It only " +
+  "reads, and nothing on the tag changes. It shows whether the tag starts over after the short field gap door " +
+  "readers use, which decides how the emulation should treat that gap.";
 
 // HITAG2_RESET_PROBE request: the wait (u16 µs), the rounds (u8), the gap count (u8), then the gaps (u16 µs each), all
 // little-endian.
@@ -496,10 +498,11 @@ export function addResetProbe(sum, rows) {
 export const resetProbeRowsText = (rows) =>
   rows.map((r) => `${r.gapUs} µs: ${r.answered}/${r.started}`).join(", ");
 
-// What the totals say. kind: "resets" (from some gap up the tag answered again), "keeps" (it ignored START_AUTH after
-// every gap short of the longest), "every" (it answers every START_AUTH, so the test can't tell), or "unknown".
-// resetFromUs is the shortest gap from which every longer one reset the tag; keptToUs the longest gap up to which it
-// kept its state. A gap is a reset if its answer rate is at least 70% of the longest gap's, kept if at most 30%.
+// What the totals say. kind: "starts-over" (from some gap up the tag answered again), "carries-on" (it ignored
+// START_AUTH after every gap short of the longest), "every" (it answers every START_AUTH, so the test can't tell), or
+// "unknown". startsOverFromUs is the shortest gap from which the tag started over after every longer one;
+// carriesOnToUs the longest gap up to which it carried on. A gap counts as starting over if its answer rate is at least
+// 70% of the longest gap's, and as carrying on if at most 30%.
 export function resetProbeVerdict(rows) {
   const rate = (r) => (r.started ? r.answered / r.started : 0);
   const ctrl = rows.find((r) => r.gapUs === 0);
@@ -508,75 +511,71 @@ export function resetProbeVerdict(rows) {
   const out = (kind, text, extra = {}) => ({
     kind,
     text,
-    resetFromUs: null,
-    keptToUs: null,
+    startsOverFromUs: null,
+    carriesOnToUs: null,
     ...extra,
   });
   if (!rows.some((r) => r.started))
     return out(
       "unknown",
-      "Reset test: no Hitag 2 tag answered. Hold a tag to the CU and run it again.",
+      "Field gap test: no Hitag 2 tag answered. Hold a tag to the CU and run it again.",
     );
   if (ctrl && ctrl.started >= 3 && rate(ctrl) >= 0.5)
     return out(
       "every",
-      `Reset test: with the field left on, the tag answered a second START_AUTH ${ctrl.answered} of ` +
+      `Field gap test: with the field left on, the tag answered a second START_AUTH ${ctrl.answered} of ` +
         `${ctrl.started} times, so it answers every one. The test needs a tag that ignores the second, so it can't ` +
-        `show whether a gap resets this one.`,
+        `show how this one handles a gap.`,
     );
   if (long.started < 3 || rate(long) < 0.5)
     return out(
       "unknown",
-      `Reset test: after the longest gap (${long.gapUs / 1000} ms), which resets any tag, it answered only ` +
-        `${long.answered} of ${long.started} times. Hold the tag still and flat on the CU, and run the test again.`,
+      `Field gap test: after the longest gap (${long.gapUs / 1000} ms), after which any tag starts over, it answered ` +
+        `only ${long.answered} of ${long.started} times. Hold the tag still and flat on the CU, and run the test again.`,
     );
   if (!ctrl || ctrl.started < 3 || rate(ctrl) > 0.2)
     return out(
       "unknown",
-      "Reset test: with the field left on, the tag's answers to a second START_AUTH were mixed " +
+      "Field gap test: with the field left on, the tag's answers to a second START_AUTH were mixed " +
         `(${ctrl ? `${ctrl.answered} of ${ctrl.started}` : "not tried"}). Run the test again.`,
     );
   const state = (r) => {
     const f = rate(r) / rate(long);
-    return r.started < 2
-      ? "?"
-      : f >= 0.7
-        ? "reset"
-        : f <= 0.3
-          ? "kept"
-          : "mixed";
+    return r.started < 2 ? "?" : f >= 0.7 ? "over" : f <= 0.3 ? "on" : "mixed";
   };
-  let resetFromUs = long.gapUs;
-  for (let i = gaps.length - 1; i >= 0 && state(gaps[i]) === "reset"; i--)
-    resetFromUs = gaps[i].gapUs;
-  let keptToUs = null;
-  for (let i = 0; i < gaps.length && state(gaps[i]) === "kept"; i++)
-    keptToUs = gaps[i].gapUs;
+  let startsOverFromUs = long.gapUs;
+  for (let i = gaps.length - 1; i >= 0 && state(gaps[i]) === "over"; i--)
+    startsOverFromUs = gaps[i].gapUs;
+  let carriesOnToUs = null;
+  for (let i = 0; i < gaps.length && state(gaps[i]) === "on"; i++)
+    carriesOnToUs = gaps[i].gapUs;
   const counts = ` (answered after each gap: ${resetProbeRowsText(rows)})`;
   const gapsNote =
-    " The gaps are as the CU makes them. Door readers in the field logs reset with gaps of about 290 µs, as a CU " +
-    "in their field measured them.";
-  if (resetFromUs === long.gapUs)
+    " The gaps are as the CU makes them. Between attempts, door readers in the field logs turn their field off for " +
+    "about 290 µs, as a CU in their field measured it.";
+  if (startsOverFromUs === long.gapUs)
     return out(
-      "keeps",
-      `Reset test: the tag ignored START_AUTH after every gap up to ${gaps.length ? gaps[gaps.length - 1].gapUs : 0} ` +
-        `µs, as with no gap: it kept its state. Only the ${long.gapUs / 1000} ms gap reset it.${counts}${gapsNote}`,
-      { keptToUs },
+      "carries-on",
+      `Field gap test: after every gap up to ${gaps.length ? gaps[gaps.length - 1].gapUs : 0} µs the tag ignored ` +
+        `START_AUTH, as with no gap: it carried on where it was in the exchange. Only after the ` +
+        `${long.gapUs / 1000} ms gap did it start over.${counts}${gapsNote}`,
+      { carriesOnToUs },
     );
   const between =
-    keptToUs !== null &&
-    gaps.some((r) => r.gapUs > keptToUs && r.gapUs < resetFromUs);
+    carriesOnToUs !== null &&
+    gaps.some((r) => r.gapUs > carriesOnToUs && r.gapUs < startsOverFromUs);
   return out(
-    "resets",
-    `Reset test: after a field gap of ${resetFromUs} µs or more the tag answered START_AUTH again, so the gap reset ` +
-      `it.` +
-      (keptToUs !== null
-        ? ` With ${keptToUs} µs or less it ignored START_AUTH, as with no gap: it kept its state.`
-        : ` Even the shortest gap reset it.`) +
+    "starts-over",
+    `Field gap test: after a field gap of ${startsOverFromUs} µs or more the tag answered START_AUTH again: it ` +
+      `started over, as after power-up.` +
+      (carriesOnToUs !== null
+        ? ` After ${carriesOnToUs} µs or less it ignored START_AUTH, as with no gap: it carried on where it was in ` +
+          `the exchange.`
+        : ` It started over even after the shortest gap.`) +
       (between ? " Between those it was mixed." : "") +
       counts +
       gapsNote,
-    { resetFromUs, keptToUs },
+    { startsOverFromUs, carriesOnToUs },
   );
 }
 

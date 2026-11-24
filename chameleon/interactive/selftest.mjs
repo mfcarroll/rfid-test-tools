@@ -1112,7 +1112,7 @@ check(
   "the safe report warns of two builds and splits the tables by build",
 );
 
-// The reset test: does a field gap reset the tag?
+// The field gap test: does the tag start over after a field gap?
 {
   const g = P.RESET_PROBE_GAPS_US;
   const req = P.reqResetProbe([0, 290, 20000], 2968, 2);
@@ -1126,7 +1126,7 @@ check(
       req[7] === 0x01 &&
       req[8] === 0x20 &&
       req[9] === 0x4e,
-    "the reset test request is the wait, rounds, count and gaps, little-endian",
+    "the field gap test request is the wait, rounds, count and gaps, little-endian",
   );
   const rows = P.parseResetProbe(
     Uint8Array.of(2, 0, 2, 1, 2, 2),
@@ -1137,7 +1137,7 @@ check(
       rows[1].gapUs === 290 &&
       rows[1].started === 2 &&
       rows[1].answered === 1,
-    "the reset test reply gives each gap's tries and answers",
+    "the field gap test reply gives each gap's tries and answers",
   );
   check(
     P.parseResetProbe(Uint8Array.of(2, 0), [0, 290]) === null,
@@ -1152,15 +1152,15 @@ check(
     g.map((gapUs, i) => ({ gapUs, started: 8, answered: a[i] }));
   const resets = P.resetProbeVerdict(mk([0, 0, 0, 0, 8, 8, 8, 8]));
   check(
-    resets.kind === "resets" &&
-      resets.resetFromUs === 400 &&
-      resets.keptToUs === 290,
-    "silent up to 290 µs and answering from 400 µs: reset from 400, kept to 290",
+    resets.kind === "starts-over" &&
+      resets.startsOverFromUs === 400 &&
+      resets.carriesOnToUs === 290,
+    "silent up to 290 µs and answering from 400 µs: starts over from 400, carries on to 290",
   );
   const keeps = P.resetProbeVerdict(mk([0, 0, 0, 0, 0, 0, 0, 8]));
   check(
-    keeps.kind === "keeps" && keeps.keptToUs === 1000,
-    "only the longest gap resets: the tag keeps its state",
+    keeps.kind === "carries-on" && keeps.carriesOnToUs === 1000,
+    "only the longest gap makes it start over: the tag carries on",
   );
   check(
     P.resetProbeVerdict(mk([8, 8, 8, 8, 8, 8, 8, 8])).kind === "every",
@@ -1176,10 +1176,10 @@ check(
   );
   const mixed = P.resetProbeVerdict(mk([0, 0, 0, 0, 4, 8, 8, 8]));
   check(
-    mixed.resetFromUs === 600 &&
-      mixed.keptToUs === 290 &&
+    mixed.startsOverFromUs === 600 &&
+      mixed.carriesOnToUs === 290 &&
       mixed.text.includes("mixed"),
-    "a half-answered gap between kept and reset is called mixed",
+    "a half-answered gap between carrying on and starting over is called mixed",
   );
   check(
     P.resetProbeVerdict(g.map((gapUs) => ({ gapUs, started: 0, answered: 0 })))
