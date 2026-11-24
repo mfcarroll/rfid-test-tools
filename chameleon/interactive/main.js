@@ -24,10 +24,10 @@ import * as P from "./interactive.js";
 cuConnectCard();
 
 const TEST_FW = {
-  zip: "firmware/lf-hitag-modes-ae58bfbb-ultra-dfu-app.zip",
-  name: "experimental ae58bfbb",
-  version: "v2.3.0-87-gae58bfb",
-  time: "2026-11-22T23:42:20Z", // the commit time, in UTC
+  zip: "firmware/lf-hitag-modes-175644c8-ultra-dfu-app.zip",
+  name: "experimental 175644c8",
+  version: "v2.3.0-89-g175644c",
+  time: "2026-11-24T03:43:55Z", // the commit time, in UTC
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",
@@ -489,7 +489,8 @@ function showStartAuth(uid, txns) {
   for (const k of Object.keys(sum)) sum[k] += now[k];
   startAuthTally.set(key, sum);
   const v = P.startAuthVerdict(sum);
-  $("sainfo").textContent = v.text;
+  $("sainfo").textContent =
+    v.text + (v.kind === "every-second" ? " " + P.RESET_TEST_PROMPT : "");
   $("sainfo").className = "note gap-top" + (v.kind === "unknown" ? "" : " ok");
   $("sainfo").hidden = false;
   if (timing) timing.startAuth = { thisRead: now, total: sum, verdict: v.kind };

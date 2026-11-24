@@ -455,6 +455,10 @@ export function startAuthVerdict({ again, skipped, unclear }) {
 export const RESET_PROBE_GAPS_US = [0, 100, 200, 290, 400, 600, 1000, 20000];
 export const RESET_PROBE_WAIT_US = 371 * 8; // field on after the gap, as after a power-up
 export const RESET_PROBE_ROUNDS = 2; // tries at each gap per command
+// Shown after a read that finds an every-second tag, the only kind the reset test can answer for.
+export const RESET_TEST_PROMPT =
+  "Next, with the tag held still on the CU, run the reset test (Test whether a field gap resets the tag). It shows " +
+  "whether the field gap door readers use resets this tag, which decides how the emulation should treat that gap.";
 
 // HITAG2_RESET_PROBE request: the wait (u16 µs), the rounds (u8), the gap count (u8), then the gaps (u16 µs each), all
 // little-endian.

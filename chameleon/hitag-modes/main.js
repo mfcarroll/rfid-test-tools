@@ -27,10 +27,10 @@ cuConnectCard({
 });
 
 const TEST_FW = {
-  zip: "firmware/lf-hitag-modes-ae58bfbb-ultra-dfu-app.zip",
-  name: "Hitag 2 modes firmware (ae58bfbb)",
-  version: "v2.3.0-87-gae58bfb",
-  time: "2026-11-22T23:42:20Z", // the commit time, in UTC
+  zip: "firmware/lf-hitag-modes-175644c8-ultra-dfu-app.zip",
+  name: "Hitag 2 modes firmware (175644c8)",
+  version: "v2.3.0-89-g175644c",
+  time: "2026-11-24T03:43:55Z", // the commit time, in UTC
 };
 TEST_FW.label = `Flash the test firmware (${buildText(TEST_FW)})`;
 const STOCK = {

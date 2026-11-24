@@ -27,6 +27,14 @@ tag's password in page 1, read all eight pages into the fields. Review them, the
 uses the firmware's Hitag 2 reader; the page puts the CU in reader mode for the read and back to tag mode after, so the
 slot keeps emulating. A page it cannot read keeps its field's value.
 
+Reading the UID also shows whether the tag answers every START_AUTH or only every second one. For a tag that answers
+every second one, the page then asks for the **reset test** (its own button): with the tag held still on the CU for
+about 8 seconds, the CU reads the UID, turns its field off for a gap from 100 µs to 20 ms, and sends START_AUTH again,
+8 times at each gap. A tag that loses power in the gap answers; one that keeps its state ignores it, as it does with no
+gap. The page says from which gap the tag reset, and up to which it kept its state. Door readers reset the tag with a
+gap of about 290 µs, so the answer decides how the emulation should treat that gap. The result downloads as JSON, and
+shows no page or UID.
+
 Pick the slot to write to (it defaults to the CU's active slot); writing makes that slot active, sets its LF side to the
 tag and saves it. Flashing keeps the slots; writing the tag overwrites the chosen slot's LF side.
 
@@ -91,8 +99,8 @@ without reading any secret.
 
 ## Firmware
 
-The page flashes the [Hitag 2 modes](../hitag-modes/) page's build, `ae58bfbb`. It reports `v2.3.0-87-gae58bfb`
-(2026-11-22 23:42 UTC).
+The page flashes the [Hitag 2 modes](../hitag-modes/) page's build, `175644c8`. It reports `v2.3.0-89-g175644c`
+(2026-11-24 03:43 UTC). Over `ae58bfbb` it adds the reset test's reader command (3195).
 
 [`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes): the interactive LF
 engine (a protocol-agnostic listen-and-respond loop), the Hitag 2 password-mode module, a Hitag 2 reader, the slot
