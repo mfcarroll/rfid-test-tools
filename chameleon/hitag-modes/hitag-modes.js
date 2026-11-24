@@ -108,9 +108,9 @@ export const DELAY_CHOICES = [
 // The delay sweep: every slot baseline, from 184 to 202 periods, so one walk past a reader finds its window. Slot 3 is
 // the firmware's own 189 and slot 6 the 196 earlier builds used.
 export const SWEEP_DELAYS = [184, 187, 189, 191, 193, 196, 199, 202];
-// The fine sweep: every slot baseline, from 190 to 197 periods one apart, to see how much margin a delay near 194 has
-// at a reader whose window the delay sweep has found.
-export const FINE_SWEEP_DELAYS = [190, 191, 192, 193, 194, 195, 196, 197];
+// The fine sweep: every slot baseline, from 187 to 194 periods one apart, to find a reader's lower edge to the period
+// once the delay sweep has placed it near 190, and to check 194 works there.
+export const FINE_SWEEP_DELAYS = [187, 188, 189, 190, 191, 192, 193, 194];
 export const delayName = (d) =>
   d
     ? `${d} periods (${d * PERIOD_US} µs)`
