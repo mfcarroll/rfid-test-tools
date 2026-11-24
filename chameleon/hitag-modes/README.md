@@ -24,7 +24,19 @@ rest-loaded, and their combinations.
   accepted rest-loaded, so it stays here for comparison. On `802a3a6d` and earlier the bit meant the opposite: it was
   rest-unloaded, with a one-bit rest.
 
-The modes are kept in retained RAM. They survive sleep, so a test runs at a reader on battery, but reset to baseline on
+## Answer delays
+
+On firmware `d50aac62` and later each slot also has an **answer delay**: how many carrier periods after the end of the
+reader's command the tag starts its answer. Readers differ here. A Paxton Net2 read from 180 to 196 periods, and
+another reader read at 196 and not at 189. The firmware's own delay is 189 periods (1512 µs at 125 kHz).
+
+**Delay sweep** copies the card into every slot with the mode at baseline and a different delay in each: 184, 187,
+189, 191, 193, 196, 199 and 202 periods (1472 to 1616 µs). Walk the slots past the reader to find which delays it
+reads. Each slot's nickname gives its delay in µs, e.g. "Hitag 2 base 1568us". A delay can also be set per slot by
+hand, alongside its mode; with scale on, the CU counts the reader's own periods. The flash log records the delay each
+answer used, and the Interactive page's report shows it per slot.
+
+The modes and delays are kept in retained RAM. They survive sleep, so a test runs at a reader on battery, but reset to baseline on
 a power-on reset or a flash. Saving the slots does not save the modes, so the page sets them again whenever it copies.
 
 This page only sets the modes; it reads no results back. To see what a reader actually sent and how the tag answered,
@@ -32,11 +44,11 @@ use the [Interactive LF emulation page](../interactive/), which records the exch
 
 ## Firmware
 
-- `firmware/lf-hitag-modes-175644c8-ultra-dfu-app.zip`: built from
-  [`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes), commit `175644c8`.
-  Reports `v2.3.0-89-g175644c` (2026-11-24 03:43 UTC). It's the interactive LF engine (a listen-and-respond Hitag 2 tag
+- `firmware/lf-hitag-modes-d50aac62-ultra-dfu-app.zip`: built from
+  [`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes), commit `d50aac62`.
+  Reports `v2.3.0-90-gd50aac6` (2026-11-24 20:01 UTC). It's the interactive LF engine (a listen-and-respond Hitag 2 tag
   in password mode) plus per-slot answer timing and the research modes. Command 3188 reads and sets the eight slot
-  modes. It logs every presentation at a reader to flash, which the interactive page reads back, and it starts
+  modes and answer delays. It logs every presentation at a reader to flash, which the interactive page reads back, and it starts
   emulating as soon as a reader's field wakes it. The same build drives the [Interactive LF emulation](../interactive/) page, including its reader answer timing.
 - `../common/firmware/stock-v2.3.0-ultra-dfu-app.zip`: the official v2.3.0 application package, unchanged, for flashing
   back. It has no Hitag 2 emulation.

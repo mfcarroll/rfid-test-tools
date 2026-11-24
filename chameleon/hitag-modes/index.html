@@ -67,7 +67,11 @@
             </div>
             <div class="row gap-top">
               <button id="planDefault">Default setup</button>
-              <span class="note">(copy into all 8 slots, one mode each)</span>
+              <button id="planSweep" hidden>Delay sweep</button>
+              <span class="note"
+                >(copy into all 8 slots: one mode each, or with Delay sweep one
+                answer delay each, every slot baseline)</span
+              >
             </div>
             <div class="tablewrap gap-top">
               <table>
@@ -77,6 +81,7 @@
                     <th>Slot</th>
                     <th>Now</th>
                     <th>Mode</th>
+                    <th class="delaycol" hidden>Answer delay</th>
                   </tr>
                 </thead>
                 <tbody id="plan"></tbody>
@@ -85,8 +90,9 @@
             <p class="note">
               Only the slots' LF side changes. An HF card in the same slot
               stays. Each slot gets an LF nickname naming its mode, e.g. "Hitag
-              2 S+E". The modes apply to all eight slots whether or not a card
-              is copied into them.
+              2 S+E", with its answer delay in µs when it isn't the firmware's
+              own, e.g. "Hitag 2 base 1568us". The modes and delays apply to all
+              eight slots whether or not a card is copied into them.
             </p>
             <p class="note warn" id="planbaseline" hidden>
               Every slot's mode above is baseline, with no timing modes. Press
@@ -114,6 +120,7 @@
                   <th>LF card</th>
                   <th>Name</th>
                   <th>Mode</th>
+                  <th class="delaycol" hidden>Answer delay</th>
                 </tr>
               </thead>
               <tbody id="slotsview"></tbody>
@@ -283,12 +290,12 @@
           "../common/flash-ui.js": "../common/flash-ui.js?v=755f47e0df",
           "../common/session.js": "../common/session.js?v=25bf2680ab",
           "../common/slots.js": "../common/slots.js?v=ca14c3948d",
-          "./hitag-modes.js": "./hitag-modes.js?v=5ee6c9a530",
+          "./hitag-modes.js": "./hitag-modes.js?v=1a3d33c04e",
           "../../common/page.js": "../../common/page.js?v=056254b68d",
           "../../common/version.js": "../../common/version.js?v=dc0bc06847"
         }
       }
     </script>
-    <script type="module" src="main.js?v=760ea57345"></script>
+    <script type="module" src="main.js?v=c8422280ad"></script>
   </body>
 </html>

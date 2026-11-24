@@ -33,6 +33,44 @@ check(
 );
 check(H.modeNick(13) === "Hitag 2 S+E+L", "all-three nickname");
 check(
+  H.modeNick(0, 196) === "Hitag 2 base 1568us",
+  "a nickname names a delay in µs",
+);
+check(
+  H.modeNick(13, 202).length <= 32,
+  "the longest nickname fits the CU's 32 bytes",
+);
+check(
+  H.isAllBaseline([0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]) &&
+    !H.isAllBaseline([0, 0, 0, 0, 0, 0, 0, 0], H.SWEEP_DELAYS),
+  "a delay sweep is not the all-baseline plan the page asks about",
+);
+{
+  const req = H.reqSetModesDelays([0, 4, 0, 0, 0, 1, 0, 0], H.SWEEP_DELAYS);
+  check(
+    req.length === 24 &&
+      req[1] === 4 &&
+      req[8] === 184 &&
+      req[9] === 0 &&
+      req[22] === 202,
+    "the modes-and-delays request is 8 modes then 8 delays, little-endian",
+  );
+  check(
+    H.parseDelays(req).join(",") === H.SWEEP_DELAYS.join(",") &&
+      H.parseModes(req).join(",") === "0,4,0,0,0,1,0,0",
+    "a 24-byte reply gives the modes and the delays",
+  );
+  check(
+    H.parseDelays(Uint8Array.of(0, 4, 0, 0, 0, 0, 0, 0)) === null,
+    "an 8-byte reply, from firmware without delays, gives no delays",
+  );
+  check(
+    H.delayName(0).includes("189") &&
+      H.delayName(196) === "196 periods (1568 µs)",
+    "delay names give periods and µs",
+  );
+}
+check(
   H.DEFAULT_MODES.join(",") === "0,1,4,5,8,9,12,13",
   "default plan gives each slot one combination",
 );

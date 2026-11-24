@@ -100,8 +100,9 @@ without reading any secret.
 
 ## Firmware
 
-The page flashes the [Hitag 2 modes](../hitag-modes/) page's build, `175644c8`. It reports `v2.3.0-89-g175644c`
-(2026-11-24 03:43 UTC). Over `ae58bfbb` it adds the field gap test's reader command (3195).
+The page flashes the [Hitag 2 modes](../hitag-modes/) page's build, `d50aac62`. It reports `v2.3.0-90-gd50aac6`
+(2026-11-24 20:01 UTC). Over `ae58bfbb` it adds the field gap test's reader command (3195) and an answer delay for each
+slot (set on the Hitag 2 modes page). The report's timing tables give the answer delay each slot used.
 
 [`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes): the interactive LF
 engine (a protocol-agnostic listen-and-respond loop), the Hitag 2 password-mode module, a Hitag 2 reader, the slot

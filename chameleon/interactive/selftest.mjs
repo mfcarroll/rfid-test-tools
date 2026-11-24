@@ -1014,6 +1014,10 @@ check(
   o3.outcome === "no command",
   "a presentation with no command still shows",
 );
+check(
+  o1.delayUs.length === 3 && o1.delayUs.every((d) => d === 1568),
+  "each answered command gives the answer delay in use",
+);
 const bySlot = P.outcomeTable(
   lss,
   (s) => `slot ${(s.off ?? s.commands[0]).timing.slot}`,
@@ -1023,6 +1027,14 @@ check(
     bySlot[1].presentations === 2 &&
     bySlot[1].counts["no command"] === 1,
   "the per-slot table counts each presentation",
+);
+const timingBySlot = P.outcomeTable(
+  lss,
+  (s) => `slot ${(s.off ?? s.commands[0]).timing.slot}`,
+);
+check(
+  timingBySlot[0].delayUs === 1568,
+  "the per-slot table gives the median answer delay",
 );
 const lr = {
   firmware: "v2.3.0-74-gc514d78",

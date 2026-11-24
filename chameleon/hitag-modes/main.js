@@ -27,10 +27,10 @@ cuConnectCard({
 });
 
 const TEST_FW = {
-  zip: "firmware/lf-hitag-modes-175644c8-ultra-dfu-app.zip",
-  name: "Hitag 2 modes firmware (175644c8)",
-  version: "v2.3.0-89-g175644c",
-  time: "2026-11-24T03:43:55Z", // the commit time, in UTC
+  zip: "firmware/lf-hitag-modes-d50aac62-ultra-dfu-app.zip",
+  name: "Hitag 2 modes firmware (d50aac62)",
+  version: "v2.3.0-90-gd50aac6",
+  time: "2026-11-24T20:01:41Z", // the commit time, in UTC
 };
 TEST_FW.label = `Flash the test firmware (${buildText(TEST_FW)})`;
 const STOCK = {
@@ -43,14 +43,17 @@ let cu = null,
   support = false, // the firmware has command 3188
   slots = null, // each slot: { lf, nick }, from GET_SLOT_INFO and GET_SLOT_TAG_NICK
   modes = null, // each slot's mode, from command 3188
+  delays = null, // each slot's answer delay from command 3188, or null on firmware without per-slot delays
   active = 0; // the active slot
 
 const copy = new Set(); // slots to copy the card into; starts empty so the current layout shows first
 const planModes = [...H.DEFAULT_MODES]; // the chosen mode per slot
+const planDelays = Array(H.SLOTS).fill(0); // the chosen answer delay per slot, 0 for the firmware's own
 
 const CONTROLS = [
   "src",
   "planDefault",
+  "planSweep",
   "apply",
   "setModes",
   "backup",
@@ -80,6 +83,7 @@ async function readState() {
       : null;
   const m = await cu.cmd(H.CMD.LF_IA_SLOT_MODES);
   modes = m.status === H.STATUS_SUCCESS ? H.parseModes(m.data) : null;
+  delays = m.status === H.STATUS_SUCCESS ? H.parseDelays(m.data) : null;
   if (!types || !modes) {
     slots = null;
     return;
@@ -94,7 +98,13 @@ async function readState() {
   }
   active = (await cu.ok(H.CMD.GET_ACTIVE_SLOT)).data[0];
   // The mode selects start from what the CU actually has, so the table reflects reality.
-  for (let s = 0; s < H.SLOTS; s++) planModes[s] = modes[s] & H.MODE_BITS;
+  for (let s = 0; s < H.SLOTS; s++) {
+    planModes[s] = modes[s] & H.MODE_BITS;
+    planDelays[s] = delays ? delays[s] : 0;
+  }
+  for (const el of document.querySelectorAll(".delaycol"))
+    /** @type {HTMLElement} */ (el).hidden = !delays;
+  $("planSweep").hidden = !delays;
   render();
   renderDone();
 }
@@ -156,11 +166,11 @@ const slotNow = (s) =>
 
 // The note by the buttons that says the plan gives every slot baseline.
 const showBaseline = () =>
-  ($("planbaseline").hidden = !H.isAllBaseline(planModes));
+  ($("planbaseline").hidden = !H.isAllBaseline(planModes, planDelays));
 
 // Asks before a write that would set every slot to baseline. Returns true to go ahead.
 const baselineOk = () =>
-  !H.isAllBaseline(planModes) ||
+  !H.isAllBaseline(planModes, planDelays) ||
   confirm(
     "Set every slot to baseline, with no timing modes?\n\nTo give each slot its own mode instead, press Cancel, then Default setup.",
   );
@@ -242,6 +252,21 @@ function render() {
           textContent: ` (now ${H.modeName(modes[s])})`,
         }),
       );
+    if (delays) {
+      const dsel = delaySelect(planDelays[s]);
+      dsel.onchange = () => {
+        planDelays[s] = Number(dsel.value);
+        showBaseline();
+      };
+      const delayCell = td(dsel);
+      if (delays[s] !== planDelays[s])
+        delayCell.append(
+          Object.assign(document.createElement("span"), {
+            className: "note dim",
+            textContent: ` (now ${H.delayName(delays[s])})`,
+          }),
+        );
+    }
 
     tb.append(tr);
   }
@@ -251,11 +276,44 @@ function render() {
 
 $("src").onchange = render;
 
+// A select of the answer delays, with value d chosen (a value not in the list is added, so the CU's own shows).
+function delaySelect(d) {
+  const sel = document.createElement("select");
+  const choices = H.DELAY_CHOICES.includes(d)
+    ? H.DELAY_CHOICES
+    : [...H.DELAY_CHOICES, d];
+  for (const c of choices) sel.append(new Option(H.delayName(c), String(c)));
+  sel.value = String(d);
+  return sel;
+}
+
+// Writes every slot's mode, and its delay when the firmware has them.
+const writeModes = (m, d) =>
+  cu.ok(
+    H.CMD.LF_IA_SLOT_MODES,
+    delays ? H.reqSetModesDelays(m, d) : H.reqSetModes(m),
+  );
+const planNick = (s) => H.modeNick(planModes[s], delays ? planDelays[s] : 0);
+const planText = (s) =>
+  `mode ${H.modeName(planModes[s])}` +
+  (delays ? `, delay ${H.delayName(planDelays[s])}` : "");
+
 $("planDefault").onclick = () => {
   copy.clear();
   for (let s = 0; s < H.SLOTS; s++) {
     copy.add(s);
     planModes[s] = H.DEFAULT_MODES[s];
+    planDelays[s] = 0;
+  }
+  render();
+};
+
+$("planSweep").onclick = () => {
+  copy.clear();
+  for (let s = 0; s < H.SLOTS; s++) {
+    copy.add(s);
+    planModes[s] = 0;
+    planDelays[s] = H.SWEEP_DELAYS[s];
   }
   render();
 };
@@ -303,17 +361,36 @@ function renderDone() {
       run("set the mode", async () => {
         const next = [...modes];
         next[s] = Number(sel.value);
+        // 8 bytes set the modes alone and keep the delays.
         await cu.ok(H.CMD.LF_IA_SLOT_MODES, H.reqSetModes(next));
         // The nickname names the mode, so rename the slot to match and save it.
         await cu.ok(
           H.CMD.SET_SLOT_TAG_NICK,
-          H.reqNick(s, H.SENSE_LF, H.modeNick(next[s])),
+          H.reqNick(s, H.SENSE_LF, H.modeNick(next[s], delays ? delays[s] : 0)),
         );
         await cu.ok(H.CMD.SLOT_DATA_CONFIG_SAVE);
         log(`slot ${s + 1}: mode ${H.modeName(next[s])}`);
         await readState();
       });
     td("").appendChild(sel);
+
+    if (delays) {
+      const dsel = delaySelect(delays[s]);
+      dsel.onchange = () =>
+        run("set the delay", async () => {
+          const next = [...delays];
+          next[s] = Number(dsel.value);
+          await writeModes(modes, next);
+          await cu.ok(
+            H.CMD.SET_SLOT_TAG_NICK,
+            H.reqNick(s, H.SENSE_LF, H.modeNick(modes[s], next[s])),
+          );
+          await cu.ok(H.CMD.SLOT_DATA_CONFIG_SAVE);
+          log(`slot ${s + 1}: delay ${H.delayName(next[s])}`);
+          await readState();
+        });
+      td("").appendChild(dsel);
+    }
 
     tb.append(tr);
   }
@@ -347,7 +424,7 @@ $("apply").onclick = () =>
           .map((t) => t + 1)
           .join(
             ", ",
-          )} and set every slot's mode? A backup of every slot downloads first.` +
+          )} and set every slot's mode${delays ? " and delay" : ""}? A backup of every slot downloads first.` +
           (replaced.length
             ? `\n\nThis replaces the LF card in ${replaced.join(", ")}.`
             : "") +
@@ -391,13 +468,13 @@ $("apply").onclick = () =>
         }
         await cu.ok(
           H.CMD.SET_SLOT_TAG_NICK,
-          H.reqNick(t, H.SENSE_LF, H.modeNick(planModes[t])),
+          H.reqNick(t, H.SENSE_LF, planNick(t)),
         );
         log(
-          `slot ${t + 1}: ${t === from ? "kept its card" : "card copied"}, mode ${H.modeName(planModes[t])}`,
+          `slot ${t + 1}: ${t === from ? "kept its card" : "card copied"}, ${planText(t)}`,
         );
       }
-      await cu.ok(H.CMD.LF_IA_SLOT_MODES, H.reqSetModes(planModes));
+      await writeModes(planModes, planDelays);
       // Read every slot back. Making a slot active saves the slot that was active and loads this one from flash,
       // so the check sees what the slot will hold after a reboot.
       $("planinfo").textContent = "checking the slots…";
@@ -439,18 +516,18 @@ $("apply").onclick = () =>
 $("setModes").onclick = () =>
   run("set the modes", async () => {
     if (!baselineOk()) return;
-    await cu.ok(H.CMD.LF_IA_SLOT_MODES, H.reqSetModes(planModes));
+    await writeModes(planModes, planDelays);
     // The nicknames name the modes, so keep each slot's nickname in step (only where it holds a card).
     for (let s = 0; s < H.SLOTS; s++)
       if (slots[s].lf)
         await cu.ok(
           H.CMD.SET_SLOT_TAG_NICK,
-          H.reqNick(s, H.SENSE_LF, H.modeNick(planModes[s])),
+          H.reqNick(s, H.SENSE_LF, planNick(s)),
         );
     await cu.ok(H.CMD.SLOT_DATA_CONFIG_SAVE);
-    log(`modes set: ${planModes.map((m) => H.modeName(m)).join(", ")}`);
+    log(`modes set: ${planModes.map((_, s) => planText(s)).join("; ")}`);
     await readState();
-    $("doneinfo").textContent = H.isAllBaseline(planModes)
+    $("doneinfo").textContent = H.isAllBaseline(planModes, planDelays)
       ? "Every slot is now baseline, with no timing modes. The cards were not changed."
       : "Modes set. The cards were not changed.";
     setState("done");
@@ -463,7 +540,9 @@ async function readBackup() {
     (s) => s.lf,
   );
   const enabled = (await cu.ok(H.CMD.GET_ENABLED_SLOTS)).data;
-  const m = H.parseModes((await cu.ok(H.CMD.LF_IA_SLOT_MODES)).data);
+  const md = (await cu.ok(H.CMD.LF_IA_SLOT_MODES)).data;
+  const m = H.parseModes(md);
+  const d = H.parseDelays(md);
   const active = (await cu.ok(H.CMD.GET_ACTIVE_SLOT)).data[0];
   const b = {
     kind: H.BACKUP_KIND,
@@ -481,6 +560,7 @@ async function readBackup() {
       lfEnabled: !!enabled[s * 2 + 1],
       hfEnabled: !!enabled[s * 2],
       mode: m[s],
+      ...(d ? { delay: d[s] } : {}),
       nick: null,
       card: null,
     };
@@ -584,9 +664,11 @@ $("restorefile").onchange = () =>
           H.reqEnable(e.slot, H.SENSE_HF, e.hfEnabled),
         );
     }
-    await cu.ok(
-      H.CMD.LF_IA_SLOT_MODES,
-      H.reqSetModes(b.slots.map((e) => e.mode ?? 0)),
+    const bm = b.slots.map((e) => e.mode ?? 0);
+    // A backup from firmware without delays restores the firmware's own delay in every slot.
+    await writeModes(
+      bm,
+      b.slots.map((e) => e.delay ?? 0),
     );
     await cu.ok(H.CMD.SET_ACTIVE_SLOT, H.reqSlot(b.active));
     await cu.ok(H.CMD.SLOT_DATA_CONFIG_SAVE);

@@ -73,9 +73,11 @@ export const modeName = (m) => {
   const on = FLAGS.filter(([bit]) => m & bit).map(([, name]) => name);
   return on.length ? on.join(" + ") : "baseline";
 };
-// True if a plan sets every slot to baseline. The page asks before it writes such a plan: after a flash every slot
-// reads back as baseline, and a tester who skips Default setup would otherwise write no timing modes at all.
-export const isAllBaseline = (plan) => plan.every((m) => !(m & MODE_BITS));
+// True if a plan sets every slot to baseline with the firmware's own delay. The page asks before it writes such a plan:
+// after a flash every slot reads back that way, and a tester who skips Default setup would otherwise write no timing
+// modes at all.
+export const isAllBaseline = (plan, delays = []) =>
+  plan.every((m) => !(m & MODE_BITS)) && delays.every((d) => !d);
 // A slot nickname for a mode, e.g. "Hitag 2 S+E" or "Hitag 2 base" (the CU allows 32 bytes).
 /** @type {[number, string][]} */
 const SHORT = [
@@ -83,10 +85,48 @@ const SHORT = [
   [ALT_PROTOCOL, "E"],
   [REST_LOADED, "L"],
 ];
-export const modeNick = (m) => {
+// With a delay other than the firmware's own, the nickname adds it in µs at 125 kHz, e.g. "Hitag 2 base 1568us".
+export const modeNick = (m, delay = 0) => {
   const on = SHORT.filter(([bit]) => m & bit).map(([, c]) => c);
-  return `Hitag 2 ${on.length ? on.join("+") : "base"}`;
+  return (
+    `Hitag 2 ${on.length ? on.join("+") : "base"}` +
+    (delay ? ` ${delay * PERIOD_US}us` : "")
+  );
 };
+
+// ---------------------------------------------------------------- answer delays
+
+// Each slot can answer after its own delay, in carrier periods from the end of the reader's stop gap (firmware with
+// per-slot delays; older firmware has none). 0 is the firmware's own delay. A period is 8 µs at 125 kHz; with scale
+// on, the CU counts the reader's measured periods instead.
+export const PERIOD_US = 8;
+export const FIRMWARE_DELAY = 189; // the test firmware's own delay (HT2_DELAY_FC)
+export const DELAY_CHOICES = [
+  0, 180, 184, 187, 189, 191, 193, 196, 199, 202, 205,
+];
+// The delay sweep: every slot baseline, from 184 to 202 periods, so one walk past a reader finds its window. Slot 3 is
+// the firmware's own 189 and slot 6 the 196 earlier builds used.
+export const SWEEP_DELAYS = [184, 187, 189, 191, 193, 196, 199, 202];
+export const delayName = (d) =>
+  d
+    ? `${d} periods (${d * PERIOD_US} µs)`
+    : `firmware's own (${FIRMWARE_DELAY}, ${FIRMWARE_DELAY * PERIOD_US} µs)`;
+// Command 3188 reply, after the modes: the 8 delays (u16, little-endian), or null from firmware without delays.
+export function parseDelays(d) {
+  if (d.length < 3 * SLOTS) return null;
+  const v = new DataView(d.buffer, d.byteOffset, d.byteLength);
+  return Array.from({ length: SLOTS }, (_, i) =>
+    v.getUint16(SLOTS + 2 * i, true),
+  );
+}
+// Command 3188 request to set every slot's mode and delay.
+export function reqSetModesDelays(modes, delays) {
+  const b = new Uint8Array(3 * SLOTS);
+  b.set(modes);
+  const v = new DataView(b.buffer);
+  delays.forEach((d, i) => v.setUint16(SLOTS + 2 * i, d, true));
+  return b;
+}
 
 // Command 3188 reply: the 8 slot modes, slot 1 first.
 export function parseModes(d) {

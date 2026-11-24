@@ -1066,6 +1066,10 @@ export function presentationOutcome(s) {
     level: cmds.length ? cmds[0].level : (off?.level ?? null),
     turnStartUs: turn.start,
     turnPasswordUs: turn.password,
+    // The answer delay in use: each answer's due time after its command's end (the slot's delay, as the CU ran it).
+    delayUs: cmds
+      .filter((c) => ans(c) && c.tDueUs)
+      .map((c) => c.tDueUs - c.tUs),
   };
 }
 
@@ -1157,6 +1161,7 @@ export function outcomeTable(ss, key) {
       level: median(g.map(({ o }) => o.level)),
       turnStartUs: median(g.flatMap(({ o }) => o.turnStartUs)),
       turnPasswordUs: median(g.flatMap(({ o }) => o.turnPasswordUs)),
+      delayUs: median(g.flatMap(({ o }) => o.delayUs)),
     });
   }
   return rows;
@@ -1185,12 +1190,12 @@ function timingMarkdown(title, rows) {
   const L = [
     `**${title}**`,
     "",
-    "| | pres | first cmd ms | accept ms | START_AUTH per pres | late | not decoded | field resets | field gone mid-answer | carrier kHz | level | turnaround after UID µs | after password µs |",
-    "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+    "| | pres | first cmd ms | accept ms | START_AUTH per pres | late | not decoded | field resets | field gone mid-answer | carrier kHz | level | answer delay µs | turnaround after UID µs | after password µs |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
   ];
   for (const r of rows)
     L.push(
-      `| ${r.key} | ${r.presentations} | ${fmt(r.medianFirstMs, 1)} | ${fmt(r.medianAcceptMs, 1)} | ${r.startsPer.toFixed(1)} | ${r.late} | ${r.failed} | ${r.resets} | ${r.fieldDrops} | ${r.carrierHz ? (r.carrierHz / 1000).toFixed(3) : "–"} | ${fmt(r.level)} | ${fmt(r.turnStartUs)} | ${fmt(r.turnPasswordUs)} |`,
+      `| ${r.key} | ${r.presentations} | ${fmt(r.medianFirstMs, 1)} | ${fmt(r.medianAcceptMs, 1)} | ${r.startsPer.toFixed(1)} | ${r.late} | ${r.failed} | ${r.resets} | ${r.fieldDrops} | ${r.carrierHz ? (r.carrierHz / 1000).toFixed(3) : "–"} | ${fmt(r.level)} | ${fmt(r.delayUs)} | ${fmt(r.turnStartUs)} | ${fmt(r.turnPasswordUs)} |`,
     );
   return L.join("\n");
 }
@@ -1455,6 +1460,8 @@ export function safeMarkdown(r) {
       );
     if (o.carrierHz) tm.push(`carrier ${(o.carrierHz / 1000).toFixed(3)} kHz`);
     if (o.level !== null) tm.push(`level ${o.level}`);
+    if (o.delayUs.length)
+      tm.push(`answer delay ${[...new Set(o.delayUs)].join(", ")} µs`);
     if (o.turnStartUs.length)
       tm.push(`turnaround after the UID ${o.turnStartUs.join(", ")} µs`);
     if (o.turnPasswordUs.length)
