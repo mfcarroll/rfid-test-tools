@@ -32,8 +32,9 @@ another reader read at 196 and not at 189. The firmware's own delay is 189 perio
 
 **Delay sweep** copies the card into every slot with the mode at baseline and a different delay in each: 184, 187,
 189, 191, 193, 196, 199 and 202 periods (1472 to 1616 µs). Walk the slots past the reader to find which delays it
-reads. Each slot's nickname gives its delay in µs, e.g. "Hitag 2 base 1568us". A delay can also be set per slot by
-hand, alongside its mode; with scale on, the CU counts the reader's own periods. The flash log records the delay each
+reads. **Fine sweep** does the same with 190 to 197 periods, one apart (1520 to 1576 µs), to show how much margin a
+delay near 194 has at a reader once Delay sweep has found its window. Each slot's nickname gives its delay in µs, e.g.
+"Hitag 2 base 1568us". A delay can also be set per slot by hand, alongside its mode, any period from 180 to 205; with scale on, the CU counts the reader's own periods. The flash log records the delay each
 answer used, and the Interactive page's report shows it per slot.
 
 The modes and delays are kept in retained RAM. They survive sleep, so a test runs at a reader on battery, but reset to baseline on

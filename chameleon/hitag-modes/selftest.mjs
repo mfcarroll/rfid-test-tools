@@ -45,6 +45,15 @@ check(
     !H.isAllBaseline([0, 0, 0, 0, 0, 0, 0, 0], H.SWEEP_DELAYS),
   "a delay sweep is not the all-baseline plan the page asks about",
 );
+check(
+  [...H.SWEEP_DELAYS, ...H.FINE_SWEEP_DELAYS].every((d) =>
+    H.DELAY_CHOICES.includes(d),
+  ) &&
+    H.FINE_SWEEP_DELAYS.length === H.SLOTS &&
+    H.FINE_SWEEP_DELAYS.every((d, i) => d === 190 + i) &&
+    !H.isAllBaseline([0, 0, 0, 0, 0, 0, 0, 0], H.FINE_SWEEP_DELAYS),
+  "both sweeps' delays are among the choices, and the fine sweep is 190 to 197, one period apart",
+);
 {
   const req = H.reqSetModesDelays([0, 4, 0, 0, 0, 1, 0, 0], H.SWEEP_DELAYS);
   check(

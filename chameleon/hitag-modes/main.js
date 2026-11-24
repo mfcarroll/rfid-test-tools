@@ -54,6 +54,7 @@ const CONTROLS = [
   "src",
   "planDefault",
   "planSweep",
+  "planFine",
   "apply",
   "setModes",
   "backup",
@@ -105,6 +106,7 @@ async function readState() {
   for (const el of document.querySelectorAll(".delaycol"))
     /** @type {HTMLElement} */ (el).hidden = !delays;
   $("planSweep").hidden = !delays;
+  $("planFine").hidden = !delays;
   render();
   renderDone();
 }
@@ -308,15 +310,18 @@ $("planDefault").onclick = () => {
   render();
 };
 
-$("planSweep").onclick = () => {
+// A sweep plan: the card into every slot, every slot baseline, and one delay each.
+const planDelaySweep = (/** @type {number[]} */ sweep) => () => {
   copy.clear();
   for (let s = 0; s < H.SLOTS; s++) {
     copy.add(s);
     planModes[s] = 0;
-    planDelays[s] = H.SWEEP_DELAYS[s];
+    planDelays[s] = sweep[s];
   }
   render();
 };
+$("planSweep").onclick = planDelaySweep(H.SWEEP_DELAYS);
+$("planFine").onclick = planDelaySweep(H.FINE_SWEEP_DELAYS);
 
 // -------------------------------------------------------------- the slots view (after setting up)
 

@@ -102,11 +102,15 @@ export const modeNick = (m, delay = 0) => {
 export const PERIOD_US = 8;
 export const FIRMWARE_DELAY = 189; // the test firmware's own delay (HT2_DELAY_FC)
 export const DELAY_CHOICES = [
-  0, 180, 184, 187, 189, 191, 193, 196, 199, 202, 205,
+  0,
+  ...Array.from({ length: 26 }, (_, i) => 180 + i), // every period from 180 to 205
 ];
 // The delay sweep: every slot baseline, from 184 to 202 periods, so one walk past a reader finds its window. Slot 3 is
 // the firmware's own 189 and slot 6 the 196 earlier builds used.
 export const SWEEP_DELAYS = [184, 187, 189, 191, 193, 196, 199, 202];
+// The fine sweep: every slot baseline, from 190 to 197 periods one apart, to see how much margin a delay near 194 has
+// at a reader whose window the delay sweep has found.
+export const FINE_SWEEP_DELAYS = [190, 191, 192, 193, 194, 195, 196, 197];
 export const delayName = (d) =>
   d
     ? `${d} periods (${d * PERIOD_US} µs)`
