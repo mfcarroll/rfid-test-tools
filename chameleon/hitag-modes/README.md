@@ -10,7 +10,8 @@ Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/hitag-modes/ (Chro
 
 Each slot has three independent mode bits, so eight combinations, one per slot. **Default setup** gives each slot one
 of them, from slot 1 (baseline) to slot 8 (all three on), so one walk past a reader compares scale, every-second and
-rest-loaded, and their combinations.
+rest-loaded, and their combinations. On firmware with answer delays (below) it sets every slot's delay to 194 periods,
+which every reader tried so far reads, instead of the firmware's own 189.
 
 - **scale**: the CU measures the reader's carrier at the start of each field and times the answer's bits and delay in
   that reader's carrier periods. Without it, a carrier period is taken as 8 µs (125 kHz), so the answer drifts against

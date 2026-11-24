@@ -305,7 +305,7 @@ $("planDefault").onclick = () => {
   for (let s = 0; s < H.SLOTS; s++) {
     copy.add(s);
     planModes[s] = H.DEFAULT_MODES[s];
-    planDelays[s] = 0;
+    planDelays[s] = delays ? H.DEFAULT_DELAY : 0;
   }
   render();
 };

@@ -54,6 +54,10 @@ check(
     !H.isAllBaseline([0, 0, 0, 0, 0, 0, 0, 0], H.FINE_SWEEP_DELAYS),
   "both sweeps' delays are among the choices, and the fine sweep is 187 to 194, one period apart",
 );
+check(
+  H.DEFAULT_DELAY === 194 && H.DELAY_CHOICES.includes(H.DEFAULT_DELAY),
+  "Default setup's delay is 194 periods, among the choices",
+);
 {
   const req = H.reqSetModesDelays([0, 4, 0, 0, 0, 1, 0, 0], H.SWEEP_DELAYS);
   check(
