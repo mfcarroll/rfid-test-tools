@@ -183,9 +183,16 @@
             <div class="row gap-top">
               <button id="scan">Read a tag's UID</button>
               <button id="readtag">Read a tag (uses page 1's password)</button>
+              <button id="resettest">
+                Test whether a field gap resets the tag
+              </button>
               <span class="note" id="scaninfo"></span>
             </div>
             <p class="note gap-top" id="sainfo" hidden></p>
+            <p class="note gap-top" id="resetinfo" hidden></p>
+            <div class="row" id="resetsave" hidden>
+              <button id="resetdownload">Download the reset test</button>
+            </div>
 
             <div id="timingbox" class="gap-top" hidden>
               <div class="title">Exchange timing</div>
@@ -343,12 +350,12 @@
           "../common/flash-ui.js": "../common/flash-ui.js?v=755f47e0df",
           "../common/session.js": "../common/session.js?v=25bf2680ab",
           "../common/slots.js": "../common/slots.js?v=ca14c3948d",
-          "./interactive.js": "./interactive.js?v=94e8b2f9e8",
+          "./interactive.js": "./interactive.js?v=5cb36bfb19",
           "../../common/page.js": "../../common/page.js?v=056254b68d",
           "../../common/version.js": "../../common/version.js?v=dc0bc06847"
         }
       }
     </script>
-    <script type="module" src="main.js?v=6a0c26b130"></script>
+    <script type="module" src="main.js?v=76c2a1d98c"></script>
   </body>
 </html>

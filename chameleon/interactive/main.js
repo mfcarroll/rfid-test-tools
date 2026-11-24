@@ -592,6 +592,72 @@ $("readtag").onclick = () =>
     });
   });
 
+// Whether a field gap resets the tag (P.resetProbeVerdict). Each command tries every gap twice, about 2 s with a tag.
+const RESET_TEST_CALLS = 4;
+let resetTest = null; // the last result, for download
+
+$("resettest").onclick = () =>
+  run("reset test", async () => {
+    need();
+    $("resetinfo").hidden = true;
+    $("resetsave").hidden = true;
+    const gaps = P.RESET_PROBE_GAPS_US;
+    const req = P.reqResetProbe(
+      gaps,
+      P.RESET_PROBE_WAIT_US,
+      P.RESET_PROBE_ROUNDS,
+    );
+    /** @type {{ gapUs: number, started: number, answered: number }[] | null} */
+    let sum = null;
+    const r = await inReaderMode(async () => {
+      for (let i = 0; i < RESET_TEST_CALLS; i++) {
+        setScan(
+          `Hold a tag still on the CU… testing field gaps, ${i + 1} of ${RESET_TEST_CALLS}`,
+        );
+        const res = await cu.cmd(P.CMD.HITAG2_RESET_PROBE, req, 30);
+        if (res.status === P.STATUS.INVALID_CMD) return res;
+        const rows = P.parseResetProbe(res.data, gaps);
+        if (rows) sum = P.addResetProbe(sum, rows);
+        if (i === 0 && res.status !== P.STATUS.LF_TAG_OK) return res;
+      }
+      return null;
+    });
+    if (r?.status === P.STATUS.INVALID_CMD) {
+      setScan(
+        "This firmware has no reset test. Flash the test firmware above.",
+        "bad",
+      );
+      return;
+    }
+    if (!sum || !sum.some((x) => x.started)) {
+      setScan("No Hitag 2 tag found.", "bad");
+      return;
+    }
+    const v = P.resetProbeVerdict(sum);
+    setScan("Reset test done.", v.kind === "unknown" ? "warn" : "ok");
+    $("resetinfo").textContent = v.text;
+    $("resetinfo").className =
+      "note gap-top" + (v.kind === "unknown" ? "" : " ok");
+    $("resetinfo").hidden = false;
+    $("resetsave").hidden = false;
+    resetTest = {
+      firmware,
+      time: new Date().toISOString(),
+      waitUs: P.RESET_PROBE_WAIT_US,
+      rows: sum,
+      verdict: v.kind,
+      resetFromUs: v.resetFromUs,
+      keptToUs: v.keptToUs,
+    };
+    log(`reset test: ${P.resetProbeRowsText(sum)}; ${v.kind}`);
+  });
+
+$("resetdownload").onclick = () => {
+  if (!resetTest) return;
+  const t = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  saveJson(`cu-hitag-reset-test-${t}.json`, resetTest);
+};
+
 // ---------------------------------------------------------------- write the tag to the slot
 // The example tag, made up, into every blank field. The fields show it as placeholders until then.
 $("example").onclick = () => {

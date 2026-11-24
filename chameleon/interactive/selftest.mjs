@@ -1112,6 +1112,82 @@ check(
   "the safe report warns of two builds and splits the tables by build",
 );
 
+// The reset test: does a field gap reset the tag?
+{
+  const g = P.RESET_PROBE_GAPS_US;
+  const req = P.reqResetProbe([0, 290, 20000], 2968, 2);
+  check(
+    req.length === 10 &&
+      req[0] === 0x98 &&
+      req[1] === 0x0b &&
+      req[2] === 2 &&
+      req[3] === 3 &&
+      req[6] === 0x22 &&
+      req[7] === 0x01 &&
+      req[8] === 0x20 &&
+      req[9] === 0x4e,
+    "the reset test request is the wait, rounds, count and gaps, little-endian",
+  );
+  const rows = P.parseResetProbe(
+    Uint8Array.of(2, 0, 2, 1, 2, 2),
+    [0, 290, 20000],
+  );
+  check(
+    rows.length === 3 &&
+      rows[1].gapUs === 290 &&
+      rows[1].started === 2 &&
+      rows[1].answered === 1,
+    "the reset test reply gives each gap's tries and answers",
+  );
+  check(
+    P.parseResetProbe(Uint8Array.of(2, 0), [0, 290]) === null,
+    "a short reply is refused",
+  );
+  const sum = P.addResetProbe(P.addResetProbe(null, rows), rows);
+  check(
+    sum[2].started === 4 && sum[2].answered === 4,
+    "replies add up per gap",
+  );
+  const mk = (a) =>
+    g.map((gapUs, i) => ({ gapUs, started: 8, answered: a[i] }));
+  const resets = P.resetProbeVerdict(mk([0, 0, 0, 0, 8, 8, 8, 8]));
+  check(
+    resets.kind === "resets" &&
+      resets.resetFromUs === 400 &&
+      resets.keptToUs === 290,
+    "silent up to 290 µs and answering from 400 µs: reset from 400, kept to 290",
+  );
+  const keeps = P.resetProbeVerdict(mk([0, 0, 0, 0, 0, 0, 0, 8]));
+  check(
+    keeps.kind === "keeps" && keeps.keptToUs === 1000,
+    "only the longest gap resets: the tag keeps its state",
+  );
+  check(
+    P.resetProbeVerdict(mk([8, 8, 8, 8, 8, 8, 8, 8])).kind === "every",
+    "a tag that answers every START_AUTH can't tell",
+  );
+  check(
+    P.resetProbeVerdict(mk([0, 0, 0, 0, 8, 8, 8, 2])).kind === "unknown",
+    "too few answers after the longest gap asks for a steadier tag",
+  );
+  check(
+    P.resetProbeVerdict(mk([3, 0, 0, 0, 8, 8, 8, 8])).kind === "unknown",
+    "mixed answers with no gap ask for another run",
+  );
+  const mixed = P.resetProbeVerdict(mk([0, 0, 0, 0, 4, 8, 8, 8]));
+  check(
+    mixed.resetFromUs === 600 &&
+      mixed.keptToUs === 290 &&
+      mixed.text.includes("mixed"),
+    "a half-answered gap between kept and reset is called mixed",
+  );
+  check(
+    P.resetProbeVerdict(g.map((gapUs) => ({ gapUs, started: 0, answered: 0 })))
+      .kind === "unknown",
+    "no tag says so",
+  );
+}
+
 // START_AUTH: every one, or every second one. sa(n, up) is a START_AUTH whose answer decoded n bits; up starts a
 // power-up.
 {
