@@ -78,7 +78,7 @@ check(
     "an 8-byte reply, from firmware without delays, gives no delays",
   );
   check(
-    H.delayName(0).includes("189") &&
+    H.delayName(0).includes("194") &&
       H.delayName(196) === "196 periods (1568 µs)",
     "delay names give periods and µs",
   );

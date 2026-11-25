@@ -24,10 +24,10 @@ import * as P from "./interactive.js";
 cuConnectCard();
 
 const TEST_FW = {
-  zip: "firmware/lf-hitag-modes-d50aac62-ultra-dfu-app.zip",
-  name: "experimental d50aac62",
-  version: "v2.3.0-90-gd50aac6",
-  time: "2026-11-24T20:01:41Z", // the commit time, in UTC
+  zip: "firmware/lf-hitag-modes-abde82d1-ultra-dfu-app.zip",
+  name: "experimental abde82d1",
+  version: "v2.3.0-91-gabde82d",
+  time: "2026-11-25T00:44:20Z", // the commit time, in UTC
 };
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",

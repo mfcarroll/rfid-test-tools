@@ -11,7 +11,7 @@ Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/hitag-modes/ (Chro
 Each slot has three independent mode bits, so eight combinations, one per slot. **Default setup** gives each slot one
 of them, from slot 1 (baseline) to slot 8 (all three on), so one walk past a reader compares scale, every-second and
 rest-loaded, and their combinations. On firmware with answer delays (below) it sets every slot's delay to 194 periods,
-which every reader tried so far reads, instead of the firmware's own 189.
+which every reader tried so far reads. That is also the firmware's own delay from `abde82d1`; earlier builds use 189.
 
 - **scale**: the CU measures the reader's carrier at the start of each field and times the answer's bits and delay in
   that reader's carrier periods. Without it, a carrier period is taken as 8 µs (125 kHz), so the answer drifts against
@@ -29,7 +29,8 @@ which every reader tried so far reads, instead of the firmware's own 189.
 
 On firmware `d50aac62` and later each slot also has an **answer delay**: how many carrier periods after the end of the
 reader's command the tag starts its answer. Readers differ here. A Paxton Net2 read from 180 to 196 periods, and
-another reader read at 196 and not at 189. The firmware's own delay is 189 periods (1512 µs at 125 kHz).
+another reader read at 196 and not at 189. The firmware's own delay is 194 periods (1552 µs at 125 kHz) from `abde82d1`, and 189 (1512 µs) before it. Two
+field readers read from 192 and 193 and not at 189.
 
 **Delay sweep** copies the card into every slot with the mode at baseline and a different delay in each: 184, 187,
 189, 191, 193, 196, 199 and 202 periods (1472 to 1616 µs). Walk the slots past the reader to find which delays it
@@ -46,9 +47,10 @@ use the [Interactive LF emulation page](../interactive/), which records the exch
 
 ## Firmware
 
-- `firmware/lf-hitag-modes-d50aac62-ultra-dfu-app.zip`: built from
-  [`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes), commit `d50aac62`.
-  Reports `v2.3.0-90-gd50aac6` (2026-11-24 20:01 UTC). It's the interactive LF engine (a listen-and-respond Hitag 2 tag
+- `firmware/lf-hitag-modes-abde82d1-ultra-dfu-app.zip`: built from
+  [`exp/lf-hitag-modes`](https://github.com/mfcarroll/ChameleonUltra/tree/exp/lf-hitag-modes), commit `abde82d1`.
+  Reports `v2.3.0-91-gabde82d` (2026-11-25 00:44 UTC). A slot left at the firmware's own delay answers at 194 periods,
+  so a CU that resets in the field, which clears the per-slot delays, still answers inside the readers' window. It's the interactive LF engine (a listen-and-respond Hitag 2 tag
   in password mode) plus per-slot answer timing and the research modes. Command 3188 reads and sets the eight slot
   modes and answer delays. It logs every presentation at a reader to flash, which the interactive page reads back, and it starts
   emulating as soon as a reader's field wakes it. The same build drives the [Interactive LF emulation](../interactive/) page, including its reader answer timing.

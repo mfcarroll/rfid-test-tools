@@ -100,19 +100,20 @@ export const modeNick = (m, delay = 0) => {
 // per-slot delays; older firmware has none). 0 is the firmware's own delay. A period is 8 µs at 125 kHz; with scale
 // on, the CU counts the reader's measured periods instead.
 export const PERIOD_US = 8;
-export const FIRMWARE_DELAY = 189; // the test firmware's own delay (HT2_DELAY_FC)
+export const FIRMWARE_DELAY = 194; // the test firmware's own delay (HT2_DELAY_FC), 189 before abde82d1
 export const DELAY_CHOICES = [
   0,
   ...Array.from({ length: 26 }, (_, i) => 180 + i), // every period from 180 to 205
 ];
 // The delay sweep: every slot baseline, from 184 to 202 periods, so one walk past a reader finds its window. Slot 3 is
-// the firmware's own 189 and slot 6 the 196 earlier builds used.
+// 189, the firmware's own before abde82d1, and slot 6 the 196 earlier builds used.
 export const SWEEP_DELAYS = [184, 187, 189, 191, 193, 196, 199, 202];
 // The fine sweep: every slot baseline, from 187 to 194 periods one apart, to find a reader's lower edge to the period
 // once the delay sweep has placed it near 190, and to check 194 works there.
 export const FINE_SWEEP_DELAYS = [187, 188, 189, 190, 191, 192, 193, 194];
 // The delay Default setup gives every slot on firmware with per-slot delays: 194 periods (1552 µs). Every reader tried
-// so far reads there (a Paxton Net2 from 180 to 196, two others from 193 up), and two of them miss the firmware's 189.
+// so far reads there (a Paxton Net2 from 180 to 196, two others from 193 up), and two of them miss 189, the firmware's
+// own before abde82d1.
 export const DEFAULT_DELAY = 194;
 export const delayName = (d) =>
   d
