@@ -81,9 +81,9 @@ export function watchDisconnect(current, gone) {
   });
 }
 
-// The link list in the Connect step: USB, or Bluetooth. It starts on the person's last choice, or on Bluetooth if the
-// browser has no USB access (a phone).
-function addLinkChoice() {
+// The link list: USB, or Bluetooth. It starts on the person's last choice, or on Bluetooth if the browser has no USB
+// access (a phone). It goes after the Connect button, or after anchor on a page that only flashes.
+export function addLinkChoice(anchor = $("connect")) {
   const select = document.createElement("select");
   select.id = "link";
   for (const [value, text] of [
@@ -105,8 +105,14 @@ function addLinkChoice() {
       localStorage.setItem(LINK_KEY, select.value);
     } catch {}
   };
-  $("connect").after(select);
+  anchor.after(select);
 }
+
+// What a page that offers USB and Bluetooth tells the person: how to get the CU ready, and which browsers each needs.
+export const CU_PREPARE =
+  "For USB, plug the CU in. For Bluetooth, press a button on the CU to wake it. Close anything else using the CU, such as the CU app or the Python CLI.";
+export const CU_NEEDS =
+  "USB needs Chrome or Edge on a computer. Bluetooth works in Chrome or Edge on a computer, and on an iPhone in the Bluefy app. Chrome on Android should work too, but hasn't been tried.";
 
 // The Connect step for a CU, in the page's <div id="connectcard">. extra and cli as connectCard() takes them. A page
 // passes ble: false if it needs USB, such as one that times the CU's replies.
@@ -126,10 +132,8 @@ export function cuConnectCard({ extra, cli, ble = true } = {}) {
   connectCard({
     device: "Chameleon Ultra",
     short: "CU",
-    prepare:
-      "For USB, plug the CU in. For Bluetooth, press a button on the CU to wake it. Close anything else using the CU, such as the CU app or the Python CLI.",
-    needs:
-      "USB needs Chrome or Edge on a computer. Bluetooth works in Chrome or Edge on a computer, and on an iPhone in the Bluefy app. Chrome on Android should work too, but hasn't been tried.",
+    prepare: CU_PREPARE,
+    needs: CU_NEEDS,
     extra,
     cli,
   });

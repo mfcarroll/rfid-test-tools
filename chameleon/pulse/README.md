@@ -3,7 +3,7 @@
 Test firmware and a page for readers that switch their field on for 50 to 80 ms at a time, over and over. The page
 copies one HID Prox, Paradox or ioProx card into slots 1–7, and each slot answers the reader a different way.
 
-Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/pulse/ (Chrome or Edge on a computer, over USB).
+Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/pulse/ (Chrome or Edge on a computer, over USB or Bluetooth, or the Bluefy app on an iPhone, over Bluetooth).
 
 ## Why
 

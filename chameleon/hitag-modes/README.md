@@ -4,7 +4,7 @@ This is test firmware whose Hitag 2 emulation can answer a reader in several way
 that copies one Hitag 2 card into every slot and gives each slot a different mode. To try it at a reader, walk the
 eight slots past the reader and compare which modes it accepts.
 
-Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/hitag-modes/ (Chrome or Edge on a computer, over USB).
+Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/hitag-modes/ (Chrome or Edge on a computer, over USB or Bluetooth, or the Bluefy app on an iPhone, over Bluetooth).
 
 ## What the modes change
 

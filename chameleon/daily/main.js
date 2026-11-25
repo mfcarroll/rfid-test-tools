@@ -2,7 +2,15 @@
 // publish step (publish-daily.py, next to build-daily.sh in rfid-research) writes firmware/daily.json and the DFU.
 
 import { bindFlashButtons, buildText } from "../common/flash-ui.js";
+import { addLinkChoice, CU_NEEDS, CU_PREPARE } from "../common/session.js";
 import { $, log, showFooter, utcTime } from "../../common/page.js";
+
+// USB or Bluetooth, with the same words as the Connect step on the other CU pages. The browser asks for the CU when
+// the flash starts.
+$("flashprep").textContent =
+  `${CU_PREPARE} The browser asks you to pick the CU when you flash.`;
+$("flashneeds").textContent = CU_NEEDS;
+addLinkChoice($("linkat"));
 
 const STOCK = {
   zip: "../common/firmware/stock-v2.3.0-ultra-dfu-app.zip",

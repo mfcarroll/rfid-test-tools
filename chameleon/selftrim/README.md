@@ -4,7 +4,7 @@ This is test firmware that lets the CU match its emulated HID Prox, Paradox and 
 a page that sets it up and shows what it learned. To try it at a reader, put the same card in several slots with and
 without self-trim, and compare them.
 
-Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/selftrim/ (Chrome or Edge on a computer, over USB).
+Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/selftrim/ (Chrome or Edge on a computer, over USB or Bluetooth, or the Bluefy app on an iPhone, over Bluetooth).
 
 ## What the modes change
 

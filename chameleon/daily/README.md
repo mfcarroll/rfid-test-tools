@@ -4,7 +4,7 @@ The firmware I run on my own Chameleon Ultras, for anyone who wants the same: up
 features, most of them in open pull requests. The page lists what the build adds, with links to the PRs, and flashes
 it. Stock v2.3.0 is under "Other firmware" to go back.
 
-Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/daily/ (Chrome or Edge on a computer, over USB).
+Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/daily/ (Chrome or Edge on a computer, over USB or Bluetooth, or the Bluefy app on an iPhone, over Bluetooth).
 
 ## How it updates
 

@@ -4,7 +4,7 @@ The page finds out what kind of card or fob someone has, with a Chameleon Ultra 
 card type the CU can read, records the raw LF signal and works out its modulation, bit rate and frame length, and
 checks for an ISO 14443-A card on HF. It gives a safe report to post and keeps the private details apart.
 
-Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/search/ (Chrome or Edge on a computer, over USB).
+Live at https://mfcarroll.github.io/rfid-test-tools/chameleon/search/ (Chrome or Edge on a computer, over USB or Bluetooth, or the Bluefy app on an iPhone, over Bluetooth).
 
 ## What it sends
 

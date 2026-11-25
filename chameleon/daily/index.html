@@ -38,12 +38,11 @@
 
       <section>
         <h2>Flash it</h2>
-        <p class="note">
-          Plug your CU in to USB, not Bluetooth, and close anything else using
-          it, such as the CU app or the Python CLI. This page needs Chrome or
-          Edge on a computer. The browser asks you to pick the CU when you
-          flash.
-        </p>
+        <p class="note" id="flashprep"></p>
+        <p class="note" id="flashneeds"></p>
+        <div class="row gap-top">
+          <label class="note">Flash the CU <span id="linkat"></span></label>
+        </div>
         <div id="flash"></div>
       </section>
 
@@ -59,11 +58,12 @@
           "../common/ble.js": "../common/ble.js?v=af8bf6900e",
           "../common/cu.js": "../common/cu.js?v=293c914aa1",
           "../common/flash-ui.js": "../common/flash-ui.js?v=755f47e0df",
+          "../common/session.js": "../common/session.js?v=e5868552bf",
           "../../common/page.js": "../../common/page.js?v=056254b68d",
           "../../common/version.js": "../../common/version.js?v=dc0bc06847"
         }
       }
     </script>
-    <script type="module" src="main.js?v=5144704480"></script>
+    <script type="module" src="main.js?v=c6e9cdc84e"></script>
   </body>
 </html>
