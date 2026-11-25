@@ -1,16 +1,16 @@
 {
- "version": "v2.3.0-177-gf28fef8",
- "commit": "f28fef80",
- "committed": "2026-11-23T01:12:53Z",
- "published": "2026-11-23T23:09:12Z",
- "zip": "daily-f28fef80-ultra-dfu-app.zip",
+ "version": "v2.3.0-181-g559d1bf",
+ "commit": "559d1bf9",
+ "committed": "2026-11-25T01:36:30Z",
+ "published": "2026-11-25T01:53:50Z",
+ "zip": "daily-559d1bf9-ultra-dfu-app.zip",
  "upstream": {
   "commit": "6009a5fb",
   "url": "https://github.com/RfidResearchGroup/ChameleonUltra/commit/6009a5fb8adbb92d3efb548eaac9e501bd179801"
  },
  "source": {
-  "commit": "1093ad5c",
-  "url": "https://github.com/mfcarroll/ChameleonUltra/tree/1093ad5cacc0410adab0984e375d1b3bb282cd64"
+  "commit": "befb146e",
+  "url": "https://github.com/mfcarroll/ChameleonUltra/tree/befb146ec50febc5317125002659e839437aca5f"
  },
  "changes": [
   {
@@ -104,7 +104,7 @@
    "state": "open"
   },
   {
-   "title": "Interactive LF emulation: Hitag 2 tags in password mode, with a timing mode for each slot, and a Hitag 2 reader",
+   "title": "Interactive LF emulation: Hitag 2 tags in password mode, answering 194 carrier periods after the reader's command, with a timing mode and answer delay for each slot, and a Hitag 2 reader",
    "pr": null,
    "url": null,
    "state": "not upstreamed yet"
