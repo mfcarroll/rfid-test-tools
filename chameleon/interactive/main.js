@@ -287,6 +287,7 @@ function clearExchange() {
   $("timingbox").hidden = true;
   $("envelopebox").hidden = true;
   $("envelopebox").textContent = "";
+  $("timingsafe").textContent = "";
 }
 
 // Clear the reader trace before a scan or read, so it holds exactly that exchange.
@@ -479,6 +480,7 @@ async function captureExchange(action, extra) {
   renderExchange(txns);
   log(P.exchangeLogText(txns));
   showStartAuth(extra?.uid, txns);
+  $("timingsafe").textContent = P.safeTimingMarkdown(timing);
 }
 
 // Whether the tag answers every START_AUTH or every second one, added up over this visit's reads of the same tag.

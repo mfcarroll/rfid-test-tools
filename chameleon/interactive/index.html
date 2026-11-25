@@ -216,14 +216,31 @@
               <p class="note">
                 The strip shows the last command's load-modulated answer: a
                 filled bar while the tag loads the field, a gap while it
-                doesn't, width by duration. The full per-command run detail goes
-                to the log, and Download keeps every command, run and level —
-                plus the last command's raw envelope — in a file, so a tag's
-                swing against the reader's own ringing can be measured from it
-                later.
+                doesn't, width by duration.
               </p>
+              <div class="title gap-top">Timing summary (safe to share)</div>
+              <p class="note">
+                When each answer started and how strong it was, with no UID,
+                password or page data. You can post this, or paste it into a
+                message.
+              </p>
+              <div class="cmdbox gap-top">
+                <pre class="cmd" id="timingsafe"></pre>
+                <button class="copy">Copy</button>
+              </div>
+              <div class="callout caution gap-top">
+                <p>
+                  <b>The download is private.</b> It keeps every command, run
+                  and level, plus the last answer's raw envelope, so a tag's
+                  swing can be measured from it later. That includes the tag's
+                  UID, the reader's password and, as timing, every page the tag
+                  sent. Send it only to someone you'd give the tag to.
+                </p>
+              </div>
               <div class="row gap-top">
-                <button id="timingdownload">Download the exchange</button>
+                <button id="timingdownload">
+                  Download the exchange (private)
+                </button>
                 <button id="showenvelope">Show the envelope</button>
               </div>
               <div id="envelopebox" class="gap-top" hidden></div>
@@ -350,12 +367,12 @@
           "../common/flash-ui.js": "../common/flash-ui.js?v=755f47e0df",
           "../common/session.js": "../common/session.js?v=25bf2680ab",
           "../common/slots.js": "../common/slots.js?v=ca14c3948d",
-          "./interactive.js": "./interactive.js?v=8329a07c1f",
+          "./interactive.js": "./interactive.js?v=e0237251a9",
           "../../common/page.js": "../../common/page.js?v=056254b68d",
           "../../common/version.js": "../../common/version.js?v=dc0bc06847"
         }
       }
     </script>
-    <script type="module" src="main.js?v=c19961bc34"></script>
+    <script type="module" src="main.js?v=3feaef770f"></script>
   </body>
 </html>

@@ -843,6 +843,68 @@ check(
   "buildExchangeRecord keeps every transaction, the last envelope and the link",
 );
 
+// The safe timing summary: no UID, no command value, no runs. A made-up exchange: START_AUTH, the password 0x4D494B52,
+// a page read and an unknown 12-bit command, each answered with 16- and 32-period runs.
+{
+  const runs = [17, 15, 33, 31, 17, 15, 16].map((fc, i) => ({
+    load: i % 2 === 0,
+    fc,
+    us: fc * 8,
+  }));
+  const tx = (nTx, v, delayUs) => ({
+    nTx,
+    tx: v,
+    cmd: P.exchangeLabel(nTx, v),
+    clean: true,
+    nBits: 37,
+    answered: true,
+    delayUs,
+    idle: 4300,
+    load: 14300,
+    threshold: 9300,
+    depth: 10000,
+    nRuns: runs.length,
+    totalUs: 1152,
+    runs,
+  });
+  const rec = P.buildExchangeRecord(
+    { firmware: "v2.3.0-90-gd50aac6", action: "read", uid: "A1B2C3D4" },
+    [
+      tx(5, 0x18, 1264),
+      tx(32, 0x4d494b52, 1296),
+      tx(10, (3 << 8) | (5 << 5) | (~5 & 7), 1288),
+      tx(12, 0xabc, 1296),
+    ],
+    { total: 3, samples: [1, 2, 3] },
+    { ...link, stopUs: 288 },
+  );
+  rec.startAuth = {
+    thisRead: { again: 0, skipped: 1, unclear: 0 },
+    total: { again: 0, skipped: 1, unclear: 0 },
+    verdict: "every-second",
+  };
+  const safe = P.safeTimingMarkdown(rec);
+  check(
+    !/a1b2c3d4|4d494b52|abc\b|0x/i.test(safe) &&
+      !/L1\d\d|·1\d\d/.test(safe) &&
+      safe.includes("12-bit command") &&
+      safe.includes("read page 5"),
+    "the safe timing summary has no UID, command value or runs",
+  );
+  check(
+    safe.includes("START_AUTH 194 (1)") &&
+      safe.includes("password 198 (1)") &&
+      safe.includes("page reads 197 (1)") &&
+      safe.includes("| 1 | password | 37 bit | 1296 | 198 |"),
+    "the safe timing summary counts periods from the stop gap: (delay + stop time) / 8",
+  );
+  check(
+    safe.includes("loaded 16.75, not loaded 15.25") &&
+      safe.includes("(every-second)"),
+    "the safe timing summary gives half-bits and the START_AUTH verdict",
+  );
+}
+
 // ---------------------------------------------------------------- the flash log
 
 // Frame a payload as a log entry: header word, payload padded to words, trailer with the CRC (lf_ia_trace.c).

@@ -638,6 +638,89 @@ export function buildExchangeRecord(
   };
 }
 
+// A command's kind without its value: the password command's bits are the reader's password, and an unknown command
+// may carry data.
+const safeLabel = (t) =>
+  t.cmd === "START_AUTH" || t.cmd === "password" || /^read page \d$/.test(t.cmd)
+    ? t.cmd
+    : t.nTx
+      ? `${t.nTx}-bit command`
+      : "last answer";
+
+// A Manchester half-bit is 16 periods, so a run is one or two of them. Returns periods per half-bit, loaded and not,
+// over the runs of clean answers. Every bit has one loaded half, so these give away no bits.
+function halfBits(txns) {
+  const L = { fc: 0, n: 0 };
+  const U = { fc: 0, n: 0 };
+  for (const t of txns) {
+    if (!t.answered || !t.clean) continue;
+    for (const r of t.runs.slice(0, -1)) {
+      const n = Math.round(r.fc / 16);
+      if (n < 1 || n > 2) continue;
+      const s = r.load ? L : U;
+      s.fc += r.fc;
+      s.n += n;
+    }
+  }
+  const avg = (s) => (s.n ? (s.fc / s.n).toFixed(2) : "–");
+  return { loaded: avg(L), unloaded: avg(U) };
+}
+
+// Safe to share: the exchange record's timing as Markdown, for a tester to paste. No UID, no command values, no answer
+// runs or envelope, so no page or password. Periods after the stop gap = (delay into the capture + the link's stop
+// time) / 8: the capture opens stopUs after the stop gap (lf_rdr_ia.h).
+export function safeTimingMarkdown(rec) {
+  const txns = rec.transactions ?? [];
+  const stopUs = rec.link?.stopUs ?? 36 * FC_US;
+  const periods = (t) => (t.delayUs + stopUs) / FC_US;
+  const kind = (t) =>
+    /^read page/.test(safeLabel(t)) ? "page reads" : safeLabel(t);
+  const L = [
+    "**Chameleon Ultra Hitag 2 tag timing** (safe to share: no UID, password or page data)",
+    "",
+    `- Firmware: ${rec.firmware}, ${rec.action === "scan" ? "UID read" : "full read"} at ${rec.read?.slice(0, 16).replace("T", " ")} UTC`,
+    `- Reader: the CU's own antenna at 125 kHz. Delays count from the capture, which opens ${stopUs} µs ` +
+      `(${stopUs / FC_US} periods) after the reader's stop gap; the periods column counts from the stop gap.`,
+  ];
+  const groups = new Map();
+  for (const t of txns)
+    if (t.answered && t.clean && t.nBits >= 32)
+      groups.set(kind(t), [...(groups.get(kind(t)) ?? []), periods(t)]);
+  if (groups.size)
+    L.push(
+      "- Tag's answer start, periods after the stop gap (clean answers): " +
+        [...groups]
+          .map(([k, v]) => {
+            const s = [...v].sort((a, b) => a - b);
+            const range =
+              s[0] === s.at(-1)
+                ? `${s[0]}`
+                : `${s[0]} to ${s.at(-1)}, median ${s[s.length >> 1]}`;
+            return `${k} ${range} (${s.length})`;
+          })
+          .join("; "),
+    );
+  const hb = halfBits(txns);
+  L.push(`- Half-bit, periods: loaded ${hb.loaded}, not loaded ${hb.unloaded}`);
+  if (rec.startAuth)
+    L.push(
+      `- START_AUTH after an answer: answered again ${rec.startAuth.total.again}, ignored ${rec.startAuth.total.skipped}, ` +
+        `unclear ${rec.startAuth.total.unclear} (${rec.startAuth.verdict})`,
+    );
+  L.push(
+    "",
+    "| # | Command | Answer | Delay (µs) | Periods after stop gap | Depth | Idle | Load | Length (µs) |",
+    "|---|---|---|---|---|---|---|---|---|",
+  );
+  txns.forEach((t, i) =>
+    L.push(
+      `| ${i} | ${safeLabel(t)} | ${t.answered ? `${t.nBits} bit${t.clean ? "" : ", not clean"}` : "none"} | ` +
+        `${t.answered ? t.delayUs : "–"} | ${t.answered ? periods(t) : "–"} | ${t.depth} | ${t.idle} | ${t.load} | ${t.totalUs} |`,
+    ),
+  );
+  return L.join("\n");
+}
+
 // ---------------------------------------------------------------- the counters (LF_IA_TUNING reply)
 
 // The reply is the 14-byte tuning struct, then seven u32 counters. The counters live with the trace, so they survive

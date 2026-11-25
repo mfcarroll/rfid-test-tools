@@ -36,6 +36,12 @@ page says from which gap the tag started over, and up to which it carried on. Be
 field off for about 290 µs, so the answer decides how the emulation should treat that gap. The result downloads as
 JSON, and shows no page or UID.
 
+Each read also shows the exchange's timing, and a **timing summary (safe to share)** to copy: for every command, when
+the tag's answer started (from the capture, and in periods from the reader's stop gap), how deep and how long it was,
+with each command named only by kind. It holds no UID, password or page data, so a tester can post it. **Download the
+exchange** is private: it keeps the UID, the reader's commands (one is the password) and every answer's runs, which
+give back the pages.
+
 Pick the slot to write to (it defaults to the CU's active slot); writing makes that slot active, sets its LF side to the
 tag and saves it. Flashing keeps the slots; writing the tag overwrites the chosen slot's LF side.
 
